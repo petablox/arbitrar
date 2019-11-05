@@ -1,6 +1,9 @@
 # Ocaml build
 _build
 
+# build target
+llanalyzer
+
 # Compiled files
 *.o
 *.bc

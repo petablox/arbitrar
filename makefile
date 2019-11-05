@@ -12,7 +12,7 @@ EXAMPLE_C_FILES = $(shell find examples/ -type f -name '*.c')
 EXAMPLE_BC_FILES = $(patsubst examples/%.c, examples/%.bc, $(EXAMPLE_C_FILES))
 
 analyzer: src/*.ml
-	$(OCAMLBUILD) $(FLAGS) llanalyzer.native
+	$(OCAMLBUILD) $(FLAGS) src/llanalyzer.native
 	$(MV) llanalyzer.native llanalyzer
 
 examples: $(EXAMPLE_BC_FILES)
