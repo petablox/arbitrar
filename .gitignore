@@ -1,2 +1,7 @@
 # Ocaml build
 _build
+
+# Compiled files
+*.o
+*.bc
+*.out
