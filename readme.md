@@ -66,3 +66,13 @@ This is the call graph appearing in the file `example_1.c`. It means,
 ## Notes
 
 - `make examples` will execute `wllvm` on every `.c` file in `exmples` folder
+
+## TODOS
+
+- [ ] Check whether OpenSSL can be compiled
+- [ ] Write crawler for getting all C/C++ related repositories
+  - [ ] URL first
+  - [ ] Repo (in long run)
+- [ ] Setting up `ocamlformat` in commit hook
+- [ ] Get the slice related to a given function call
+- [ ] Add more command line arguments
