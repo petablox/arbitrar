@@ -4,7 +4,7 @@ RM = @ rm -rf
 MV = @ mv
 
 DIRECTORIES = -Is core,ast,parser,compiler,runner,util
-LLVM_FLAGS = -package llvm -package llvm.analysis -package llvm.executionengine
+LLVM_FLAGS = -package llvm -package llvm.analysis -package llvm.bitreader -package llvm.executionengine
 MENHIR_FLAGS = -use-menhir
 FLAGS = $(MENHIR_FLAGS) $(LLVM_FLAGS) $(DIRECTORIES)
 
