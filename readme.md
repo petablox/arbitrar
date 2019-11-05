@@ -53,13 +53,15 @@ $ pip3 install wllvm
 Currently you will see it spitting out
 
 ```
-%8 = call i8* @malloc(i64 %7)
-%13 = call i32 @g(i32* %12)
-%16 = call i32 @h(i32* %15)
-%6 = call i32 @f(i32 %5)
+(f -> malloc); (f -> g); (f -> h); (main -> f);
 ```
 
-This is all of the call instructions appearing in the file `example_1.c`.
+This is the call graph appearing in the file `example_1.c`. It means,
+
+- Function `f` calls `malloc`;
+- Function `f` calls `g`;
+- Function `f` calls `h`;
+- Function `main` calls `f`;
 
 ## Notes
 

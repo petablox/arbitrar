@@ -2,9 +2,7 @@ open Printf
 open Llvm
 open Llvm_bitreader
 
-type call_edge =
-  | Call of llvalue * llvalue
-  | Ret of llvalue * llvalue
+type call_edge = llvalue * llvalue * llvalue (* Caller, Callee, Instruction *)
 
 type call_graph = call_edge list
 
@@ -14,7 +12,12 @@ let get_call_graph (llm : llmodule) : call_graph =
       fold_left_instrs (fun graph instr ->
         let opcode = instr_opcode instr in
         match opcode with
-        | Call -> let () = dump_value instr in graph
+        | Call ->
+          let callee = operand instr 1 in
+          let callee_name = value_name callee in
+          let caller_name = value_name func in
+          printf "(%s -> %s); " caller_name callee_name;
+          (func, callee, instr) :: graph
         | _ -> graph
       ) graph block
     ) graph func
