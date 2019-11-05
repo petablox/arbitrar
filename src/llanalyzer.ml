@@ -13,7 +13,7 @@ let get_call_graph (llm : llmodule) : call_graph =
         let opcode = instr_opcode instr in
         match opcode with
         | Call ->
-          let callee = operand instr 1 in
+          let callee = operand instr ((num_operands instr) - 1) in
           let callee_name = value_name callee in
           let caller_name = value_name func in
           printf "(%s -> %s); " caller_name callee_name;
