@@ -1,0 +1,9 @@
+S src/**
+B _build/**
+PKG llvm
+PKG llvm.analysis
+PKG llvm.bitreader
+PKG llvm.executionengine
+PKG ocamlgraph
+PKG ppx_compare
+PKG yojson
