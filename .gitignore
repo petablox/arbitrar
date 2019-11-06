@@ -2,7 +2,7 @@
 _build
 
 # build target
-llanalyzer
+llextractor
 
 # Compiled files
 *.o

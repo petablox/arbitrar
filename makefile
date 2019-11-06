@@ -9,9 +9,9 @@ FLAGS = $(MENHIR_FLAGS) $(LLVM_FLAGS) $(DIRECTORIES)
 EXAMPLE_C_FILES = $(shell find examples/ -type f -name '*.c')
 EXAMPLE_BC_FILES = $(patsubst examples/%.c, examples/%.bc, $(EXAMPLE_C_FILES))
 
-analyzer: src/*.ml
-	$(OCAMLBUILD) $(FLAGS) src/llanalyzer.native
-	$(MV) llanalyzer.native llanalyzer
+all:
+	$(OCAMLBUILD) $(FLAGS) src/main.native
+	$(MV) main.native llextractor
 
 examples: $(EXAMPLE_BC_FILES)
 
