@@ -27,9 +27,17 @@ let get_call_graph (llm : llmodule) : call_graph =
         graph func)
     [] llm
 
+(* let get_slices (instr : llinstr) : slice list =
+
+
+let rec loop_call_graph (cg_all cg : call_graph) (sl : slice list) : slice list =
+  match cg with
+  | (_, _, instr) :: rst -> loop_call_graph rst ((get_slices instr) ++ sl)
+  | [] -> [] *)
+
 let main input_file =
   let llctx = create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let _ = get_call_graph llm in
+  let _call_graph = get_call_graph llm in
   ()
