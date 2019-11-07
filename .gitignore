@@ -7,4 +7,12 @@ llextractor
 # Compiled files
 *.o
 *.bc
+*.ll
 *.out
+
+# Output
+*.dot
+*.json
+
+# Misc
+.*DS_Store
