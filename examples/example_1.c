@@ -1,15 +1,15 @@
-int g(int *p) {
+#include <stdlib.h>
+
+void g(int *p) {
   if (p != 0) {
     p[0] = 10;
   }
 }
 
-int h(int *p) {
-  p[1] = 20;
-}
+void h(int *p) { p[1] = 20; }
 
-int f(int size) {
-  void *p = (int *) malloc(size * sizeof(int));
+void f(int size) {
+  int *p = (int *)malloc(size * sizeof(int));
   g(p);
   h(p);
 }
