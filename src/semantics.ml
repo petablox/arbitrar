@@ -1,3 +1,5 @@
+module F = Format
+
 module Stmt = struct
   type t = Llvm.llvalue
 
@@ -165,6 +167,10 @@ module Stmt = struct
     | x ->
         let assoc = [op; loc; ("Instr", `String (Llvm.string_of_llvalue s))] in
         `Assoc assoc
+
+  let to_string s = Utils.string_of_instr s
+
+  let pp fmt s = F.fprintf fmt "%s" (Utils.string_of_instr s)
 end
 
 module Trace = struct
@@ -204,25 +210,76 @@ module Symbol = struct
     sym
 
   let to_string x = x
+
+  let pp fmt x = F.fprintf fmt "%s" x
+end
+
+module Location = struct
+  type t = Address of int | Variable of Llvm.llvalue | Unknown
+
+  let compare = compare
+
+  let variable v = Variable v
+
+  let unknown = Unknown
+
+  let count = ref (-1)
+
+  let new_address () =
+    count := !count + 1 ;
+    Address !count
+
+  let pp fmt = function
+    | Address a ->
+        F.fprintf fmt "&%d" a
+    | Variable v ->
+        let name = Llvm.value_name v in
+        if name = "" then F.fprintf fmt "%s" (Utils.string_of_lhs v)
+        else F.fprintf fmt "%s" name
+    | Unknown ->
+        F.fprintf fmt "Unknown"
 end
 
 module Value = struct
   type t =
     | Function of Llvm.llvalue
     | Symbol of Symbol.t
-    | Int of int
-    | Address of Llvm.llvalue
+    | Int of Int64.t
+    | Location of Location.t
     | Unknown
 
+  let location l = Location l
+
   let func v = Function v
+
+  let unknown = Unknown
+
+  let pp fmt = function
+    | Function l ->
+        F.fprintf fmt "Fun(%s)" (Llvm.value_name l)
+    | Symbol s ->
+        Symbol.pp fmt s
+    | Int i ->
+        F.fprintf fmt "%s" (Int64.to_string i)
+    | Location l ->
+        Location.pp fmt l
+    | Unknown ->
+        F.fprintf fmt "Unknown"
 end
 
 module Memory = struct
   include Map.Make (struct
-    type t = Llvm.llvalue
+    type t = Location.t
 
-    let compare = compare
+    let compare = Location.compare
   end)
+
+  let find k v = match find_opt k v with Some w -> w | None -> Value.unknown
+
+  let pp fmt m =
+    F.fprintf fmt "===== Memory =====\n" ;
+    iter (fun k v -> F.fprintf fmt "%a -> %a\n" Location.pp k Value.pp v) m ;
+    F.fprintf fmt "==================\n"
 end
 
 module InstrSet = Set.Make (struct
@@ -231,18 +288,81 @@ module InstrSet = Set.Make (struct
   let compare = compare
 end)
 
+module ReachingDef = struct
+  include Map.Make (struct
+    type t = Location.t
+
+    let compare = Location.compare
+  end)
+
+  let add k v m = match k with Location.Unknown -> m | _ -> add k v m
+
+  let pp fmt m =
+    F.fprintf fmt "===== ReachingDef =====\n" ;
+    iter (fun k v -> F.fprintf fmt "%a -> %a\n" Location.pp k Stmt.pp v) m ;
+    F.fprintf fmt "=======================\n"
+end
+
+module Node = struct
+  type t = {instr: Stmt.t; id: int}
+
+  let compare = compare
+
+  let hash = Hashtbl.hash
+
+  let equal = ( = )
+
+  let make instr id = {instr; id}
+
+  let to_string v = string_of_int v.id
+
+  let label v = Stmt.to_string v.instr
+end
+
+module DUGraph = struct
+  include Graph.Persistent.Digraph.ConcreteBidirectional (Node)
+
+  let graph_attributes g = []
+
+  let edge_attributes e = []
+
+  let default_edge_attributes g = []
+
+  let get_subgraph v = None
+
+  let vertex_name v = "\"" ^ Node.to_string v ^ "\""
+
+  let vertex_attributes v = [`Label (Node.label v)]
+
+  let default_vertex_attributes v = []
+end
+
+module InstrIdMap = struct
+  type t = (Stmt.t, int) Hashtbl.t
+
+  let create () = Hashtbl.create 65535
+
+  let add = Hashtbl.add
+end
+
 module State = struct
   type t =
     { stack: Stack.t
     ; memory: Value.t Memory.t
     ; trace: Trace.t
-    ; visited: InstrSet.t }
+    ; visited: InstrSet.t
+    ; reachingdef: Llvm.llvalue ReachingDef.t
+    ; dugraph: DUGraph.t
+    ; instr_id_map: InstrIdMap.t }
 
   let empty =
     { stack= Stack.empty
     ; memory= Memory.empty
     ; trace= Trace.empty
-    ; visited= InstrSet.empty }
+    ; visited= InstrSet.empty
+    ; reachingdef= ReachingDef.empty
+    ; dugraph= DUGraph.empty
+    ; instr_id_map= InstrIdMap.create () }
 
   let push_stack x s = {s with stack= Stack.push x s.stack}
 
@@ -258,4 +378,43 @@ module State = struct
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
   let visit instr s = {s with visited= InstrSet.add instr s.visited}
+
+  let add_reaching_def loc instr s =
+    {s with reachingdef= ReachingDef.add loc instr s.reachingdef}
+
+  let add_memory_def x v instr s =
+    { s with
+      memory= Memory.add x v s.memory
+    ; reachingdef= ReachingDef.add x instr s.reachingdef }
+
+  let add_du_edge src dst s =
+    let src = Node.make src (Hashtbl.find s.instr_id_map src) in
+    let dst = Node.make dst (Hashtbl.find s.instr_id_map dst) in
+    {s with dugraph= DUGraph.add_edge s.dugraph src dst}
+
+  let add_semantic_du_edges lv_list instr s =
+    let dugraph =
+      List.fold_left
+        (fun dugraph lv ->
+          match ReachingDef.find lv s.reachingdef with
+          | v ->
+              let src = Node.make v (Hashtbl.find s.instr_id_map v) in
+              let dst = Node.make instr (Hashtbl.find s.instr_id_map instr) in
+              DUGraph.add_edge dugraph src dst
+          | exception Not_found ->
+              dugraph)
+        s.dugraph lv_list
+    in
+    {s with dugraph}
+
+  let instr_count = ref (-1)
+
+  let new_instr_count () =
+    instr_count := !instr_count + 1 ;
+    !instr_count
+
+  let add_instr_id instr s =
+    let new_id = new_instr_count () in
+    InstrIdMap.add s.instr_id_map instr new_id ;
+    s
 end
