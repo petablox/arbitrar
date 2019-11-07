@@ -3,7 +3,7 @@ WLLVM = @ wllvm
 RM = @ rm -rf
 MV = @ mv
 
-LLVM_FLAGS = -package llvm -package llvm.analysis -package llvm.bitreader -package llvm.executionengine
+LLVM_FLAGS = -package llvm -package llvm.analysis -package llvm.bitreader -package llvm.executionengine -package yojson -package str -package ocamlgraph
 FLAGS = $(MENHIR_FLAGS) $(LLVM_FLAGS) $(DIRECTORIES)
 
 EXAMPLE_C_FILES = $(shell find examples/ -type f -name '*.c')
