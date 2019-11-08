@@ -304,7 +304,7 @@ module ReachingDef = struct
 end
 
 module Node = struct
-  type t = {instr: Stmt.t; id: int}
+  type t = {instr: Stmt.t; id: int; is_target: bool}
 
   let compare = compare
 
@@ -312,7 +312,7 @@ module Node = struct
 
   let equal = ( = )
 
-  let make instr id = {instr; id}
+  let make instr id is_target = {instr; id; is_target}
 
   let to_string v = string_of_int v.id
 
@@ -332,17 +332,26 @@ module DUGraph = struct
 
   let vertex_name v = "\"" ^ Node.to_string v ^ "\""
 
-  let vertex_attributes v = [`Label (Node.label v)]
+  let vertex_attributes v =
+    if v.Node.is_target then
+      [ `Label (Node.label v)
+      ; `Color 0x0000FF
+      ; `Style `Bold
+      ; `Style `Filled
+      ; `Fontcolor max_int ]
+    else [`Label (Node.label v)]
 
   let default_vertex_attributes v = []
 end
 
-module InstrIdMap = struct
-  type t = (Stmt.t, int) Hashtbl.t
+module NodeMap = struct
+  type t = (Llvm.llvalue, Node.t) Hashtbl.t
 
   let create () = Hashtbl.create 65535
 
   let add = Hashtbl.add
+
+  let find instr m = Hashtbl.find m instr
 end
 
 module State = struct
@@ -353,7 +362,8 @@ module State = struct
     ; visited: InstrSet.t
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
-    ; instr_id_map: InstrIdMap.t }
+    ; nodemap: NodeMap.t
+    ; target: Llvm.llvalue option }
 
   let empty =
     { stack= Stack.empty
@@ -362,7 +372,8 @@ module State = struct
     ; visited= InstrSet.empty
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
-    ; instr_id_map= InstrIdMap.create () }
+    ; nodemap= NodeMap.create ()
+    ; target= None }
 
   let push_stack x s = {s with stack= Stack.push x s.stack}
 
@@ -387,9 +398,12 @@ module State = struct
       memory= Memory.add x v s.memory
     ; reachingdef= ReachingDef.add x instr s.reachingdef }
 
+  let is_target node s =
+    match s.target with Some t -> t = node | None -> false
+
   let add_du_edge src dst s =
-    let src = Node.make src (Hashtbl.find s.instr_id_map src) in
-    let dst = Node.make dst (Hashtbl.find s.instr_id_map dst) in
+    let src = NodeMap.find src s.nodemap in
+    let dst = NodeMap.find dst s.nodemap in
     {s with dugraph= DUGraph.add_edge s.dugraph src dst}
 
   let add_semantic_du_edges lv_list instr s =
@@ -398,8 +412,8 @@ module State = struct
         (fun dugraph lv ->
           match ReachingDef.find lv s.reachingdef with
           | v ->
-              let src = Node.make v (Hashtbl.find s.instr_id_map v) in
-              let dst = Node.make instr (Hashtbl.find s.instr_id_map instr) in
+              let src = NodeMap.find v s.nodemap in
+              let dst = NodeMap.find instr s.nodemap in
               DUGraph.add_edge dugraph src dst
           | exception Not_found ->
               dugraph)
@@ -413,8 +427,9 @@ module State = struct
     instr_count := !instr_count + 1 ;
     !instr_count
 
-  let add_instr_id instr s =
+  let add_node instr is_target s =
     let new_id = new_instr_count () in
-    InstrIdMap.add s.instr_id_map instr new_id ;
+    let node = Node.make instr new_id is_target in
+    NodeMap.add s.nodemap instr node ;
     s
 end

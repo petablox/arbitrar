@@ -51,7 +51,15 @@ let initialize llm state =
         Llvm.fold_left_blocks
           (fun state blk ->
             Llvm.fold_left_instrs
-              (fun state instr -> State.add_instr_id instr state)
+              (fun state instr ->
+                let is_target =
+                  match state.State.target with
+                  | Some s ->
+                      s = instr
+                  | None ->
+                      false
+                in
+                State.add_node instr is_target state)
               state blk)
           state func)
     state llm
@@ -66,19 +74,21 @@ let eval exp memory =
   | Llvm.ValueKind.ConstantInt -> (
     match Llvm.int64_of_const exp with
     | Some i ->
-        Value.Int i
+        (Value.Int i, [])
     | None ->
-        Value.Unknown )
-  | Instruction _ ->
+        (Value.Unknown, []) )
+  | Instruction _ | Argument ->
       let lv = Location.variable exp in
-      Memory.find lv memory
+      (Memory.find lv memory, [lv])
   | _ ->
-      Value.Unknown
+      (Value.Unknown, [])
 
 let eval_lv exp memory =
   let kind = Llvm.classify_value exp in
   match kind with
   | Llvm.ValueKind.Instruction _ ->
+      Location.variable exp
+  | Argument ->
       Location.variable exp
   | _ ->
       failwith "unknown"
@@ -98,6 +108,9 @@ and execute_instr llctx instr env state =
         Environment.add_trace state.State.trace env
         |> Environment.add_dugraph state.State.dugraph
       in
+      if !Options.debug then (
+        Memory.pp F.err_formatter state.State.memory ;
+        ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
       if Worklist.is_empty env.worklist then env
       else
         let (blk, state), wl = Worklist.pop env.worklist in
@@ -134,22 +147,8 @@ and transfer llctx instr env state =
   | Switch ->
       let state = State.add_trace instr state in
       execute_instr llctx (Llvm.instr_succ instr) env state
-  | Call -> (
-      let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
-      let var = Location.variable callee_expr in
-      match Memory.find var state.State.memory with
-      | Value.Function f when not (Llvm.is_declaration f) ->
-          let state = State.add_trace instr state in
-          let state = State.push_stack instr state in
-          execute_function llctx f env state
-      | Value.Function f when skip_function f ->
-          execute_instr llctx (Llvm.instr_succ instr) env state
-      | _ ->
-          let state = State.add_trace instr state in
-          execute_instr llctx (Llvm.instr_succ instr) env state
-      | exception Not_found ->
-          Llvm.dump_value callee_expr ;
-          failwith "not found" )
+  | Call ->
+      transfer_call llctx instr env state
   | Alloca ->
       let var = Location.variable instr in
       let addr = Location.new_address () |> Value.location in
@@ -159,11 +158,12 @@ and transfer llctx instr env state =
   | Store ->
       let exp0 = Llvm.operand instr 0 in
       let exp1 = Llvm.operand instr 1 in
-      let v0 = eval exp0 state.State.memory in
-      let v1 = eval exp1 state.State.memory in
+      let v0, uses0 = eval exp0 state.State.memory in
+      let v1, uses1 = eval exp1 state.State.memory in
       let lv = match v1 with Value.Location l -> l | _ -> Location.Unknown in
       State.add_trace instr state
       |> State.add_memory_def lv v0 instr
+      |> State.add_semantic_du_edges (uses0 @ uses1) instr
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | Load ->
       let exp0 = Llvm.operand instr 0 in
@@ -182,6 +182,33 @@ and transfer llctx instr env state =
       let state = State.add_trace instr state in
       execute_instr llctx (Llvm.instr_succ instr) env state
 
+and transfer_call llctx instr env state =
+  let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
+  let var = Location.variable callee_expr in
+  match Memory.find var state.State.memory with
+  | Value.Function f when not (Llvm.is_declaration f) ->
+      let state, _ =
+        Llvm.fold_left_params
+          (fun (state, count) param ->
+            let arg = Llvm.operand instr count in
+            let v, uses = eval arg state.State.memory in
+            let lv = eval_lv param state.State.memory in
+            let state = State.add_memory_def lv v instr state in
+            (state, count + 1))
+          (state, 0) f
+      in
+      let state = State.add_trace instr state in
+      let state = State.push_stack instr state in
+      execute_function llctx f env state
+  | Value.Function f when skip_function f ->
+      execute_instr llctx (Llvm.instr_succ instr) env state
+  | _ ->
+      let state = State.add_trace instr state in
+      execute_instr llctx (Llvm.instr_succ instr) env state
+  | exception Not_found ->
+      Llvm.dump_value callee_expr ;
+      failwith "not found"
+
 let find_starting_point initial =
   let starting =
     Memory.find_first_opt
@@ -195,6 +222,22 @@ let find_starting_point initial =
   | _ ->
       failwith "starting point not found"
 
+let find_target_instr llm =
+  let instrs =
+    Utils.fold_left_all_instr
+      (fun instrs instr ->
+        let opcode = Llvm.instr_opcode instr in
+        match opcode with
+        | Llvm.Opcode.Call ->
+            let callee = Llvm.operand instr (Llvm.num_operands instr - 1) in
+            if Llvm.value_name callee = "malloc" then instr :: instrs
+            else instrs
+        | _ ->
+            instrs)
+      [] llm
+  in
+  match instrs with h :: t -> Some h | [] -> None
+
 let print_report env =
   Printf.printf "# Traces: %d\n" (Traces.length env.Environment.traces)
 
@@ -204,21 +247,40 @@ let dump_traces llctx env =
   Yojson.Safe.pretty_to_channel oc json
 
 module GraphViz = Graph.Graphviz.Dot (DUGraph)
+module Path = Graph.Path.Check (DUGraph)
 
-let dump_dugraph env =
+let slice target g =
+  let checker = Path.create g in
+  DUGraph.fold_vertex
+    (fun v g ->
+      if Path.check_path checker v target || Path.check_path checker target v
+      then g
+      else DUGraph.remove_vertex g v)
+    g g
+
+let dump_dugraph dugraphs =
   List.iteri
     (fun idx g ->
       let oc = open_out ("dugraph" ^ string_of_int idx ^ ".dot") in
       GraphViz.output_graph oc g)
-    env.Environment.dugraphs
+    dugraphs
 
 let main input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let initial_state = initialize llm State.empty in
+  let target = find_target_instr llm in
+  let initial_state = initialize llm {State.empty with target} in
   let main_function = find_starting_point initial_state in
   let env =
     execute_function llctx main_function Environment.empty initial_state
   in
-  print_report env ; dump_traces llctx env ; dump_dugraph env
+  let dugraphs =
+    match target with
+    | Some instr ->
+        let target_node = NodeMap.find instr initial_state.State.nodemap in
+        List.map (slice target_node) env.dugraphs
+    | None ->
+        env.dugraphs
+  in
+  print_report env ; dump_traces llctx env ; dump_dugraph dugraphs
