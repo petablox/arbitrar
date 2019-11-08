@@ -1,7 +1,7 @@
 module F = Format
 
 module Stmt = struct
-  type t = Llvm.llvalue
+  type t = {instr: Llvm.llvalue; location: string}
 
   let compare = compare
 
@@ -158,17 +158,23 @@ module Stmt = struct
     | None ->
         func ^ ":0:0"
 
+  let make llctx instr =
+    let dbg = Llvm.metadata instr (Llvm.mdkind_id llctx "dbg") in
+    let location = string_of_location dbg instr in
+    {instr; location}
+
   let to_json llctx s =
-    let opcode = Llvm.instr_opcode s in
-    let dbg = Llvm.metadata s (Llvm.mdkind_id llctx "dbg") in
+    let opcode = Llvm.instr_opcode s.instr in
     let op = ("Opcode", `String (string_of_opcode opcode)) in
-    let loc = ("Location", `String (string_of_location dbg s)) in
+    let loc = ("Location", `String s.location) in
     match opcode with
     | x ->
-        let assoc = [op; loc; ("Instr", `String (Llvm.string_of_llvalue s))] in
+        let assoc =
+          [op; loc; ("Instr", `String (Llvm.string_of_llvalue s.instr))]
+        in
         `Assoc assoc
 
-  let to_string s = Utils.string_of_instr s
+  let to_string s = Utils.string_of_instr s.instr
 
   let pp fmt s = F.fprintf fmt "%s" (Utils.string_of_instr s)
 end
@@ -304,7 +310,7 @@ module ReachingDef = struct
 end
 
 module Node = struct
-  type t = {instr: Stmt.t; id: int; is_target: bool}
+  type t = {stmt: Stmt.t; id: int; is_target: bool}
 
   let compare = compare
 
@@ -312,11 +318,13 @@ module Node = struct
 
   let equal = ( = )
 
-  let make instr id is_target = {instr; id; is_target}
+  let make llctx instr id is_target =
+    let stmt = Stmt.make llctx instr in
+    {stmt; id; is_target}
 
   let to_string v = string_of_int v.id
 
-  let label v = Stmt.to_string v.instr
+  let label v = "[" ^ v.stmt.location ^ "]\n" ^ Stmt.to_string v.stmt
 end
 
 module DUGraph = struct
@@ -333,15 +341,16 @@ module DUGraph = struct
   let vertex_name v = "\"" ^ Node.to_string v ^ "\""
 
   let vertex_attributes v =
+    let common = `Label (Node.label v) in
     if v.Node.is_target then
-      [ `Label (Node.label v)
+      [ common
       ; `Color 0x0000FF
       ; `Style `Bold
       ; `Style `Filled
       ; `Fontcolor max_int ]
-    else [`Label (Node.label v)]
+    else [common]
 
-  let default_vertex_attributes v = []
+  let default_vertex_attributes g = [`Shape `Box]
 end
 
 module NodeMap = struct
@@ -384,7 +393,9 @@ module State = struct
     | None ->
         None
 
-  let add_trace x s = {s with trace= Trace.append x s.trace}
+  let add_trace llctx x s =
+    let stmt = Stmt.make llctx x in
+    {s with trace= Trace.append stmt s.trace}
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
@@ -427,9 +438,9 @@ module State = struct
     instr_count := !instr_count + 1 ;
     !instr_count
 
-  let add_node instr is_target s =
+  let add_node llctx instr is_target s =
     let new_id = new_instr_count () in
-    let node = Node.make instr new_id is_target in
+    let node = Node.make llctx instr new_id is_target in
     NodeMap.add s.nodemap instr node ;
     s
 end

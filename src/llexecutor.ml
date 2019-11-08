@@ -40,7 +40,7 @@ module Environment = struct
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
 end
 
-let initialize llm state =
+let initialize llctx llm state =
   Llvm.fold_left_functions
     (fun state func ->
       let state =
@@ -59,7 +59,7 @@ let initialize llm state =
                   | None ->
                       false
                 in
-                State.add_node instr is_target state)
+                State.add_node llctx instr is_target state)
               state blk)
           state func)
     state llm
@@ -127,14 +127,14 @@ and transfer llctx instr env state =
   in
   match opcode with
   | Llvm.Opcode.Ret -> (
-      let state = State.add_trace instr state in
+      let state = State.add_trace llctx instr state in
       match State.pop_stack state with
       | Some (callsite, state) ->
           execute_instr llctx (Llvm.instr_succ callsite) env state
       | None ->
           execute_instr llctx (Llvm.instr_succ instr) env state )
   | Br -> (
-      let state = State.add_trace instr state in
+      let state = State.add_trace llctx instr state in
       match Llvm.get_branch instr with
       | Some (`Conditional (_, b1, b2)) ->
           let env = Environment.add_work (b2, state) env in
@@ -145,14 +145,14 @@ and transfer llctx instr env state =
           prerr_endline "warning: unknown branch" ;
           execute_instr llctx (Llvm.instr_succ instr) env state )
   | Switch ->
-      let state = State.add_trace instr state in
+      let state = State.add_trace llctx instr state in
       execute_instr llctx (Llvm.instr_succ instr) env state
   | Call ->
       transfer_call llctx instr env state
   | Alloca ->
       let var = Location.variable instr in
       let addr = Location.new_address () |> Value.location in
-      State.add_trace instr state
+      State.add_trace llctx instr state
       |> State.add_memory_def var addr instr
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | Store ->
@@ -161,7 +161,7 @@ and transfer llctx instr env state =
       let v0, uses0 = eval exp0 state.State.memory in
       let v1, uses1 = eval exp1 state.State.memory in
       let lv = match v1 with Value.Location l -> l | _ -> Location.Unknown in
-      State.add_trace instr state
+      State.add_trace llctx instr state
       |> State.add_memory_def lv v0 instr
       |> State.add_semantic_du_edges (uses0 @ uses1) instr
       |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -174,12 +174,12 @@ and transfer llctx instr env state =
       in
       let v1 = Memory.find lv1 state.State.memory in
       let lv = eval_lv instr state.State.memory in
-      State.add_trace instr state
+      State.add_trace llctx instr state
       |> State.add_memory_def lv v1 instr
       |> State.add_semantic_du_edges [lv1] instr
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | x ->
-      let state = State.add_trace instr state in
+      let state = State.add_trace llctx instr state in
       execute_instr llctx (Llvm.instr_succ instr) env state
 
 and transfer_call llctx instr env state =
@@ -197,13 +197,13 @@ and transfer_call llctx instr env state =
             (state, count + 1))
           (state, 0) f
       in
-      let state = State.add_trace instr state in
+      let state = State.add_trace llctx instr state in
       let state = State.push_stack instr state in
       execute_function llctx f env state
   | Value.Function f when skip_function f ->
       execute_instr llctx (Llvm.instr_succ instr) env state
   | _ ->
-      let state = State.add_trace instr state in
+      let state = State.add_trace llctx instr state in
       execute_instr llctx (Llvm.instr_succ instr) env state
   | exception Not_found ->
       Llvm.dump_value callee_expr ;
@@ -270,7 +270,7 @@ let main input_file =
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   let target = find_target_instr llm in
-  let initial_state = initialize llm {State.empty with target} in
+  let initial_state = initialize llctx llm {State.empty with target} in
   let main_function = find_starting_point initial_state in
   let env =
     execute_function llctx main_function Environment.empty initial_state
