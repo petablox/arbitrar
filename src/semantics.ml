@@ -9,140 +9,6 @@ module Stmt = struct
 
   let equal = ( = )
 
-  let string_of_opcode = function
-    | Llvm.Opcode.Invalid ->
-        "Invalid"
-    | Ret ->
-        "Ret"
-    | Br ->
-        "Br"
-    | Switch ->
-        "Switch"
-    | IndirectBr ->
-        "IndirectBr"
-    | Invoke ->
-        "Invoke"
-    | Invalid2 ->
-        "Invalid2"
-    | Unreachable ->
-        "Unreachable"
-    | Add ->
-        "Add"
-    | FAdd ->
-        "FAdd"
-    | Sub ->
-        "Sub"
-    | FSub ->
-        "FSub"
-    | Mul ->
-        "Mul"
-    | FMul ->
-        "FMul"
-    | UDiv ->
-        "UDiv"
-    | SDiv ->
-        "SDiv"
-    | FDiv ->
-        "FDiv"
-    | URem ->
-        "URem"
-    | SRem ->
-        "SRem"
-    | FRem ->
-        "FRem"
-    | Shl ->
-        "Shl"
-    | LShr ->
-        "LShr"
-    | AShr ->
-        "AShr"
-    | And ->
-        "And"
-    | Or ->
-        "Or"
-    | Xor ->
-        "Xor"
-    | Alloca ->
-        "Alloca"
-    | Load ->
-        "Load"
-    | Store ->
-        "Store"
-    | GetElementPtr ->
-        "GetElementPtr"
-    | Trunc ->
-        "Trunc"
-    | ZExt ->
-        "ZExt"
-    | SExt ->
-        "SExt"
-    | FPToUI ->
-        "FPToUI"
-    | FPToSI ->
-        "FPToSI"
-    | UIToFP ->
-        "UIToFP"
-    | SIToFP ->
-        "SIToFP"
-    | FPTrunc ->
-        "FPTrunc"
-    | FPExt ->
-        "FPExt"
-    | PtrToInt ->
-        "PtrToInt"
-    | IntToPtr ->
-        "IntToPtr"
-    | BitCast ->
-        "BitCast"
-    | ICmp ->
-        "ICmp"
-    | FCmp ->
-        "FCmp"
-    | PHI ->
-        "PHI"
-    | Call ->
-        "Call"
-    | Select ->
-        "Select"
-    | UserOp1 ->
-        "UserOp1"
-    | UserOp2 ->
-        "UserOp2"
-    | VAArg ->
-        "VAArg"
-    | ExtractElement ->
-        "ExtractElement"
-    | InsertElement ->
-        "InsertElement"
-    | ShuffleVector ->
-        "ShuffleVector"
-    | ExtractValue ->
-        "ExtractValue"
-    | InsertValue ->
-        "InsertValue"
-    | Fence ->
-        "Fence"
-    | AtomicCmpXchg ->
-        "AtomicCmpXchg"
-    | AtomicRMW ->
-        "AtomicRMW"
-    | Resume ->
-        "Resume"
-    | LandingPad ->
-        "LandingPad"
-    | AddrSpaceCast ->
-        "AddrSpaceCast"
-    | CleanupRet ->
-        "CleanupRet"
-    | CatchRet ->
-        "CatchRet"
-    | CatchPad ->
-        "CatchPad"
-    | CleanupPad ->
-        "CleanupPad"
-    | CatchSwitch ->
-        "CatchSwitch"
-
   let string_of_location debug s =
     let func = Llvm.instr_parent s |> Llvm.block_parent |> Llvm.value_name in
     match debug with
@@ -163,16 +29,16 @@ module Stmt = struct
     let location = string_of_location dbg instr in
     {instr; location}
 
-  let to_json llctx s =
-    let opcode = Llvm.instr_opcode s.instr in
-    let op = ("Opcode", `String (string_of_opcode opcode)) in
-    let loc = ("Location", `String s.location) in
-    match opcode with
-    | x ->
-        let assoc =
-          [op; loc; ("Instr", `String (Llvm.string_of_llvalue s.instr))]
-        in
-        `Assoc assoc
+  let to_json s =
+    let common =
+      [ ("Location", `String s.location)
+      ; ("Instr", `String (Utils.string_of_instr s.instr)) ]
+    in
+    match Utils.json_of_instr s.instr with
+    | `Assoc l ->
+        `Assoc (common @ l)
+    | _ ->
+        failwith "Stmt.to_json"
 
   let to_string s = Utils.string_of_instr s.instr
 
@@ -186,8 +52,8 @@ module Trace = struct
 
   let append x t = t @ [x]
 
-  let to_json llctx t =
-    let l = List.map (Stmt.to_json llctx) t in
+  let to_json t =
+    let l = List.map Stmt.to_json t in
     `List l
 end
 
@@ -325,6 +191,13 @@ module Node = struct
   let to_string v = string_of_int v.id
 
   let label v = "[" ^ v.stmt.location ^ "]\n" ^ Stmt.to_string v.stmt
+
+  let to_json v =
+    match Stmt.to_json v.stmt with
+    | `Assoc j ->
+        `Assoc ([("id", `Int v.id)] @ j)
+    | _ ->
+        failwith "Node.to_json"
 end
 
 module DUGraph = struct
@@ -351,6 +224,23 @@ module DUGraph = struct
     else [common]
 
   let default_vertex_attributes g = [`Shape `Box]
+
+  let to_json g =
+    let vertices =
+      fold_vertex
+        (fun v l ->
+          let vertex = Node.to_json v in
+          vertex :: l)
+        g []
+    in
+    let edges =
+      fold_edges
+        (fun src dst l ->
+          let edge = `List [`Int src.Node.id; `Int dst.Node.id] in
+          edge :: l)
+        g []
+    in
+    `Assoc [("vertex", `List vertices); ("edge", `List edges)]
 end
 
 module NodeMap = struct

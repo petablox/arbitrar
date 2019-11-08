@@ -23,8 +23,8 @@ module Traces = struct
 
   let length = List.length
 
-  let to_json llctx t =
-    let l = List.map (Trace.to_json llctx) t in
+  let to_json t =
+    let l = List.map Trace.to_json t in
     `List l
 end
 
@@ -241,8 +241,8 @@ let find_target_instr llm =
 let print_report env =
   Printf.printf "# Traces: %d\n" (Traces.length env.Environment.traces)
 
-let dump_traces llctx env =
-  let json = Traces.to_json llctx env.Environment.traces in
+let dump_traces env =
+  let json = Traces.to_json env.Environment.traces in
   let oc = open_out "traces.json" in
   Yojson.Safe.pretty_to_channel oc json
 
@@ -267,7 +267,10 @@ let dump_dugraph dugraphs =
     (fun idx g ->
       let oc = open_out ("dugraph" ^ string_of_int idx ^ ".dot") in
       GraphViz.output_graph oc g)
-    dugraphs
+    dugraphs ;
+  let json = List.fold_left (fun l g -> DUGraph.to_json g :: l) [] dugraphs in
+  let oc = open_out "dugraph.json" in
+  Yojson.Safe.pretty_to_channel oc (`List json)
 
 let main input_file =
   let llctx = Llvm.create_context () in
@@ -287,4 +290,4 @@ let main input_file =
     | None ->
         env.dugraphs
   in
-  print_report env ; dump_traces llctx env ; dump_dugraph dugraphs
+  print_report env ; dump_traces env ; dump_dugraph dugraphs
