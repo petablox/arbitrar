@@ -253,9 +253,13 @@ let slice target g =
   let checker = Path.create g in
   DUGraph.fold_vertex
     (fun v g ->
-      if Path.check_path checker v target || Path.check_path checker target v
-      then g
-      else DUGraph.remove_vertex g v)
+      if Llvm.instr_opcode v.Node.stmt.Stmt.instr = Llvm.Opcode.Alloca then
+        DUGraph.remove_vertex g v
+      else if
+        (not (Path.check_path checker v target))
+        && not (Path.check_path checker target v)
+      then DUGraph.remove_vertex g v
+      else g)
     g g
 
 let dump_dugraph dugraphs =
