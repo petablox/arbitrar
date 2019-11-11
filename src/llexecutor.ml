@@ -137,8 +137,12 @@ and transfer llctx instr env state =
       let state = State.add_trace llctx instr state in
       match Llvm.get_branch instr with
       | Some (`Conditional (_, b1, b2)) ->
-          let env = Environment.add_work (b2, state) env in
-          execute_block llctx b1 env state
+          if BlockSet.mem b1 state.State.visited then
+            execute_block llctx b2 env state
+          else
+            let env = Environment.add_work (b2, state) env in
+            let state = State.visit b1 state in
+            execute_block llctx b1 env state
       | Some (`Unconditional b) ->
           execute_block llctx b env state
       | _ ->

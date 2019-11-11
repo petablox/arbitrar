@@ -154,8 +154,8 @@ module Memory = struct
     F.fprintf fmt "==================\n"
 end
 
-module InstrSet = Set.Make (struct
-  type t = Llvm.llvalue
+module BlockSet = Set.Make (struct
+  type t = Llvm.llbasicblock
 
   let compare = compare
 end)
@@ -258,7 +258,7 @@ module State = struct
     { stack: Stack.t
     ; memory: Value.t Memory.t
     ; trace: Trace.t
-    ; visited: InstrSet.t
+    ; visited: BlockSet.t
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
     ; nodemap: NodeMap.t
@@ -268,7 +268,7 @@ module State = struct
     { stack= Stack.empty
     ; memory= Memory.empty
     ; trace= Trace.empty
-    ; visited= InstrSet.empty
+    ; visited= BlockSet.empty
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
     ; nodemap= NodeMap.create ()
@@ -289,7 +289,7 @@ module State = struct
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
-  let visit instr s = {s with visited= InstrSet.add instr s.visited}
+  let visit block s = {s with visited= BlockSet.add block s.visited}
 
   let add_reaching_def loc instr s =
     {s with reachingdef= ReachingDef.add loc instr s.reachingdef}
