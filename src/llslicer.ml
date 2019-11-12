@@ -83,21 +83,31 @@ let rec without (f : 'a -> bool) (funcs : 'a list) : 'a list =
   | hd :: tl ->
       if f hd then without f tl else hd :: without f tl
 
-let find_slices (depth : int) (env : call_graph) (ce : call_edge) : slice list
-    =
-  let caller, callee, _ = ce in
-  let entries = find_entries depth env caller in
-  let uniq_entries = unique (fun (a, _) (b, _) -> a == b) entries in
-  let slices =
-    List.map
-      (fun (entry, up_count) ->
-        let callees = find_callees ((depth * 2) - up_count) env entry in
-        let uniq_funcs = unique ( == ) (entry :: callees) in
-        let uniq_funcs_without_callee = without (( == ) callee) uniq_funcs in
-        (uniq_funcs_without_callee, entry, ce))
-      uniq_entries
-  in
-  slices
+let need_find_slices_for_edge (llm : llmodule) (ce : call_edge) : bool =
+  match !Options.target_function_name with
+  | "" ->
+      true
+  | n ->
+      let _, callee, _ = ce in
+      let callee_name = value_name callee in
+      String.equal callee_name n
+
+let find_slices llm depth env ce : slice list =
+  if need_find_slices_for_edge llm ce then
+    let caller, callee, _ = ce in
+    let entries = find_entries depth env caller in
+    let uniq_entries = unique (fun (a, _) (b, _) -> a == b) entries in
+    let slices =
+      List.map
+        (fun (entry, up_count) ->
+          let callees = find_callees ((depth * 2) - up_count) env entry in
+          let uniq_funcs = unique ( == ) (entry :: callees) in
+          let uniq_funcs_without_callee = without (( == ) callee) uniq_funcs in
+          (uniq_funcs_without_callee, entry, ce))
+        uniq_entries
+    in
+    slices
+  else []
 
 let print_slices (llm : llmodule) (slices : slice list) : unit =
   List.fold_left
@@ -117,7 +127,8 @@ let print_slices (llm : llmodule) (slices : slice list) : unit =
 let slice (llm : llmodule) (slice_depth : int) : slice list =
   let call_graph = get_call_graph llm in
   let slices =
-    List.map (find_slices slice_depth call_graph) call_graph |> List.flatten
+    List.map (find_slices llm slice_depth call_graph) call_graph
+    |> List.flatten
   in
   slices
 
@@ -126,6 +137,4 @@ let main input_file =
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   let slices = slice llm !Options.slice_depth in
-  printf "Slices around each function call: \n" ;
-  print_slices llm slices ;
-  ()
+  print_slices llm slices ; ()
