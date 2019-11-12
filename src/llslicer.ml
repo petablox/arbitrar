@@ -103,7 +103,6 @@ let main input_file =
   let slices = List.flatten (List.map (find_slices default_slice_depth call_graph) call_graph) in
 
   (* Print the stuffs *)
-  print_call_graph llm call_graph ;
-  print_slices llm slices ;
+  print_call_graph llm call_graph ; print_slices llm slices ;
 
   ()
