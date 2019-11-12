@@ -69,10 +69,12 @@ This is the call graph appearing in the file `example_1.c`. It means,
 
 ## TODOS
 
-- [ ] Check whether OpenSSL can be compiled
-- [ ] Write crawler for getting all C/C++ related repositories
+- [x] Check whether OpenSSL can be compiled
+- [x] Write crawler for getting all C/C++ related repositories
+  - [x] URL first (473)
+  - [x] Repo (in long run)
+- [ ] Write crawler for more general C/C++ programs (not top 1000)
   - [ ] URL first
-  - [ ] Repo (in long run)
 - [ ] Setting up `ocamlformat` in commit hook
 - [ ] Get the slice related to a given function call
-- [ ] Add more command line arguments
+- [x] Add more command line arguments
