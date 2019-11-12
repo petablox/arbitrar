@@ -58,11 +58,10 @@ let run_one_slice llctx llm idx (boundaries, entry, poi) =
   Llexecutor.dump_dugraph ~prefix:dugraph_prefix env
 
 let run input_file =
-  let default_slice_depth = 5 in
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let slices = Llslicer.slice llm default_slice_depth in
+  let slices = Llslicer.slice llm !Options.slice_depth in
   List.iteri (run_one_slice llctx llm) slices
 
 let mkdir dirname =

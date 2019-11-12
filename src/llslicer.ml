@@ -114,20 +114,18 @@ let print_slices (llm : llmodule) (slices : slice list) : unit =
       ())
     () slices
 
-let slice (llm : llmodule) (default_slice_depth : int) : slice list =
+let slice (llm : llmodule) (slice_depth : int) : slice list =
   let call_graph = get_call_graph llm in
   let slices =
-    List.map (find_slices default_slice_depth call_graph) call_graph
-    |> List.flatten
+    List.map (find_slices slice_depth call_graph) call_graph |> List.flatten
   in
   slices
 
 let main input_file =
-  let default_slice_depth = 1 in
   let llctx = create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let slices = slice llm default_slice_depth in
+  let slices = slice llm !Options.slice_depth in
   printf "Slices around each function call: \n" ;
   print_slices llm slices ;
   ()
