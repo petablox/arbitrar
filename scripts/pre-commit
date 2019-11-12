@@ -1,6 +1,3 @@
 #!/bin/bash
 
-echo "Running ocamlformat..."
-git diff --cached --name-status | awk '$1 != "D" { print $2 }' | xargs -I '{}' ocamlformat '{}' --output '{}'
-echo "Done"
-git add .
+git diff --cached --name-status | awk '$1 != "D" { print $2 }' | grep .ml | xargs -I '{}' /bin/bash -c "ocamlformat '{}' --output '{}' ; git add '{}'"
