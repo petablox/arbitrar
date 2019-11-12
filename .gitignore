@@ -1,7 +1,7 @@
 # Ocaml build
 _build
 
-# build target
+# Build target
 llextractor
 
 # Compiled files

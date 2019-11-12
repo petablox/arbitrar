@@ -20,5 +20,8 @@ examples/%.bc: examples/%.c
 	$(RM) "./a.out" ".$(*F).o"
 	$(MV) ".$(*F).o.bc" "examples/$(*F).bc"
 
+format:
+	ls src/*.ml | xargs -I '{}' ocamlformat '{}' --output '{}'
+
 clean:
 	$(OCAMLBUILD) -clean

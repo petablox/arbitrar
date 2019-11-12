@@ -29,9 +29,17 @@ module Traces = struct
 end
 
 module Environment = struct
-  type t = {worklist: Worklist.t; traces: Traces.t; dugraphs: DUGraph.t list}
+  type t =
+    { worklist: Worklist.t
+    ; traces: Traces.t
+    ; dugraphs: DUGraph.t list
+    ; boundaries: Llvm.llvalue list }
 
-  let empty = {worklist= Worklist.empty; traces= Traces.empty; dugraphs= []}
+  let empty =
+    { worklist= Worklist.empty
+    ; traces= Traces.empty
+    ; dugraphs= []
+    ; boundaries= [] }
 
   let add_trace trace env = {env with traces= Traces.add trace env.traces}
 
@@ -64,9 +72,15 @@ let initialize llctx llm state =
           state func)
     state llm
 
-let skip_function f =
+let is_debug_function f : bool =
   let r = Str.regexp "llvm\\.dbg\\..+" in
   Str.string_match r (Llvm.value_name f) 0
+
+let need_step_into_function boundaries f : bool =
+  let dec_only = Llvm.is_declaration f in
+  let in_bound = List.find_opt (( == ) f) boundaries |> Option.is_some in
+  let is_debug = is_debug_function f in
+  (not dec_only) && in_bound && not is_debug
 
 let eval exp memory =
   let kind = Llvm.classify_value exp in
@@ -189,8 +203,11 @@ and transfer llctx instr env state =
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
   let var = Location.variable callee_expr in
+  let boundaries = env.boundaries in
   match Memory.find var state.State.memory with
-  | Value.Function f when not (Llvm.is_declaration f) ->
+  | Value.Function f when is_debug_function f ->
+      execute_instr llctx (Llvm.instr_succ instr) env state
+  | Value.Function f when need_step_into_function boundaries f ->
       let state, _ =
         Llvm.fold_left_params
           (fun (state, count) param ->
@@ -204,8 +221,6 @@ and transfer_call llctx instr env state =
       let state = State.add_trace llctx instr state in
       let state = State.push_stack instr state in
       execute_function llctx f env state
-  | Value.Function f when skip_function f ->
-      execute_instr llctx (Llvm.instr_succ instr) env state
   | _ ->
       let state = State.add_trace llctx instr state in
       execute_instr llctx (Llvm.instr_succ instr) env state
@@ -271,7 +286,7 @@ let slice target g =
 let dump_dugraph ?(prefix = "") env =
   List.iteri
     (fun idx g ->
-      let oc = open_out (prefix ^ "dugraph.dot") in
+      let oc = open_out (prefix ^ string_of_int idx ^ "-" ^ "dugraph.dot") in
       GraphViz.output_graph oc g)
     env.Environment.dugraphs ;
   let json =

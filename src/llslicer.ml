@@ -76,6 +76,13 @@ let rec unique (f : 'a -> 'a -> bool) (funcs : 'a list) : 'a list =
   | [] ->
       []
 
+let rec without (f : 'a -> bool) (funcs : 'a list) : 'a list =
+  match funcs with
+  | [] ->
+      []
+  | hd :: tl ->
+      if f hd then without f tl else hd :: without f tl
+
 let find_slices (depth : int) (env : call_graph) (ce : call_edge) : slice list
     =
   let caller, callee, _ = ce in
@@ -86,7 +93,8 @@ let find_slices (depth : int) (env : call_graph) (ce : call_edge) : slice list
       (fun (entry, up_count) ->
         let callees = find_callees ((depth * 2) - up_count) env entry in
         let uniq_funcs = unique ( == ) (entry :: callees) in
-        (uniq_funcs, entry, ce))
+        let uniq_funcs_without_callee = without (( == ) callee) uniq_funcs in
+        (uniq_funcs_without_callee, entry, ce))
       uniq_entries
   in
   slices
@@ -106,20 +114,20 @@ let print_slices (llm : llmodule) (slices : slice list) : unit =
       ())
     () slices
 
+let slice (llm : llmodule) (default_slice_depth : int) : slice list =
+  let call_graph = get_call_graph llm in
+  let slices =
+    List.map (find_slices default_slice_depth call_graph) call_graph
+    |> List.flatten
+  in
+  slices
+
 let main input_file =
   let default_slice_depth = 1 in
   let llctx = create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  (* Start getting call graph and after that, slices *)
-  let call_graph = get_call_graph llm in
-  let slices =
-    List.flatten
-      (List.map (find_slices default_slice_depth call_graph) call_graph)
-  in
-  (* Print the stuffs *)
-  printf "Call graph: " ;
-  print_call_graph llm call_graph ;
+  let slices = slice llm default_slice_depth in
   printf "Slices around each function call: \n" ;
   print_slices llm slices ;
   ()

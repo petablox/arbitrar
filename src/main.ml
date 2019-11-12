@@ -29,9 +29,19 @@ let run_one_slice llctx llm idx (boundaries, entry, poi) =
     Llexecutor.initialize llctx llm {State.empty with target= Some target}
   in
   let env =
-    Llexecutor.execute_function llctx entry Llexecutor.Environment.empty
+    Llexecutor.execute_function llctx entry
+      {Llexecutor.Environment.empty with boundaries}
       initial_state
   in
+  let filtered_trs, filtered_dgs =
+    List.filter
+      (fun (tr, _) ->
+        List.find_opt (fun (stmt : Stmt.t) -> stmt.instr == target) tr
+        |> Option.is_some)
+      (List.combine env.traces env.dugraphs)
+    |> List.split
+  in
+  let env = {env with traces= filtered_trs; dugraphs= filtered_dgs} in
   let dugraphs =
     let target_node = NodeMap.find target initial_state.State.nodemap in
     List.map (Llexecutor.slice target_node) env.dugraphs
@@ -52,12 +62,7 @@ let run input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  (* Start getting call graph and after that, slices *)
-  let call_graph = Llslicer.get_call_graph llm in
-  let slices =
-    List.map (Llslicer.find_slices default_slice_depth call_graph) call_graph
-    |> List.flatten
-  in
+  let slices = Llslicer.slice llm default_slice_depth in
   List.iteri (run_one_slice llctx llm) slices
 
 let mkdir dirname =
