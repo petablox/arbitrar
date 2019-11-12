@@ -27,13 +27,15 @@ let get_call_graph (llm : llmodule) : call_graph =
         graph func)
     [] llm
 
+let print_call_edge (llm : llmodule) (ce : call_edge) : unit =
+  let caller, callee, instr = ce in
+  let callee_name = value_name callee in
+  let caller_name = value_name caller in
+  printf "(%s -> %s); " caller_name callee_name;
+  ()
+
 let print_call_graph (llm : llmodule) (cg : call_graph) : unit =
-  List.fold_left
-    (fun _ (caller, callee, instr) ->
-      let callee_name = value_name callee in
-      let caller_name = value_name caller in
-      printf "(%s -> %s); " caller_name callee_name)
-    () cg;
+  List.fold_left (fun _ ce -> print_call_edge llm ce) () cg;
   printf "\n";
   ()
 
@@ -94,7 +96,7 @@ let print_slices (llm : llmodule) (slices : slice list) : unit =
       let callee_name = value_name callee in
       let caller_name = value_name caller in
       let call_str = Printf.sprintf "(%s -> %s)" caller_name callee_name in
-      printf "Slice [ Entry: %s, Functions: %s, Call: %s, Instr: %s ]\n"
+      printf "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
         entry_name callee_names_str call_str (string_of_llvalue instr);
       ())
     () slices
@@ -113,7 +115,9 @@ let main input_file =
   in
 
   (* Print the stuffs *)
+  printf "Call graph: ";
   print_call_graph llm call_graph;
+  printf "Slices around each function call: \n";
   print_slices llm slices;
 
   ()

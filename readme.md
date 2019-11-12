@@ -1,80 +1,59 @@
 # LLVM (Toy) Analyzer
 
-First build examples:
+First bulid the examples:
 
-```
+``` bash
 $ make examples
 ```
 
-Then try to build the project:
+Then make the project:
 
-```
+``` bash
 $ make
 ```
 
-Finally you can see the compiled executable. To run it, type
+Then you will be able to run the slicer:
+
+``` bash
+$ ./llextractor slice examples/example_4.bc
+```
+
+The result will be like this:
 
 ```
-$ ./llanalyzer examples/example_1.bc
+Slice [ Entry: main, Functions: main, x2, x1, Call: (main -> x2), Instr:   %2 = call i32 @x2() ]
+Slice [ Entry: main, Functions: main, x2, x1, Call: (main -> x1), Instr:   %1 = call i32 @x1() ]
+Slice [ Entry: main, Functions: main, x2, y1, x1, Call: (x2 -> y1), Instr:   %2 = call i32 @y1() ]
+Slice [ Entry: main, Functions: main, x2, y1, x1, Call: (x1 -> y1), Instr:   %2 = call i32 @y1() ]
+Slice [ Entry: x1, Functions: x1, y1, z1, Call: (y1 -> z1), Instr:   %2 = call i32 @z1() ]
+Slice [ Entry: x2, Functions: x2, y1, z1, Call: (y1 -> z1), Instr:   %2 = call i32 @z1() ]
+Slice [ Entry: y1, Functions: y1, z1, printf, Call: (z1 -> printf), Instr:   %2 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str, i64 0, i64 0)) ]
 ```
 
-You should see the example 1 llvm module being dumped onto the terminal. Note that `llanalyzer` need to take in an LLVM ByteCode-format file.
+It gives you slices around each function call.
+
+You can also run the symbolic executor:
+
+``` bash
+$ ./llextractor execute examples/example_1.bc
+```
 
 ## Setup
 
-### Mac setup
+Please run
 
-To run it on **mac**, you need `clang`, `python3` and `ocaml` as prerequisites. Along with `ocaml` you might also need `ocaml-findlib` and so on. After you have these, please
-
-1. Install `llvm`
-
-```
-$ brew install llvm@9
+``` bash
+$ ./setup.sh
 ```
 
-> We are using the latest version of llvm to reduce the level of burden going with opam
+To setup the whole project. If you want, you can also setup a pre-commit hook:
 
-2. Install ocaml binding of `llvm`
-
-```
-$ opam install ctypes
-$ opam install ctypes-foreign
-$ opam install llvm
+``` bash
+$ ./scripts/setup-pre-commit.sh
 ```
 
-3. Install `wllvm`
+This hook will run `ocamlformat` everytime you do a commit. So it will keep all of your code in best condition!
 
-```
-$ pip3 install wllvm
-```
+## Behind the hood
 
-## Results
-
-Currently you will see it spitting out
-
-```
-(f -> malloc); (f -> g); (f -> h); (main -> f);
-```
-
-This is the call graph appearing in the file `example_1.c`. It means,
-
-- Function `f` calls `malloc`;
-- Function `f` calls `g`;
-- Function `f` calls `h`;
-- Function `main` calls `f`;
-
-## Notes
-
-- `make examples` will execute `wllvm` on every `.c` file in `exmples` folder
-
-## TODOS
-
-- [x] Check whether OpenSSL can be compiled
-- [x] Write crawler for getting all C/C++ related repositories
-  - [x] URL first (473)
-  - [x] Repo (in long run)
-- [ ] Write crawler for more general C/C++ programs (not top 1000)
-  - [ ] URL first
-- [ ] Setting up `ocamlformat` in commit hook
-- [ ] Get the slice related to a given function call
-- [x] Add more command line arguments
+We use `wllvm` to compile the `.c` files into `.bc` byte codes in the examples folder. Our tools directly run on LLVM byte code and does static analyze and symbolic execution to get core traces around each function call.
