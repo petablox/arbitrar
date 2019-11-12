@@ -1,4 +1,6 @@
 #!/bin/bash
 
-git diff --cached --name-status | awk '$1 != "D" { print $2 }' | xargs ocamlformat
+echo "Running ocamlformat..."
+git diff --cached --name-status | awk '$1 != "D" { print $2 }' | xargs -I '{}' ocamlformat '{}' --output '{}'
+echo "Done"
 git add .
