@@ -194,7 +194,7 @@ let json_of_instr instr =
       let opcode = ("opcode", `String "ret") in
       let ret =
         if num_of_operands = 0 then `Null
-        else `String (string_of_lhs (Llvm.operand instr 0))
+        else `String (string_of_exp (Llvm.operand instr 0))
       in
       `Assoc [opcode; ("op0", ret)]
   | Br ->

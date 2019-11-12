@@ -1,7 +1,15 @@
 let debug = ref false
 
-let slicer_opts = [("-debug", Arg.Set debug, "Enable debug mode")]
+let outdir = ref "extractor-out"
 
-let executor_opts = [("-debug", Arg.Set debug, "Enable debug mode")]
+let common_opt =
+  [ ("-debug", Arg.Set debug, "Enable debug mode")
+  ; ("-outdir", Arg.Set_string outdir, "Output directory") ]
 
-let options = ref [("-debug", Arg.Set debug, "Enable debug mode")]
+let slicer_opts = common_opt
+
+let executor_opts = common_opt
+
+let extractor_opts = common_opt
+
+let options = ref extractor_opts

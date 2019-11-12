@@ -245,9 +245,9 @@ let find_target_instr llm =
 let print_report env =
   Printf.printf "# Traces: %d\n" (Traces.length env.Environment.traces)
 
-let dump_traces env =
+let dump_traces ?(prefix = "") env =
   let json = Traces.to_json env.Environment.traces in
-  let oc = open_out "traces.json" in
+  let oc = open_out (prefix ^ "traces.json") in
   Yojson.Safe.pretty_to_channel oc json
 
 module GraphViz = Graph.Graphviz.Dot (DUGraph)
@@ -255,25 +255,31 @@ module Path = Graph.Path.Check (DUGraph)
 
 let slice target g =
   let checker = Path.create g in
-  DUGraph.fold_vertex
-    (fun v g ->
-      if Llvm.instr_opcode v.Node.stmt.Stmt.instr = Llvm.Opcode.Alloca then
-        DUGraph.remove_vertex g v
-      else if
-        (not (Path.check_path checker v target))
-        && not (Path.check_path checker target v)
-      then DUGraph.remove_vertex g v
-      else g)
-    g g
+  if not (DUGraph.mem_vertex g target) then g
+  else
+    DUGraph.fold_vertex
+      (fun v g ->
+        if Llvm.instr_opcode v.Node.stmt.Stmt.instr = Llvm.Opcode.Alloca then
+          DUGraph.remove_vertex g v
+        else if
+          (not (Path.check_path checker v target))
+          && not (Path.check_path checker target v)
+        then DUGraph.remove_vertex g v
+        else g)
+      g g
 
-let dump_dugraph dugraphs =
+let dump_dugraph ?(prefix = "") env =
   List.iteri
     (fun idx g ->
-      let oc = open_out ("dugraph" ^ string_of_int idx ^ ".dot") in
+      let oc = open_out (prefix ^ "dugraph.dot") in
       GraphViz.output_graph oc g)
-    dugraphs ;
-  let json = List.fold_left (fun l g -> DUGraph.to_json g :: l) [] dugraphs in
-  let oc = open_out "dugraph.json" in
+    env.Environment.dugraphs ;
+  let json =
+    List.fold_left
+      (fun l g -> DUGraph.to_json g :: l)
+      [] env.Environment.dugraphs
+  in
+  let oc = open_out (prefix ^ "dugraph.json") in
   Yojson.Safe.pretty_to_channel oc (`List json)
 
 let main input_file =
@@ -294,4 +300,5 @@ let main input_file =
     | None ->
         env.dugraphs
   in
-  print_report env ; dump_traces env ; dump_dugraph dugraphs
+  let env = {env with dugraphs} in
+  print_report env ; dump_traces env ; dump_dugraph env
