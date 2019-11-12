@@ -43,7 +43,7 @@ $ ./llextractor execute examples/example_1.bc
 Please run
 
 ``` bash
-$ ./setup.sh
+$ ./scripts/setup.sh
 ```
 
 To setup the whole project. If you want, you can also setup a pre-commit hook:
