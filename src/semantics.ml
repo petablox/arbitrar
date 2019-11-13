@@ -12,15 +12,17 @@ module Stmt = struct
   let string_of_location debug s =
     let func = Llvm.instr_parent s |> Llvm.block_parent |> Llvm.value_name in
     match debug with
-    | Some s ->
+    | Some s -> (
         let str = Llvm.string_of_llvalue s in
         let r =
           Str.regexp "!DILocation(line: \\([0-9]+\\), column: \\([0-9]+\\)"
         in
-        let _ = Str.search_forward r str 0 in
-        let line = Str.matched_group 1 str in
-        let column = Str.matched_group 2 str in
-        func ^ ":" ^ line ^ ":" ^ column
+        try
+          let _ = Str.search_forward r str 0 in
+          let line = Str.matched_group 1 str in
+          let column = Str.matched_group 2 str in
+          func ^ ":" ^ line ^ ":" ^ column
+        with Not_found -> func ^ ":0:0" )
     | None ->
         func ^ ":0:0"
 
