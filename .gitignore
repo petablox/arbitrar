@@ -13,6 +13,7 @@ llextractor
 # Output
 *.dot
 *.json
+data
 
 # Misc
 .*DS_Store
