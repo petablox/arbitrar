@@ -2,4 +2,4 @@
 
 pip3 install wllvm
 
-opam install llvm.8.0.0 ctypes ctypes-foreign yojson ocamlgraph
+opam install ocamlbuild llvm.8.0.0 ctypes ctypes-foreign yojson ocamlgraph
