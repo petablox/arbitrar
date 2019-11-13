@@ -154,14 +154,23 @@ and transfer llctx instr env state =
           let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
           let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
           if b1_visited && b2_visited then env
-          else if b1_visited then execute_block llctx b2 env state
-          else if b2_visited then execute_block llctx b1 env state
-          else
-            let env = Environment.add_work (b2, state) env in
+          else if b1_visited then
+            let state = State.visit_block b2 state in
+            execute_block llctx b2 env state
+          else if b2_visited then
             let state = State.visit_block b1 state in
             execute_block llctx b1 env state
+          else
+            let state = State.visit_block b1 state in
+            let state = State.visit_block b2 state in
+            let env = Environment.add_work (b2, state) env in
+            execute_block llctx b1 env state
       | Some (`Unconditional b) ->
-          execute_block llctx b env state
+          let visited = BlockSet.mem b state.State.visited_blocks in
+          if visited then env
+          else
+            let state = State.visit_block b state in
+            execute_block llctx b env state
       | _ ->
           prerr_endline "warning: unknown branch" ;
           execute_instr llctx (Llvm.instr_succ instr) env state )
