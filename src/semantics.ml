@@ -160,6 +160,12 @@ module BlockSet = Set.Make (struct
   let compare = compare
 end)
 
+module FuncSet = Set.Make (struct
+  type t = Llvm.llvalue
+
+  let compare = compare
+end)
+
 module ReachingDef = struct
   include Map.Make (struct
     type t = Location.t
@@ -258,7 +264,8 @@ module State = struct
     { stack: Stack.t
     ; memory: Value.t Memory.t
     ; trace: Trace.t
-    ; visited: BlockSet.t
+    ; visited_blocks: BlockSet.t
+    ; visited_funcs: FuncSet.t
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
     ; nodemap: NodeMap.t
@@ -268,7 +275,8 @@ module State = struct
     { stack= Stack.empty
     ; memory= Memory.empty
     ; trace= Trace.empty
-    ; visited= BlockSet.empty
+    ; visited_blocks= BlockSet.empty
+    ; visited_funcs= FuncSet.empty
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
     ; nodemap= NodeMap.create ()
@@ -289,7 +297,11 @@ module State = struct
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
-  let visit block s = {s with visited= BlockSet.add block s.visited}
+  let visit_block block s =
+    {s with visited_blocks= BlockSet.add block s.visited_blocks}
+
+  let visit_func func s =
+    {s with visited_funcs= FuncSet.add func s.visited_funcs}
 
   let add_reaching_def loc instr s =
     {s with reachingdef= ReachingDef.add loc instr s.reachingdef}

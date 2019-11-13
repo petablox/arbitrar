@@ -151,14 +151,14 @@ and transfer llctx instr env state =
       let state = State.add_trace llctx instr state in
       match Llvm.get_branch instr with
       | Some (`Conditional (_, b1, b2)) ->
-          let b1_visited = BlockSet.mem b1 state.State.visited in
-          let b2_visited = BlockSet.mem b2 state.State.visited in
+          let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
+          let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
           if b1_visited && b2_visited then env
           else if b1_visited then execute_block llctx b2 env state
           else if b2_visited then execute_block llctx b1 env state
           else
             let env = Environment.add_work (b2, state) env in
-            let state = State.visit b1 state in
+            let state = State.visit_block b1 state in
             execute_block llctx b1 env state
       | Some (`Unconditional b) ->
           execute_block llctx b env state
@@ -205,31 +205,36 @@ and transfer llctx instr env state =
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
-  let var = Location.variable callee_expr in
-  let boundaries = env.boundaries in
-  match Memory.find var state.State.memory with
-  | Value.Function f when is_debug_function f ->
-      execute_instr llctx (Llvm.instr_succ instr) env state
-  | Value.Function f when need_step_into_function boundaries f ->
-      let state, _ =
-        Llvm.fold_left_params
-          (fun (state, count) param ->
-            let arg = Llvm.operand instr count in
-            let v, uses = eval arg state.State.memory in
-            let lv = eval_lv param state.State.memory in
-            let state = State.add_memory_def lv v instr state in
-            (state, count + 1))
-          (state, 0) f
-      in
-      let state = State.add_trace llctx instr state in
-      let state = State.push_stack instr state in
-      execute_function llctx f env state
-  | _ ->
-      let state = State.add_trace llctx instr state in
-      execute_instr llctx (Llvm.instr_succ instr) env state
-  | exception Not_found ->
-      Llvm.dump_value callee_expr ;
-      failwith "not found"
+  if FuncSet.mem callee_expr state.visited_funcs then
+    let state = State.add_trace llctx instr state in
+    execute_instr llctx (Llvm.instr_succ instr) env state
+  else
+    let state = State.visit_func callee_expr state in
+    let var = Location.variable callee_expr in
+    let boundaries = env.boundaries in
+    match Memory.find var state.State.memory with
+    | Value.Function f when is_debug_function f ->
+        execute_instr llctx (Llvm.instr_succ instr) env state
+    | Value.Function f when need_step_into_function boundaries f ->
+        let state, _ =
+          Llvm.fold_left_params
+            (fun (state, count) param ->
+              let arg = Llvm.operand instr count in
+              let v, uses = eval arg state.State.memory in
+              let lv = eval_lv param state.State.memory in
+              let state = State.add_memory_def lv v instr state in
+              (state, count + 1))
+            (state, 0) f
+        in
+        let state = State.add_trace llctx instr state in
+        let state = State.push_stack instr state in
+        execute_function llctx f env state
+    | _ ->
+        let state = State.add_trace llctx instr state in
+        execute_instr llctx (Llvm.instr_succ instr) env state
+    | exception Not_found ->
+        Llvm.dump_value callee_expr ;
+        failwith "not found"
 
 let find_starting_point initial =
   let starting =

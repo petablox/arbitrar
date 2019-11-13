@@ -1,6 +1,6 @@
 open Semantics
 
-type task = All | Slice | Execute
+type task = All | Slice | Execute | DumpLL | CallGraph
 
 let task = ref All
 
@@ -17,11 +17,32 @@ let parse_arg arg =
     | "execute" ->
         Options.options := Options.executor_opts ;
         task := Execute
+    | "dump-ll" ->
+        Options.options := Options.common_opt ;
+        task := DumpLL
+    | "call-graph" ->
+        Printf.printf "Printing call graph\n" ;
+        Options.options := Options.common_opt ;
+        task := CallGraph
     | _ ->
         input_file := get_filename arg
   else input_file := get_filename arg
 
-let usage = "llexetractor [all | slice | execute] [OPTIONS] [FILE]"
+let usage =
+  "llexetractor [all | slice | execute | dump-ll | call-graph] [OPTIONS] [FILE]"
+
+let dump input_file =
+  let llctx = Llvm.create_context () in
+  let llmem = Llvm.MemoryBuffer.of_file input_file in
+  let llm = Llvm_bitreader.parse_bitcode llctx llmem in
+  Llvm.dump_module llm
+
+let call_graph input_file =
+  let llctx = Llvm.create_context () in
+  let llmem = Llvm.MemoryBuffer.of_file input_file in
+  let llm = Llvm_bitreader.parse_bitcode llctx llmem in
+  let call_graph = Llslicer.get_call_graph llm in
+  Llslicer.print_call_graph llm call_graph
 
 let run_one_slice llctx llm idx (boundaries, entry, poi) =
   let _, _, target = poi in
@@ -81,6 +102,10 @@ let main () =
   Arg.parse_dynamic Options.options parse_arg usage ;
   initialize () ;
   match !task with
+  | DumpLL ->
+      dump !input_file
+  | CallGraph ->
+      call_graph !input_file
   | Slice ->
       Llslicer.main !input_file
   | Execute ->
