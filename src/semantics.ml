@@ -106,7 +106,7 @@ module Location = struct
         F.fprintf fmt "&%d" a
     | Variable v ->
         let name = Llvm.value_name v in
-        if name = "" then F.fprintf fmt "%s" (Utils.string_of_lhs v)
+        if name = "" then F.fprintf fmt "%s" (Utils.string_of_exp v)
         else F.fprintf fmt "%s" name
     | Unknown ->
         F.fprintf fmt "Unknown"
