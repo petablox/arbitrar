@@ -102,10 +102,10 @@ let eval_lv exp memory =
   match kind with
   | Llvm.ValueKind.Instruction _ ->
       Location.variable exp
-  | Argument ->
+  | Argument | GlobalVariable ->
       Location.variable exp
   | _ ->
-      failwith "unknown"
+      Location.unknown
 
 let rec execute_function llctx f env state =
   let entry = Llvm.entry_block f in
@@ -133,6 +133,7 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr env state =
+  if !Options.debug then prerr_endline (Utils.string_of_instr instr) ;
   let opcode = Llvm.instr_opcode instr in
   let state =
     Llvm.fold_left_uses
