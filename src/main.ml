@@ -74,7 +74,7 @@ let run_one_slice llctx llm idx (boundaries, entry, poi) =
   let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
   let dugraph_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
   let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
-  Llexecutor.print_report env ;
+  if !Options.debug then Llexecutor.print_report env ;
   Llexecutor.dump_traces ~prefix:trace_prefix env ;
   Llexecutor.dump_dugraph ~prefix:dugraph_prefix env
 
@@ -86,12 +86,16 @@ let run input_file =
   let slices = Llslicer.slice llm !Options.slice_depth in
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
   flush stdout ;
+  let t0 = Sys.time () in
   List.iteri
     (fun idx slice ->
       Printf.printf "%d/%d slices processed\r" idx (List.length slices) ;
       flush stdout ;
       run_one_slice llctx llm idx slice)
-    slices
+    slices ;
+  Printf.printf "\n" ;
+  flush stdout ;
+  Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
 
 let mkdir dirname =
   if Sys.file_exists dirname && Sys.is_directory dirname then ()
