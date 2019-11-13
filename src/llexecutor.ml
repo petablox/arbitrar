@@ -118,27 +118,24 @@ and execute_block llctx blk env state =
 and execute_instr llctx instr env state =
   match instr with
   | Llvm.At_end _ ->
-      let env =
-        Environment.add_trace state.State.trace env
-        |> Environment.add_dugraph state.State.dugraph
-      in
-      if !Options.debug then (
-        Memory.pp F.err_formatter state.State.memory ;
-        ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
-      if Worklist.is_empty env.worklist then env
-      else
-        let (blk, state), wl = Worklist.pop env.worklist in
-        execute_block llctx blk {env with worklist= wl} state
+      finish_execution llctx env state
   | Llvm.Before instr ->
       transfer llctx instr env state
 
 and transfer llctx instr env state =
-  if !Options.debug then prerr_endline (Utils.string_of_instr instr) ;
+  if !Options.verbose > 1 then prerr_endline (Utils.string_of_instr instr) ;
   let opcode = Llvm.instr_opcode instr in
   let state =
     Llvm.fold_left_uses
       (fun env use -> State.add_du_edge instr (Llvm.user use) env)
       state instr
+  in
+  let state =
+    match state.State.target with
+    | Some t when t = instr ->
+        State.visit_target state
+    | _ ->
+        state
   in
   match opcode with
   | Llvm.Opcode.Ret -> (
@@ -154,7 +151,7 @@ and transfer llctx instr env state =
       | Some (`Conditional (_, b1, b2)) ->
           let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
           let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
-          if b1_visited && b2_visited then env
+          if b1_visited && b2_visited then finish_execution llctx env state
           else if b1_visited then
             let state = State.visit_block b2 state in
             execute_block llctx b2 env state
@@ -168,7 +165,7 @@ and transfer llctx instr env state =
             execute_block llctx b1 env state
       | Some (`Unconditional b) ->
           let visited = BlockSet.mem b state.State.visited_blocks in
-          if visited then env
+          if visited then finish_execution llctx env state
           else
             let state = State.visit_block b state in
             execute_block llctx b env state
@@ -246,6 +243,21 @@ and transfer_call llctx instr env state =
         Llvm.dump_value callee_expr ;
         failwith "not found"
 
+and finish_execution llctx env state =
+  let env =
+    if state.State.target_visited then
+      Environment.add_trace state.State.trace env
+      |> Environment.add_dugraph state.State.dugraph
+    else env
+  in
+  if !Options.debug then (
+    Memory.pp F.err_formatter state.State.memory ;
+    ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
+  if Worklist.is_empty env.worklist then env
+  else
+    let (blk, state), wl = Worklist.pop env.worklist in
+    execute_block llctx blk {env with worklist= wl} state
+
 let find_starting_point initial =
   let starting =
     Memory.find_first_opt
@@ -305,7 +317,7 @@ let dump_dugraph ?(prefix = "") env =
   List.iteri
     (fun idx g ->
       let oc = open_out (prefix ^ string_of_int idx ^ "-" ^ "dugraph.dot") in
-      GraphViz.output_graph oc g)
+      GraphViz.output_graph oc g ; close_out oc)
     env.Environment.dugraphs ;
   let json =
     List.fold_left
@@ -313,7 +325,8 @@ let dump_dugraph ?(prefix = "") env =
       [] env.Environment.dugraphs
   in
   let oc = open_out (prefix ^ "dugraph.json") in
-  Yojson.Safe.pretty_to_channel oc (`List json)
+  Yojson.Safe.pretty_to_channel oc (`List json) ;
+  close_out oc
 
 let main input_file =
   let llctx = Llvm.create_context () in
@@ -337,4 +350,5 @@ let main input_file =
   let log_channel = open_out (!Options.outdir ^ "/log.txt") in
   print_report log_channel env ;
   dump_traces env ;
-  dump_dugraph env
+  dump_dugraph env ;
+  close_out log_channel

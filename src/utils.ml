@@ -3,8 +3,12 @@ let string_of_instr instr = Llvm.string_of_llvalue instr |> String.trim
 let string_of_lhs instr =
   let s = string_of_instr instr in
   let r = Str.regexp " = " in
-  let idx = Str.search_forward r s 0 in
-  String.sub s 0 idx
+  try
+    let idx = Str.search_forward r s 0 in
+    String.sub s 0 idx
+  with Not_found ->
+    prerr_endline ("Cannot find lhs of" ^ s) ;
+    raise Not_found
 
 let is_assignment = function
   | Llvm.Opcode.Invoke
@@ -257,7 +261,7 @@ let json_of_instr instr =
   | Store ->
       let opcode = ("opcode", `String "store") in
       let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-      let op1 = `String (string_of_lhs (Llvm.operand instr 1)) in
+      let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
       `Assoc [opcode; ("op0", op0); ("op1", op1)]
   | GetElementPtr ->
       json_of_opcode "getelementptr"

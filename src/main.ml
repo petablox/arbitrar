@@ -54,15 +54,6 @@ let run_one_slice log_channel llctx llm idx (boundaries, entry, poi) =
       {Llexecutor.Environment.empty with boundaries}
       initial_state
   in
-  let filtered_trs, filtered_dgs =
-    List.filter
-      (fun (tr, _) ->
-        List.find_opt (fun (stmt : Stmt.t) -> stmt.instr == target) tr
-        |> Option.is_some)
-      (List.combine env.traces env.dugraphs)
-    |> List.split
-  in
-  let env = {env with traces= filtered_trs; dugraphs= filtered_dgs} in
   let dugraphs =
     let target_node = NodeMap.find target initial_state.State.nodemap in
     List.map (Llexecutor.slice target_node) env.dugraphs
@@ -75,7 +66,7 @@ let run_one_slice log_channel llctx llm idx (boundaries, entry, poi) =
   let dugraph_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
   let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
   if !Options.verbose > 0 then Llexecutor.print_report log_channel env ;
-  Llexecutor.dump_traces ~prefix:trace_prefix env ;
+  if !Options.debug then Llexecutor.dump_traces ~prefix:trace_prefix env ;
   Llexecutor.dump_dugraph ~prefix:dugraph_prefix env
 
 let run input_file =

@@ -269,7 +269,8 @@ module State = struct
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
     ; nodemap: NodeMap.t
-    ; target: Llvm.llvalue option }
+    ; target: Llvm.llvalue option
+    ; target_visited: bool }
 
   let empty =
     { stack= Stack.empty
@@ -280,7 +281,8 @@ module State = struct
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
     ; nodemap= NodeMap.create ()
-    ; target= None }
+    ; target= None
+    ; target_visited= false }
 
   let push_stack x s = {s with stack= Stack.push x s.stack}
 
@@ -345,4 +347,6 @@ module State = struct
     let node = Node.make llctx instr new_id is_target in
     NodeMap.add s.nodemap instr node ;
     s
+
+  let visit_target s = {s with target_visited= true}
 end
