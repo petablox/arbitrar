@@ -275,8 +275,8 @@ let find_target_instr llm =
   in
   match instrs with h :: t -> Some h | [] -> None
 
-let print_report env =
-  Printf.printf "# Traces: %d\n" (Traces.length env.Environment.traces)
+let print_report oc env =
+  Printf.fprintf oc "# Traces: %d\n" (Traces.length env.Environment.traces)
 
 let dump_traces ?(prefix = "") env =
   let json = Traces.to_json env.Environment.traces in
@@ -334,4 +334,7 @@ let main input_file =
         env.dugraphs
   in
   let env = {env with dugraphs} in
-  print_report env ; dump_traces env ; dump_dugraph env
+  let log_channel = open_out (!Options.outdir ^ "/log.txt") in
+  print_report log_channel env ;
+  dump_traces env ;
+  dump_dugraph env

@@ -6,12 +6,15 @@ let slice_depth = ref 5
 
 let target_function_name = ref ""
 
+let verbose = ref 0
+
 (* let start = ref 0
 
 let amount = ref -1 *)
 
 let common_opt =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
+  ; ("-verbose", Arg.Set_int verbose, "Verbose")
   ; ("-outdir", Arg.Set_string outdir, "Output directory") ]
 
 let slicer_opt =

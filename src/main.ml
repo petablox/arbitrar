@@ -44,7 +44,7 @@ let call_graph input_file =
   let call_graph = Llslicer.get_call_graph llm in
   Llslicer.print_call_graph llm call_graph
 
-let run_one_slice llctx llm idx (boundaries, entry, poi) =
+let run_one_slice log_channel llctx llm idx (boundaries, entry, poi) =
   let _, _, target = poi in
   let initial_state =
     Llexecutor.initialize llctx llm {State.empty with target= Some target}
@@ -74,7 +74,7 @@ let run_one_slice llctx llm idx (boundaries, entry, poi) =
   let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
   let dugraph_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
   let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
-  if !Options.debug then Llexecutor.print_report env ;
+  if !Options.verbose > 0 then Llexecutor.print_report log_channel env ;
   Llexecutor.dump_traces ~prefix:trace_prefix env ;
   Llexecutor.dump_dugraph ~prefix:dugraph_prefix env
 
@@ -82,6 +82,7 @@ let run input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
+  let log_channel = open_out (!Options.outdir ^ "/log.txt") in
   let t0 = Sys.time () in
   let slices = Llslicer.slice llm !Options.slice_depth in
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
@@ -91,11 +92,12 @@ let run input_file =
     (fun idx slice ->
       Printf.printf "%d/%d slices processed\r" idx (List.length slices) ;
       flush stdout ;
-      run_one_slice llctx llm idx slice)
+      run_one_slice log_channel llctx llm idx slice)
     slices ;
   Printf.printf "\n" ;
   flush stdout ;
-  Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
+  Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0) ;
+  close_out log_channel
 
 let mkdir dirname =
   if Sys.file_exists dirname && Sys.is_directory dirname then ()
