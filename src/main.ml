@@ -59,6 +59,10 @@ let run_one_slice log_channel llctx llm idx (boundaries, entry, poi) =
     List.map (Llexecutor.slice target_node) env.dugraphs
   in
   let env = {env with dugraphs} in
+  if !Options.verbose > 0 then
+    Printf.printf "\n%d traces starting from %s\n"
+      (Llexecutor.Traces.length env.Llexecutor.Environment.traces)
+      (Llvm.value_name entry) ;
   let target_name =
     Llvm.operand target (Llvm.num_operands target - 1) |> Llvm.value_name
   in
@@ -76,12 +80,15 @@ let run input_file =
   let log_channel = open_out (!Options.outdir ^ "/log.txt") in
   let t0 = Sys.time () in
   let slices = Llslicer.slice llm !Options.slice_depth in
+  let slice_oc = open_out (!Options.outdir ^ "/slice.txt") in
+  Llslicer.print_slices slice_oc llm slices ;
+  close_out slice_oc ;
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
   flush stdout ;
   let t0 = Sys.time () in
   List.iteri
     (fun idx slice ->
-      Printf.printf "%d/%d slices processed\r" idx (List.length slices) ;
+      Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
       flush stdout ;
       run_one_slice log_channel llctx llm idx slice)
     slices ;

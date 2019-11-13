@@ -109,7 +109,7 @@ let find_slices llm depth env ce : slice list =
     slices
   else []
 
-let print_slices (llm : llmodule) (slices : slice list) : unit =
+let print_slices oc (llm : llmodule) (slices : slice list) : unit =
   List.fold_left
     (fun _ (callees, entry, call_edge) ->
       let entry_name = value_name entry in
@@ -119,7 +119,7 @@ let print_slices (llm : llmodule) (slices : slice list) : unit =
       let callee_name = value_name callee in
       let caller_name = value_name caller in
       let call_str = Printf.sprintf "(%s -> %s)" caller_name callee_name in
-      printf "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
+      fprintf oc "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
         entry_name callee_names_str call_str (string_of_llvalue instr) ;
       ())
     () slices
@@ -137,4 +137,5 @@ let main input_file =
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   let slices = slice llm !Options.slice_depth in
-  print_slices llm slices ; ()
+  print_slices stdout llm slices ;
+  ()

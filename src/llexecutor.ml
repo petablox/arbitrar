@@ -250,7 +250,7 @@ and finish_execution llctx env state =
       |> Environment.add_dugraph state.State.dugraph
     else env
   in
-  if !Options.debug then (
+  if !Options.verbose > 1 then (
     Memory.pp F.err_formatter state.State.memory ;
     ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
   if
