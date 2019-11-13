@@ -82,8 +82,16 @@ let run input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
+  let t0 = Sys.time () in
   let slices = Llslicer.slice llm !Options.slice_depth in
-  List.iteri (run_one_slice llctx llm) slices
+  Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
+  flush stdout ;
+  List.iteri
+    (fun idx slice ->
+      Printf.printf "%d/%d slices processed\r" idx (List.length slices) ;
+      flush stdout ;
+      run_one_slice llctx llm idx slice)
+    slices
 
 let mkdir dirname =
   if Sys.file_exists dirname && Sys.is_directory dirname then ()
