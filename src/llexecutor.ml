@@ -253,7 +253,10 @@ and finish_execution llctx env state =
   if !Options.debug then (
     Memory.pp F.err_formatter state.State.memory ;
     ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
-  if Worklist.is_empty env.worklist then env
+  if
+    Worklist.is_empty env.worklist
+    || Traces.length env.Environment.traces >= !Options.max_traces
+  then env
   else
     let (blk, state), wl = Worklist.pop env.worklist in
     execute_block llctx blk {env with worklist= wl} state
