@@ -35,6 +35,6 @@ let executor_opts =
   @ [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")
     ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace") ]
 
-let extractor_opts = common_opt @ slicer_opt
+let extractor_opts = common_opt @ slicer_opt @ executor_opts
 
 let options = ref extractor_opts
