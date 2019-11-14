@@ -54,6 +54,8 @@ module Trace = struct
 
   let append x t = t @ [x]
 
+  let length = List.length
+
   let to_json t =
     let l = List.map Stmt.to_json t in
     `List l

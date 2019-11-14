@@ -8,8 +8,6 @@ let target_function_name = ref ""
 
 let verbose = ref 0
 
-let max_traces = ref 100
-
 (* let start = ref 0
 
 let amount = ref -1 *)
@@ -28,9 +26,14 @@ let slicer_opt =
 
 let slicer_opts = common_opt @ slicer_opt
 
+let max_traces = ref 100
+
+let max_length = ref 100
+
 let executor_opts =
   common_opt
-  @ [("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")]
+  @ [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")
+    ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace") ]
 
 let extractor_opts = common_opt @ slicer_opt
 

@@ -124,91 +124,96 @@ and execute_instr llctx instr env state =
 
 and transfer llctx instr env state =
   if !Options.verbose > 1 then prerr_endline (Utils.string_of_instr instr) ;
-  let opcode = Llvm.instr_opcode instr in
-  let state =
-    Llvm.fold_left_uses
-      (fun env use -> State.add_du_edge instr (Llvm.user use) env)
-      state instr
-  in
-  let state =
-    match state.State.target with
-    | Some t when t = instr ->
-        State.visit_target state
-    | _ ->
-        state
-  in
-  match opcode with
-  | Llvm.Opcode.Ret -> (
-      let state = State.add_trace llctx instr state in
-      match State.pop_stack state with
-      | Some (callsite, state) ->
-          execute_instr llctx (Llvm.instr_succ callsite) env state
-      | None ->
-          execute_instr llctx (Llvm.instr_succ instr) env state )
-  | Br -> (
-      let state = State.add_trace llctx instr state in
-      match Llvm.get_branch instr with
-      | Some (`Conditional (_, b1, b2)) ->
-          let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
-          let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
-          if b1_visited && b2_visited then finish_execution llctx env state
-          else if b1_visited then
-            let state = State.visit_block b2 state in
-            execute_block llctx b2 env state
-          else if b2_visited then
-            let state = State.visit_block b1 state in
-            execute_block llctx b1 env state
-          else
-            let state = State.visit_block b1 state in
-            let state = State.visit_block b2 state in
-            let env = Environment.add_work (b2, state) env in
-            execute_block llctx b1 env state
-      | Some (`Unconditional b) ->
-          let visited = BlockSet.mem b state.State.visited_blocks in
-          if visited then finish_execution llctx env state
-          else
-            let state = State.visit_block b state in
-            execute_block llctx b env state
+  if Trace.length state.State.trace > !Options.max_length then
+    finish_execution llctx env state
+  else
+    let opcode = Llvm.instr_opcode instr in
+    let state =
+      Llvm.fold_left_uses
+        (fun env use -> State.add_du_edge instr (Llvm.user use) env)
+        state instr
+    in
+    let state =
+      match state.State.target with
+      | Some t when t = instr ->
+          State.visit_target state
       | _ ->
-          prerr_endline "warning: unknown branch" ;
-          execute_instr llctx (Llvm.instr_succ instr) env state )
-  | Switch ->
-      let state = State.add_trace llctx instr state in
-      execute_instr llctx (Llvm.instr_succ instr) env state
-  | Call ->
-      transfer_call llctx instr env state
-  | Alloca ->
-      let var = Location.variable instr in
-      let addr = Location.new_address () |> Value.location in
-      State.add_trace llctx instr state
-      |> State.add_memory_def var addr instr
-      |> execute_instr llctx (Llvm.instr_succ instr) env
-  | Store ->
-      let exp0 = Llvm.operand instr 0 in
-      let exp1 = Llvm.operand instr 1 in
-      let v0, uses0 = eval exp0 state.State.memory in
-      let v1, uses1 = eval exp1 state.State.memory in
-      let lv = match v1 with Value.Location l -> l | _ -> Location.Unknown in
-      State.add_trace llctx instr state
-      |> State.add_memory_def lv v0 instr
-      |> State.add_semantic_du_edges (uses0 @ uses1) instr
-      |> execute_instr llctx (Llvm.instr_succ instr) env
-  | Load ->
-      let exp0 = Llvm.operand instr 0 in
-      let lv0 = eval_lv exp0 state.State.memory in
-      let v0 = Memory.find lv0 state.State.memory in
-      let lv1 =
-        match v0 with Value.Location l -> l | _ -> Location.Unknown
-      in
-      let v1 = Memory.find lv1 state.State.memory in
-      let lv = eval_lv instr state.State.memory in
-      State.add_trace llctx instr state
-      |> State.add_memory_def lv v1 instr
-      |> State.add_semantic_du_edges [lv1] instr
-      |> execute_instr llctx (Llvm.instr_succ instr) env
-  | x ->
-      let state = State.add_trace llctx instr state in
-      execute_instr llctx (Llvm.instr_succ instr) env state
+          state
+    in
+    match opcode with
+    | Llvm.Opcode.Ret -> (
+        let state = State.add_trace llctx instr state in
+        match State.pop_stack state with
+        | Some (callsite, state) ->
+            execute_instr llctx (Llvm.instr_succ callsite) env state
+        | None ->
+            execute_instr llctx (Llvm.instr_succ instr) env state )
+    | Br -> (
+        let state = State.add_trace llctx instr state in
+        match Llvm.get_branch instr with
+        | Some (`Conditional (_, b1, b2)) ->
+            let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
+            let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
+            if b1_visited && b2_visited then finish_execution llctx env state
+            else if b1_visited then
+              let state = State.visit_block b2 state in
+              execute_block llctx b2 env state
+            else if b2_visited then
+              let state = State.visit_block b1 state in
+              execute_block llctx b1 env state
+            else
+              let state = State.visit_block b1 state in
+              let state = State.visit_block b2 state in
+              let env = Environment.add_work (b2, state) env in
+              execute_block llctx b1 env state
+        | Some (`Unconditional b) ->
+            let visited = BlockSet.mem b state.State.visited_blocks in
+            if visited then finish_execution llctx env state
+            else
+              let state = State.visit_block b state in
+              execute_block llctx b env state
+        | _ ->
+            prerr_endline "warning: unknown branch" ;
+            execute_instr llctx (Llvm.instr_succ instr) env state )
+    | Switch ->
+        let state = State.add_trace llctx instr state in
+        execute_instr llctx (Llvm.instr_succ instr) env state
+    | Call ->
+        transfer_call llctx instr env state
+    | Alloca ->
+        let var = Location.variable instr in
+        let addr = Location.new_address () |> Value.location in
+        State.add_trace llctx instr state
+        |> State.add_memory_def var addr instr
+        |> execute_instr llctx (Llvm.instr_succ instr) env
+    | Store ->
+        let exp0 = Llvm.operand instr 0 in
+        let exp1 = Llvm.operand instr 1 in
+        let v0, uses0 = eval exp0 state.State.memory in
+        let v1, uses1 = eval exp1 state.State.memory in
+        let lv =
+          match v1 with Value.Location l -> l | _ -> Location.Unknown
+        in
+        State.add_trace llctx instr state
+        |> State.add_memory_def lv v0 instr
+        |> State.add_semantic_du_edges (uses0 @ uses1) instr
+        |> execute_instr llctx (Llvm.instr_succ instr) env
+    | Load ->
+        let exp0 = Llvm.operand instr 0 in
+        let lv0 = eval_lv exp0 state.State.memory in
+        let v0 = Memory.find lv0 state.State.memory in
+        let lv1 =
+          match v0 with Value.Location l -> l | _ -> Location.Unknown
+        in
+        let v1 = Memory.find lv1 state.State.memory in
+        let lv = eval_lv instr state.State.memory in
+        State.add_trace llctx instr state
+        |> State.add_memory_def lv v1 instr
+        |> State.add_semantic_du_edges [lv1] instr
+        |> execute_instr llctx (Llvm.instr_succ instr) env
+    | x ->
+        let state = State.add_trace llctx instr state in
+        execute_instr llctx (Llvm.instr_succ instr) env state
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
