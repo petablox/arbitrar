@@ -72,14 +72,10 @@ let initialize llctx llm state =
           state func)
     state llm
 
-let is_debug_function f : bool =
-  let r = Str.regexp "llvm\\.dbg\\..+" in
-  Str.string_match r (Llvm.value_name f) 0
-
 let need_step_into_function boundaries f : bool =
   let dec_only = Llvm.is_declaration f in
   let in_bound = List.find_opt (( == ) f) boundaries |> Option.is_some in
-  let is_debug = is_debug_function f in
+  let is_debug = Utils.is_llvm_function f in
   (not dec_only) && in_bound && not is_debug
 
 let eval exp memory =
@@ -217,36 +213,34 @@ and transfer llctx instr env state =
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
-  if FuncSet.mem callee_expr state.visited_funcs then
-    let state = State.add_trace llctx instr state in
-    execute_instr llctx (Llvm.instr_succ instr) env state
-  else
-    let state = State.visit_func callee_expr state in
-    let var = Location.variable callee_expr in
-    let boundaries = env.boundaries in
-    match Memory.find var state.State.memory with
-    | Value.Function f when is_debug_function f ->
-        execute_instr llctx (Llvm.instr_succ instr) env state
-    | Value.Function f when need_step_into_function boundaries f ->
-        let state, _ =
-          Llvm.fold_left_params
-            (fun (state, count) param ->
-              let arg = Llvm.operand instr count in
-              let v, uses = eval arg state.State.memory in
-              let lv = eval_lv param state.State.memory in
-              let state = State.add_memory_def lv v instr state in
-              (state, count + 1))
-            (state, 0) f
-        in
-        let state = State.add_trace llctx instr state in
-        let state = State.push_stack instr state in
-        execute_function llctx f env state
-    | _ ->
-        let state = State.add_trace llctx instr state in
-        execute_instr llctx (Llvm.instr_succ instr) env state
-    | exception Not_found ->
-        Llvm.dump_value callee_expr ;
-        failwith "not found"
+  let state = State.visit_func callee_expr state in
+  let var = Location.variable callee_expr in
+  let boundaries = env.boundaries in
+  match Memory.find var state.State.memory with
+  | Value.Function f when Utils.is_llvm_function f ->
+      execute_instr llctx (Llvm.instr_succ instr) env state
+  | Value.Function f
+    when need_step_into_function boundaries f
+         || not (FuncSet.mem callee_expr state.visited_funcs) ->
+      let state, _ =
+        Llvm.fold_left_params
+          (fun (state, count) param ->
+            let arg = Llvm.operand instr count in
+            let v, uses = eval arg state.State.memory in
+            let lv = eval_lv param state.State.memory in
+            let state = State.add_memory_def lv v instr state in
+            (state, count + 1))
+          (state, 0) f
+      in
+      let state = State.add_trace llctx instr state in
+      let state = State.push_stack instr state in
+      execute_function llctx f env state
+  | _ ->
+      let state = State.add_trace llctx instr state in
+      execute_instr llctx (Llvm.instr_succ instr) env state
+  | exception Not_found ->
+      Llvm.dump_value callee_expr ;
+      failwith "not found"
 
 and finish_execution llctx env state =
   let env =

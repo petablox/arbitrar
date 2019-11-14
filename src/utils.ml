@@ -362,3 +362,9 @@ let json_of_instr instr =
 *)
   | _ ->
       `Assoc []
+
+let is_llvm_function f : bool =
+  let r1 = Str.regexp "llvm\\.dbg\\..+" in
+  let r2 = Str.regexp "llvm\\.lifetime\\..+" in
+  Str.string_match r1 (Llvm.value_name f) 0
+  || Str.string_match r2 (Llvm.value_name f) 0

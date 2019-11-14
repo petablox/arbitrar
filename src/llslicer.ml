@@ -21,8 +21,10 @@ let get_call_graph (llm : llmodule) : call_graph =
               match opcode with
               | Call ->
                   let callee = operand instr (num_operands instr - 1) in
-                  if Llvm.classify_value callee = Llvm.ValueKind.Function then
-                    (func, callee, instr) :: graph
+                  if
+                    Llvm.classify_value callee = Llvm.ValueKind.Function
+                    && not (Utils.is_llvm_function callee)
+                  then (func, callee, instr) :: graph
                   else graph
               | _ ->
                   graph)
