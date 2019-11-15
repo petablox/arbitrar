@@ -48,7 +48,7 @@ let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
-  let target = poi.callee in
+  let target = poi.instr in
   let initial_state =
     Llexecutor.initialize llctx llm {State.empty with target= Some target}
   in
