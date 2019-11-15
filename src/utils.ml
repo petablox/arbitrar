@@ -368,3 +368,19 @@ let is_llvm_function f : bool =
   let r2 = Str.regexp "llvm\\.lifetime\\..+" in
   Str.string_match r1 (Llvm.value_name f) 0
   || Str.string_match r2 (Llvm.value_name f) 0
+
+let rec unique (f : 'a -> 'a -> bool) (ls : 'a list) : 'a list =
+  match ls with
+  | hd :: tl ->
+      let tl_no_hd = List.filter (fun x -> not (f hd x)) tl in
+      let uniq_rest = unique f tl_no_hd in
+      hd :: uniq_rest
+  | [] ->
+      []
+
+let rec without (f : 'a -> bool) (ls : 'a list) : 'a list =
+  match ls with
+  | [] ->
+      []
+  | hd :: tl ->
+      if f hd then without f tl else hd :: without f tl

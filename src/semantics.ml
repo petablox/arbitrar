@@ -188,7 +188,7 @@ end
 module Node = struct
   type t = {stmt: Stmt.t; id: int; is_target: bool}
 
-  let compare = compare
+  let compare n1 n2 = compare n1.id n2.id
 
   let hash = Hashtbl.hash
 

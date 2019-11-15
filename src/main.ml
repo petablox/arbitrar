@@ -44,8 +44,11 @@ let call_graph input_file =
   let call_graph = Llslicer.get_call_graph llm in
   Llslicer.print_call_graph llm call_graph
 
-let run_one_slice log_channel llctx llm idx (boundaries, entry, poi) =
-  let _, _, target = poi in
+let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) =
+  let poi = slice.call_edge in
+  let boundaries = slice.functions in
+  let entry = slice.entry in
+  let target = poi.callee in
   let initial_state =
     Llexecutor.initialize llctx llm {State.empty with target= Some target}
   in
