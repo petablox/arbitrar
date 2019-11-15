@@ -312,8 +312,6 @@ and finish_execution llctx env state =
   let target_visited = state.target_visited in
   let not_duplicate = not (Environment.has_dugraph dugraph env) in
   let env =
-    if not target_visited then Printf.printf "Target not visited\n" ;
-    if not not_duplicate then Printf.printf "Found duplicate\n" ;
     if target_visited && not_duplicate then
       Environment.add_trace state.State.trace env
       |> Environment.add_dugraph dugraph
