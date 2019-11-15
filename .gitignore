@@ -11,8 +11,6 @@ llextractor
 *.out
 
 # Output
-*.dot
-*.json
 data
 
 # Misc
