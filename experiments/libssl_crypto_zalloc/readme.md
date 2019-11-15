@@ -1,6 +1,6 @@
-# LibCrypto - CRYPTO_zalloc
+# OpenSSL - CRYPTO_zalloc
 
-This document documents how we are doing experiments on LibCrypto CRYPTO_zalloc
+This document documents the process of doing experiment on OpenSSL's `CRYPTO_zalloc` function.
 
 ## Stats
 
