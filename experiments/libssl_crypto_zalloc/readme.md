@@ -83,7 +83,13 @@ This will give
 Average length of trace: 30.8133971291866
 ```
 
-and other information stored in `trace_lengths.json`.
+and other information stored in [`trace_lengths.json`](trace_lengths.json).
+
+Distribution of trace lengths:
+
+![length_distribution](length_distribution.png)
+
+Notice that most are short but still there are longer ones with 200+ statements.
 
 ### `icmp` after `zalloc`
 
@@ -103,13 +109,15 @@ The number of traces with "Icmp" after "zalloc": 206
 
 At the same time it will output two files in the same directory, namely,
 
-```
-/home/liby99/projects/ll_analyzer/experiments/libssl_crypto_zalloc/traces_with_icmp_after_zalloc.json
-/home/liby99/projects/ll_analyzer/experiments/libssl_crypto_zalloc/traces_without.json
-```
+[`traces_with_icmp_after_zalloc.json`](traces_with_icmp_after_zalloc.json)
 
-Since we know that the majority of `zalloc` is followed by `icmp`, we can go to see the traces without.
-It will give
+and
+
+[`traces_without.json`](traces_without.json)
+
+Since we know that the majority of `zalloc` is followed by `icmp`, we will go to see the traces without, as listed in [`traces_without.json`](traces_without.json).
+
+It has content
 
 ``` json
 [
@@ -119,10 +127,7 @@ It will give
 ]
 ```
 
-Going into these three traces we can pinpoint the position in the actual code where there's no `icmp`
-after `zalloc`.
-
-As a result, slice `14`, `15`, and `16` are all centered around a function called `SSL_CONF_CTX_new`.
+Going into these three traces we can pinpoint the positions of the function call of `zalloc` in the actual code. As a result, slice `14`, `15`, and `16` are all centered around a function called `SSL_CONF_CTX_new`.
 
 ``` c
 SSL_CONF_CTX *SSL_CONF_CTX_new(void)
@@ -136,6 +141,11 @@ SSL_CONF_CTX *SSL_CONF_CTX_new(void)
 Just as we look at it, it seems that this function call `SSL_CONF_CTX_new` **ALWAYS** has compare directly after
 it. This remains a mystery why our tool doesn't pick it up.
 
-TODO: Why don't we have `icmp` followed by this in our dataset?
+Detail information [here](https://github.com/openssl/openssl/blob/master/ssl/ssl_mcnf.c#L47):
+
+TODO:
+1. Figure out why don't we have `icmp` followed by this in our dataset?
+2. Still print out the entry point of our symbolic execution, otherwise when the
+  traces are exactly identical, we are unable to pinpoint the whole trace.
 
 As a resulting observation, **ALL** of the `zalloc`s are followed by `icmp` in OpenSSL.
