@@ -18,11 +18,11 @@ let parse_arg arg =
         Options.options := Options.executor_opts ;
         task := Execute
     | "dump-ll" ->
-        Options.options := Options.common_opt ;
+        Options.options := Options.common_opts ;
         task := DumpLL
     | "call-graph" ->
         Printf.printf "Printing call graph\n" ;
-        Options.options := Options.common_opt ;
+        Options.options := Options.common_opts ;
         task := CallGraph
     | _ ->
         input_file := get_filename arg
@@ -51,14 +51,9 @@ let run_one_slice log_channel llctx llm idx (boundaries, entry, poi) =
   in
   let env =
     Llexecutor.execute_function llctx entry
-      {Llexecutor.Environment.empty with boundaries}
+      {Llexecutor.Environment.empty with boundaries; initial_state}
       initial_state
   in
-  let dugraphs =
-    let target_node = NodeMap.find target initial_state.State.nodemap in
-    List.map (Llexecutor.slice target_node) env.dugraphs
-  in
-  let env = {env with dugraphs} in
   if !Options.verbose > 0 then
     Printf.printf "\n%d traces starting from %s\n"
       (Llexecutor.Traces.length env.Llexecutor.Environment.traces)

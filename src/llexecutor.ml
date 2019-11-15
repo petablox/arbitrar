@@ -28,15 +28,49 @@ module Traces = struct
     `List l
 end
 
+module Metadata = struct
+  type t = {num_explored: int; num_duplicated: int}
+
+  let empty = {num_explored= 0; num_duplicated= 0}
+
+  let incr_explored meta = {meta with num_explored= meta.num_explored + 1}
+
+  let incr_duplicated meta =
+    { num_duplicated= meta.num_duplicated + 1
+    ; num_explored= meta.num_explored + 1 }
+end
+
+module GraphViz = Graph.Graphviz.Dot (DUGraph)
+module Path = Graph.Path.Check (DUGraph)
+
+let slice target g =
+  let checker = Path.create g in
+  if not (DUGraph.mem_vertex g target) then g
+  else
+    DUGraph.fold_vertex
+      (fun v g ->
+        if Llvm.instr_opcode v.Node.stmt.Stmt.instr = Llvm.Opcode.Alloca then
+          DUGraph.remove_vertex g v
+        else if
+          (not (Path.check_path checker v target))
+          && not (Path.check_path checker target v)
+        then DUGraph.remove_vertex g v
+        else g)
+      g g
+
 module Environment = struct
   type t =
-    { worklist: Worklist.t
+    { meta: Metadata.t
+    ; initial_state: State.t
+    ; worklist: Worklist.t
     ; traces: Traces.t
     ; dugraphs: DUGraph.t list
     ; boundaries: Llvm.llvalue list }
 
   let empty =
-    { worklist= Worklist.empty
+    { meta= Metadata.empty
+    ; initial_state= State.empty
+    ; worklist= Worklist.empty
     ; traces= Traces.empty
     ; dugraphs= []
     ; boundaries= [] }
@@ -46,6 +80,34 @@ module Environment = struct
   let add_work work env = {env with worklist= Worklist.push work env.worklist}
 
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
+
+  let gen_dugraph trace dugraph env =
+    match env.initial_state.target with
+    | Some target ->
+        let target_node =
+          NodeMap.find target env.initial_state.State.nodemap
+        in
+        slice target_node dugraph
+    | None ->
+        dugraph
+
+  let has_dugraph g1 env : bool =
+    List.find_opt
+      (fun g2 ->
+        let g1_verts = DUGraph.fold_vertex (fun v l -> v.Node.id :: l) g1 [] in
+        let g2_verts = DUGraph.fold_vertex (fun v l -> v.Node.id :: l) g2 [] in
+        let g1_contained_in_g2 =
+          List.fold_left
+            (fun acc g1_v ->
+              acc && List.find_opt (( == ) g1_v) g2_verts |> Option.is_some)
+            true g1_verts
+        in
+        let g1_g2_length_equal =
+          List.length g1_verts == List.length g2_verts
+        in
+        g1_contained_in_g2 && g1_g2_length_equal)
+      env.dugraphs
+    |> Option.is_some
 end
 
 let initialize llctx llm state =
@@ -120,8 +182,11 @@ and execute_instr llctx instr env state =
 
 and transfer llctx instr env state =
   if !Options.verbose > 1 then prerr_endline (Utils.string_of_instr instr) ;
-  if Trace.length state.State.trace > !Options.max_length then
-    finish_execution llctx env state
+  let out_of_length =
+    if !Options.max_length == -1 then false
+    else Trace.length state.State.trace > !Options.max_length
+  in
+  if out_of_length then finish_execution llctx env state
   else
     let opcode = Llvm.instr_opcode instr in
     let state =
@@ -243,19 +308,25 @@ and transfer_call llctx instr env state =
       failwith "not found"
 
 and finish_execution llctx env state =
+  let dugraph = Environment.gen_dugraph state.trace state.dugraph env in
+  let target_visited = state.target_visited in
+  let not_duplicate = not (Environment.has_dugraph dugraph env) in
   let env =
-    if state.State.target_visited then
+    if not target_visited then Printf.printf "Target not visited\n" ;
+    if not not_duplicate then Printf.printf "Found duplicate\n" ;
+    if target_visited && not_duplicate then
       Environment.add_trace state.State.trace env
-      |> Environment.add_dugraph state.State.dugraph
+      |> Environment.add_dugraph dugraph
     else env
   in
   if !Options.verbose > 1 then (
     Memory.pp F.err_formatter state.State.memory ;
     ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
-  if
-    Worklist.is_empty env.worklist
-    || Traces.length env.Environment.traces >= !Options.max_traces
-  then env
+  let out_of_traces =
+    if !Options.max_traces == -1 then false
+    else Traces.length env.Environment.traces >= !Options.max_traces
+  in
+  if Worklist.is_empty env.worklist || out_of_traces then env
   else
     let (blk, state), wl = Worklist.pop env.worklist in
     execute_block llctx blk {env with worklist= wl} state
@@ -296,24 +367,6 @@ let dump_traces ?(prefix = "") env =
   let json = Traces.to_json env.Environment.traces in
   let oc = open_out (prefix ^ "traces.json") in
   Yojson.Safe.pretty_to_channel oc json
-
-module GraphViz = Graph.Graphviz.Dot (DUGraph)
-module Path = Graph.Path.Check (DUGraph)
-
-let slice target g =
-  let checker = Path.create g in
-  if not (DUGraph.mem_vertex g target) then g
-  else
-    DUGraph.fold_vertex
-      (fun v g ->
-        if Llvm.instr_opcode v.Node.stmt.Stmt.instr = Llvm.Opcode.Alloca then
-          DUGraph.remove_vertex g v
-        else if
-          (not (Path.check_path checker v target))
-          && not (Path.check_path checker target v)
-        then DUGraph.remove_vertex g v
-        else g)
-      g g
 
 let dump_dugraph ?(prefix = "") env =
   List.iteri
