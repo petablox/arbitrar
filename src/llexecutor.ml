@@ -206,7 +206,9 @@ and transfer llctx instr env state =
         let state = State.add_trace llctx instr state in
         match State.pop_stack state with
         | Some (callsite, state) ->
-            execute_instr llctx (Llvm.instr_succ callsite) env state
+            let lv = eval_lv callsite state.State.memory in
+            State.add_reaching_def lv instr state
+            |> execute_instr llctx (Llvm.instr_succ callsite) env
         | None ->
             execute_instr llctx (Llvm.instr_succ instr) env state )
     | Br -> (
@@ -293,7 +295,10 @@ and transfer_call llctx instr env state =
             let arg = Llvm.operand instr count in
             let v, uses = eval arg state.State.memory in
             let lv = eval_lv param state.State.memory in
-            let state = State.add_memory_def lv v instr state in
+            let state =
+              State.add_memory_def lv v instr state
+              |> State.add_semantic_du_edges uses instr
+            in
             (state, count + 1))
           (state, 0) f
       in
