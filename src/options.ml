@@ -8,9 +8,9 @@ let target_function_name = ref ""
 
 let verbose = ref 0
 
-let max_traces = ref (-1)
+let max_traces = ref max_int
 
-let max_length = ref (-1)
+let max_length = ref max_int
 
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")

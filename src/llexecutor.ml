@@ -165,6 +165,18 @@ let eval_lv exp memory =
   | _ ->
       Location.unknown
 
+let add_syntactic_du_edge instr env state =
+  Llvm.fold_left_uses
+    (fun env use -> State.add_du_edge instr (Llvm.user use) env)
+    state instr
+
+let visit_target instr state =
+  match state.State.target with
+  | Some t when t = instr ->
+      State.visit_target state
+  | _ ->
+      state
+
 let rec execute_function llctx f env state =
   let entry = Llvm.entry_block f in
   execute_block llctx entry env state
@@ -182,26 +194,11 @@ and execute_instr llctx instr env state =
 
 and transfer llctx instr env state =
   if !Options.verbose > 1 then prerr_endline (Utils.string_of_instr instr) ;
-  let out_of_length =
-    if !Options.max_length == -1 then false
-    else Trace.length state.State.trace > !Options.max_length
-  in
-  if out_of_length then finish_execution llctx env state
+  if Trace.length state.State.trace > !Options.max_length then
+    finish_execution llctx env state
   else
-    let opcode = Llvm.instr_opcode instr in
-    let state =
-      Llvm.fold_left_uses
-        (fun env use -> State.add_du_edge instr (Llvm.user use) env)
-        state instr
-    in
-    let state =
-      match state.State.target with
-      | Some t when t = instr ->
-          State.visit_target state
-      | _ ->
-          state
-    in
-    match opcode with
+    let state = add_syntactic_du_edge instr env state |> visit_target instr in
+    match Llvm.instr_opcode instr with
     | Llvm.Opcode.Ret -> (
         let state = State.add_trace llctx instr state in
         match State.pop_stack state with
