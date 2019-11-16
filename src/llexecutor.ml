@@ -170,7 +170,7 @@ let add_syntactic_du_edge instr env state =
     (fun env use -> State.add_du_edge instr (Llvm.user use) env)
     state instr
 
-let visit_target instr state =
+let mark_visit_target instr state =
   match state.State.target with
   | Some t when t = instr ->
       State.visit_target state
@@ -197,10 +197,12 @@ and transfer llctx instr env state =
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state
   else
-    let state = add_syntactic_du_edge instr env state |> visit_target instr in
+    let state = mark_visit_target instr state in
     match Llvm.instr_opcode instr with
     | Llvm.Opcode.Ret -> (
-        let state = State.add_trace llctx instr state in
+        let state =
+          State.add_trace llctx instr state |> add_syntactic_du_edge instr env
+        in
         match State.pop_stack state with
         | Some (callsite, state) ->
             let lv = eval_lv callsite state.State.memory in
@@ -209,7 +211,9 @@ and transfer llctx instr env state =
         | None ->
             execute_instr llctx (Llvm.instr_succ instr) env state )
     | Br -> (
-        let state = State.add_trace llctx instr state in
+        let state =
+          State.add_trace llctx instr state |> add_syntactic_du_edge instr env
+        in
         match Llvm.get_branch instr with
         | Some (`Conditional (_, b1, b2)) ->
             let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
@@ -236,7 +240,9 @@ and transfer llctx instr env state =
             prerr_endline "warning: unknown branch" ;
             execute_instr llctx (Llvm.instr_succ instr) env state )
     | Switch ->
-        let state = State.add_trace llctx instr state in
+        let state =
+          State.add_trace llctx instr state |> add_syntactic_du_edge instr env
+        in
         execute_instr llctx (Llvm.instr_succ instr) env state
     | Call ->
         transfer_call llctx instr env state
@@ -244,6 +250,7 @@ and transfer llctx instr env state =
         let var = Location.variable instr in
         let addr = Location.new_address () |> Value.location in
         State.add_trace llctx instr state
+        |> add_syntactic_du_edge instr env
         |> State.add_memory_def var addr instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | Store ->
@@ -255,6 +262,7 @@ and transfer llctx instr env state =
           match v1 with Value.Location l -> l | _ -> Location.Unknown
         in
         State.add_trace llctx instr state
+        |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
         |> State.add_semantic_du_edges (uses0 @ uses1) instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -268,12 +276,14 @@ and transfer llctx instr env state =
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
         State.add_trace llctx instr state
+        |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
         |> State.add_semantic_du_edges [lv1] instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | x ->
-        let state = State.add_trace llctx instr state in
-        execute_instr llctx (Llvm.instr_succ instr) env state
+        State.add_trace llctx instr state
+        |> add_syntactic_du_edge instr env
+        |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
@@ -282,7 +292,8 @@ and transfer_call llctx instr env state =
   let boundaries = env.boundaries in
   match Memory.find var state.State.memory with
   | Value.Function f when Utils.is_llvm_function f ->
-      execute_instr llctx (Llvm.instr_succ instr) env state
+      add_syntactic_du_edge instr env state
+      |> execute_instr llctx (Llvm.instr_succ instr) env
   | Value.Function f
     when need_step_into_function boundaries f
          || not (FuncSet.mem callee_expr state.visited_funcs) ->
@@ -303,8 +314,9 @@ and transfer_call llctx instr env state =
       let state = State.push_stack instr state in
       execute_function llctx f env state
   | _ ->
-      let state = State.add_trace llctx instr state in
-      execute_instr llctx (Llvm.instr_succ instr) env state
+      State.add_trace llctx instr state
+      |> add_syntactic_du_edge instr env
+      |> execute_instr llctx (Llvm.instr_succ instr) env
   | exception Not_found ->
       Llvm.dump_value callee_expr ;
       failwith "not found"
