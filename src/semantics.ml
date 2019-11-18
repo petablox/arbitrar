@@ -236,12 +236,13 @@ module DUGraph = struct
   let default_vertex_attributes g = [`Shape `Box]
 
   let to_json g =
-    let vertices =
+    let vertices, target_id =
       fold_vertex
-        (fun v l ->
+        (fun v (l, t) ->
+          let t = if v.Node.is_target then v.Node.id else t in
           let vertex = Node.to_json v in
-          vertex :: l)
-        g []
+          (vertex :: l, t))
+        g ([], -1)
     in
     let edges =
       fold_edges
@@ -250,7 +251,10 @@ module DUGraph = struct
           edge :: l)
         g []
     in
-    `Assoc [("vertex", `List vertices); ("edge", `List edges)]
+    `Assoc
+      [ ("vertex", `List vertices)
+      ; ("edge", `List edges)
+      ; ("target", `Int target_id) ]
 end
 
 module NodeMap = struct
