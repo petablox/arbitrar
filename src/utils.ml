@@ -68,7 +68,6 @@ let string_of_exp exp =
   match Llvm.classify_value exp with
   | Llvm.ValueKind.NullValue ->
       "0"
-  | Argument
   | BasicBlock
   | InlineAsm
   | MDNode
@@ -80,7 +79,7 @@ let string_of_exp exp =
   | ConstantDataVector
   | ConstantExpr ->
       Llvm.string_of_llvalue exp
-  | ConstantFP | ConstantInt ->
+  | Argument | ConstantFP | ConstantInt ->
       let s = string_of_instr exp in
       let r = Str.regexp " " in
       let idx = Str.search_forward r s 0 in
@@ -213,7 +212,8 @@ let json_of_instr instr =
       `Assoc [opcode; ("cond", cond)]
   | Switch ->
       let opcode = ("opcode", `String "switch") in
-      `Assoc [opcode]
+      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+      `Assoc [opcode; ("op0", op0)]
   | IndirectBr ->
       json_of_opcode "indirectbr"
   | Invoke ->
@@ -264,7 +264,10 @@ let json_of_instr instr =
       let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
       `Assoc [opcode; ("op0", op0); ("op1", op1)]
   | GetElementPtr ->
-      json_of_opcode "getelementptr"
+      let opcode = ("opcode", `String "getelementptr") in
+      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+      let result = `String (string_of_lhs instr) in
+      `Assoc [opcode; ("op0", op0); ("result", result)]
   | Trunc ->
       json_of_unop instr "trunc"
   | ZExt ->
@@ -318,7 +321,13 @@ let json_of_instr instr =
       let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
       `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
   | PHI ->
-      json_of_opcode "phi"
+      let opcode = ("opcode", `String "phi") in
+      let result = `String (string_of_lhs instr) in
+      let incoming =
+        Llvm.incoming instr
+        |> List.map (fun x -> `String (fst x |> string_of_exp))
+      in
+      `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
   | Call ->
       let opcode = ("opcode", `String "call") in
       let result =
