@@ -44,7 +44,6 @@ module Slices = struct
 
   let dump_json ?(prefix = "") llm slices =
     let json = to_json llm slices in
-    Printf.printf "%s" prefix ;
     let oc = open_out (prefix ^ "/slices.json") in
     Yojson.Safe.pretty_to_channel oc json
 end

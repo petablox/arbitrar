@@ -350,7 +350,8 @@ module State = struct
     let new_id = new_instr_count () in
     let node = Node.make llctx instr new_id is_target in
     NodeMap.add s.nodemap instr node ;
-    s
+    if is_target then {s with dugraph= DUGraph.add_vertex s.dugraph node}
+    else s
 
   let visit_target s = {s with target_visited= true}
 end
