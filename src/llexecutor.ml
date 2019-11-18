@@ -43,9 +43,9 @@ end
 module GraphViz = Graph.Graphviz.Dot (DUGraph)
 module Path = Graph.Path.Check (DUGraph)
 
-let slice target g =
+let filter target g =
   let checker = Path.create g in
-  if not (DUGraph.mem_vertex g target) then g
+  if not (DUGraph.mem_vertex g target) then DUGraph.empty
   else
     DUGraph.fold_vertex
       (fun v g ->
@@ -87,7 +87,7 @@ module Environment = struct
         let target_node =
           NodeMap.find target env.initial_state.State.nodemap
         in
-        slice target_node dugraph
+        filter target_node dugraph
     | None ->
         dugraph
 
@@ -409,7 +409,7 @@ let main input_file =
     match target with
     | Some instr ->
         let target_node = NodeMap.find instr initial_state.State.nodemap in
-        List.map (slice target_node) env.dugraphs
+        List.map (filter target_node) env.dugraphs
     | None ->
         env.dugraphs
   in
