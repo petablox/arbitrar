@@ -1,11 +1,15 @@
 open Printf
-open Llvm
-open Llvm_bitreader
 
 module CallEdge = struct
-  type t = {caller: llvalue; callee: llvalue; instr: llvalue}
+  type t = {caller: Llvm.llvalue; callee: Llvm.llvalue; instr: Llvm.llvalue}
 
   let create caller callee instr = {caller; callee; instr}
+
+  let to_json llm ce =
+    `Assoc
+      [ ("caller", `String (Llvm.value_name ce.caller))
+      ; ("callee", `String (Llvm.value_name ce.callee))
+      ; ("instr", `String (Llvm.string_of_llvalue ce.instr)) ]
 end
 
 module CallGraph = struct
@@ -18,22 +22,46 @@ module CallGraph = struct
 end
 
 module Slice = struct
-  type t = {functions: llvalue list; entry: llvalue; call_edge: CallEdge.t}
+  type t =
+    {functions: Llvm.llvalue list; entry: Llvm.llvalue; call_edge: CallEdge.t}
 
   let create functions entry call_edge = {functions; entry; call_edge}
+
+  let to_json llm slice =
+    `Assoc
+      [ ( "functions"
+        , `List
+            (List.map (fun f -> `String (Llvm.value_name f)) slice.functions)
+        )
+      ; ("entry", `String (Llvm.value_name slice.entry))
+      ; ("call_edge", CallEdge.to_json llm slice.call_edge) ]
 end
 
-let get_call_graph (llm : llmodule) : CallGraph.t =
-  fold_left_functions
+module Slices = struct
+  type t = Slice.t list
+
+  let to_json llm slices = `List (List.map (Slice.to_json llm) slices)
+
+  let dump_json ?(prefix = "") llm slices =
+    let json = to_json llm slices in
+    Printf.printf "%s" prefix ;
+    let oc = open_out (prefix ^ "/slices.json") in
+    Yojson.Safe.pretty_to_channel oc json
+end
+
+let get_call_graph (llm : Llvm.llmodule) : CallGraph.t =
+  Llvm.fold_left_functions
     (fun graph func ->
-      fold_left_blocks
+      Llvm.fold_left_blocks
         (fun graph block ->
-          fold_left_instrs
+          Llvm.fold_left_instrs
             (fun graph instr ->
-              let opcode = instr_opcode instr in
+              let opcode = Llvm.instr_opcode instr in
               match opcode with
               | Call ->
-                  let callee = operand instr (num_operands instr - 1) in
+                  let callee =
+                    Llvm.operand instr (Llvm.num_operands instr - 1)
+                  in
                   if
                     Llvm.classify_value callee = Llvm.ValueKind.Function
                     && not (Utils.is_llvm_function callee)
@@ -45,19 +73,17 @@ let get_call_graph (llm : llmodule) : CallGraph.t =
         graph func)
     [] llm
 
-let print_call_edge (llm : llmodule) (ce : CallEdge.t) : unit =
-  let callee_name = value_name ce.callee in
-  let caller_name = value_name ce.caller in
-  printf "(%s -> %s); " caller_name callee_name ;
-  ()
+let print_call_edge (llm : Llvm.llmodule) (ce : CallEdge.t) : unit =
+  let callee_name = Llvm.value_name ce.callee in
+  let caller_name = Llvm.value_name ce.caller in
+  ignore (printf "(%s -> %s); " caller_name callee_name)
 
-let print_call_graph (llm : llmodule) (cg : CallGraph.t) : unit =
-  List.fold_left (fun _ ce -> print_call_edge llm ce) () cg ;
-  printf "\n" ;
-  ()
+let print_call_graph (llm : Llvm.llmodule) (cg : CallGraph.t) : unit =
+  List.iter (fun ce -> print_call_edge llm ce) cg ;
+  ignore (printf "\n")
 
-let rec find_entries (depth : int) (env : CallGraph.t) (target : llvalue) :
-    (llvalue * int) list =
+let rec find_entries (depth : int) (env : CallGraph.t) (target : Llvm.llvalue)
+    : (Llvm.llvalue * int) list =
   match depth with
   | 0 ->
       [(target, 0)]
@@ -72,8 +98,8 @@ let rec find_entries (depth : int) (env : CallGraph.t) (target : llvalue) :
       in
       if List.length callers == 0 then [(target, depth)] else callers
 
-let rec find_callees (depth : int) (env : CallGraph.t) (target : llvalue) :
-    llvalue list =
+let rec find_callees (depth : int) (env : CallGraph.t) (target : Llvm.llvalue)
+    : Llvm.llvalue list =
   match depth with
   | 0 ->
       []
@@ -85,15 +111,15 @@ let rec find_callees (depth : int) (env : CallGraph.t) (target : llvalue) :
           else acc)
         [] env
 
-let need_find_slices_for_edge (llm : llmodule) (ce : CallEdge.t) : bool =
+let need_find_slices_for_edge (llm : Llvm.llmodule) (ce : CallEdge.t) : bool =
   match !Options.target_function_name with
   | "" ->
       true
   | n ->
-      let callee_name = value_name ce.callee in
+      let callee_name = Llvm.value_name ce.callee in
       String.equal callee_name n
 
-let find_slices llm depth env (ce : CallEdge.t) : Slice.t list =
+let find_slices llm depth env (ce : CallEdge.t) : Slices.t =
   if need_find_slices_for_edge llm ce then
     let entries = find_entries depth env ce.caller in
     let uniq_entries = Utils.unique (fun (a, _) (b, _) -> a == b) entries in
@@ -111,22 +137,21 @@ let find_slices llm depth env (ce : CallEdge.t) : Slice.t list =
     slices
   else []
 
-let print_slices oc (llm : llmodule) (slices : Slice.t list) : unit =
-  List.fold_left
-    (fun _ (slice : Slice.t) ->
-      let entry_name = value_name slice.entry in
-      let func_names = List.map (fun f -> value_name f) slice.functions in
+let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
+  List.iter
+    (fun (slice : Slice.t) ->
+      let entry_name = Llvm.value_name slice.entry in
+      let func_names = List.map (fun f -> Llvm.value_name f) slice.functions in
       let func_names_str = String.concat ", " func_names in
-      let callee_name = value_name slice.call_edge.callee in
-      let caller_name = value_name slice.call_edge.caller in
-      let instr_str = string_of_llvalue slice.call_edge.instr in
+      let callee_name = Llvm.value_name slice.call_edge.callee in
+      let caller_name = Llvm.value_name slice.call_edge.caller in
+      let instr_str = Llvm.string_of_llvalue slice.call_edge.instr in
       let call_str = Printf.sprintf "(%s -> %s)" caller_name callee_name in
       fprintf oc "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
-        entry_name func_names_str call_str instr_str ;
-      ())
-    () slices
+        entry_name func_names_str call_str instr_str)
+    slices
 
-let slice (llm : llmodule) (slice_depth : int) : Slice.t list =
+let slice (llm : Llvm.llmodule) (slice_depth : int) : Slices.t =
   let call_graph = get_call_graph llm in
   let slices =
     List.map (find_slices llm slice_depth call_graph) call_graph
@@ -135,9 +160,8 @@ let slice (llm : llmodule) (slice_depth : int) : Slice.t list =
   slices
 
 let main input_file =
-  let llctx = create_context () in
+  let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   let slices = slice llm !Options.slice_depth in
-  print_slices stdout llm slices ;
-  ()
+  ignore (print_slices stdout llm slices)

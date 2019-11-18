@@ -78,9 +78,7 @@ let run input_file =
   let log_channel = open_out (!Options.outdir ^ "/log.txt") in
   let t0 = Sys.time () in
   let slices = Llslicer.slice llm !Options.slice_depth in
-  let slice_oc = open_out (!Options.outdir ^ "/slice.txt") in
-  Llslicer.print_slices slice_oc llm slices ;
-  close_out slice_oc ;
+  Llslicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
   flush stdout ;
   let t0 = Sys.time () in

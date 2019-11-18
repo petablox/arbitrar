@@ -38,6 +38,11 @@ module Metadata = struct
   let incr_duplicated meta =
     { num_duplicated= meta.num_duplicated + 1
     ; num_explored= meta.num_explored + 1 }
+
+  let to_json meta =
+    `Assoc
+      [ ("num_traces", `Int meta.num_explored)
+      ; ("duplicated", `Int meta.num_duplicated) ]
 end
 
 module GraphViz = Graph.Graphviz.Dot (DUGraph)
@@ -60,7 +65,7 @@ let filter target g =
 
 module Environment = struct
   type t =
-    { meta: Metadata.t
+    { metadata: Metadata.t
     ; initial_state: State.t
     ; worklist: Worklist.t
     ; traces: Traces.t
@@ -68,7 +73,7 @@ module Environment = struct
     ; boundaries: Llvm.llvalue list }
 
   let empty =
-    { meta= Metadata.empty
+    { metadata= Metadata.empty
     ; initial_state= State.empty
     ; worklist= Worklist.empty
     ; traces= Traces.empty
@@ -327,9 +332,12 @@ and finish_execution llctx env state =
   let not_duplicate = not (Environment.has_dugraph dugraph env) in
   let env =
     if target_visited && not_duplicate then
-      Environment.add_trace state.State.trace env
-      |> Environment.add_dugraph dugraph
-    else env
+      let env =
+        Environment.add_trace state.State.trace env
+        |> Environment.add_dugraph dugraph
+      in
+      {env with metadata= Metadata.incr_explored env.metadata}
+    else {env with metadata= Metadata.incr_duplicated env.metadata}
   in
   if !Options.verbose > 1 then (
     Memory.pp F.err_formatter state.State.memory ;
