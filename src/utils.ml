@@ -1,3 +1,7 @@
+exception InvalidJSON
+
+exception NotImplemented
+
 let string_of_instr instr = Llvm.string_of_llvalue instr |> String.trim
 
 let string_of_lhs instr =
@@ -393,3 +397,43 @@ let rec without (f : 'a -> bool) (ls : 'a list) : 'a list =
       []
   | hd :: tl ->
       if f hd then without f tl else hd :: without f tl
+
+let get_function_in_llm (func_name : string) (llm : Llvm.llmodule) :
+    Llvm.llvalue =
+  match Llvm.lookup_function func_name llm with
+  | Some entry ->
+      entry
+  | None ->
+      raise InvalidJSON
+
+let get_field json field : Yojson.Safe.t =
+  match json with
+  | `Assoc fields -> (
+    match List.find_opt (fun (key, _) -> key = field) fields with
+    | Some (_, field_data) ->
+        field_data
+    | None ->
+        raise InvalidJSON )
+  | _ ->
+      raise InvalidJSON
+
+let string_from_json json : string =
+  match json with `String str -> str | _ -> raise InvalidJSON
+
+let int_from_json json : int =
+  match json with `Int i -> i | _ -> raise InvalidJSON
+
+let int_from_json_field json field : int = int_from_json (get_field json field)
+
+let list_from_json json : Yojson.Safe.t list =
+  match json with `List ls -> ls | _ -> raise InvalidJSON
+
+let string_from_json_field json field : string =
+  string_from_json (get_field json field)
+
+let string_list_from_json json : string list =
+  match json with
+  | `List ls ->
+      List.map string_from_json ls
+  | _ ->
+      raise InvalidJSON

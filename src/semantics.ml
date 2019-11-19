@@ -33,8 +33,8 @@ module Stmt = struct
 
   let to_json s =
     let common =
-      [ ("Location", `String s.location)
-      ; ("Instr", `String (Utils.string_of_instr s.instr)) ]
+      [ ("location", `String s.location)
+      ; ("instr", `String (Utils.string_of_instr s.instr)) ]
     in
     match Utils.json_of_instr s.instr with
     | `Assoc l ->

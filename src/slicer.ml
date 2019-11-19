@@ -1,26 +1,5 @@
 open Printf
 
-exception InvalidJSON
-
-let get_function_in_llm (func_name : string) (llm : Llvm.llmodule) :
-    Llvm.llvalue =
-  match Llvm.lookup_function func_name llm with
-  | Some entry ->
-      entry
-  | None ->
-      raise InvalidJSON
-
-let get_field json field : Yojson.Safe.t =
-  match json with
-  | `Assoc fields -> (
-    match List.find_opt (fun (key, _) -> key = field) fields with
-    | Some (_, field_data) ->
-        field_data
-    | None ->
-        raise InvalidJSON )
-  | _ ->
-      raise InvalidJSON
-
 module CallEdge = struct
   type t = {caller: Llvm.llvalue; callee: Llvm.llvalue; instr: Llvm.llvalue}
 
@@ -33,22 +12,28 @@ module CallEdge = struct
       ; ("instr", `String (Llvm.string_of_llvalue ce.instr)) ]
 
   let get_function_of_field llm field_name json : Llvm.llvalue =
-    let field = get_field json field_name in
+    let field = Utils.get_field json field_name in
     match field with
     | `String name ->
-        get_function_in_llm name llm
+        Utils.get_function_in_llm name llm
     | _ ->
-        raise InvalidJSON
+        raise Utils.InvalidJSON
 
   let get_instr_string json : string =
-    let field = get_field json "instr" in
-    match field with `String instr_str -> instr_str | _ -> raise InvalidJSON
+    let field = Utils.get_field json "instr" in
+    match field with
+    | `String instr_str ->
+        instr_str
+    | _ ->
+        raise Utils.InvalidJSON
 
   let from_json llm json =
     let caller = get_function_of_field llm "caller" json in
     let callee = get_function_of_field llm "callee" json in
     let instr =
-      let instr_str = get_instr_string json in
+      (* Want to have better algorithm instead of find the instr in linear *)
+      raise Utils.NotImplemented
+      (* let instr_str = get_instr_string json in
       let maybe_instr =
         Llvm.fold_left_blocks
           (fun acc block ->
@@ -59,7 +44,11 @@ module CallEdge = struct
               acc block)
           None caller
       in
-      match maybe_instr with Some instr -> instr | None -> raise InvalidJSON
+      match maybe_instr with
+      | Some instr ->
+          instr
+      | None ->
+          raise Utils.InvalidJSON *)
     in
     {caller; callee; instr}
 end
@@ -89,28 +78,28 @@ module Slice = struct
       ; ("call_edge", CallEdge.to_json llm slice.call_edge) ]
 
   let get_functions_from_json llm json =
-    match get_field json "functions" with
+    match Utils.get_field json "functions" with
     | `List func_names ->
         List.map
           (fun func_name ->
             match func_name with
             | `String name ->
-                get_function_in_llm name llm
+                Utils.get_function_in_llm name llm
             | _ ->
-                raise InvalidJSON)
+                raise Utils.InvalidJSON)
           func_names
     | _ ->
-        raise InvalidJSON
+        raise Utils.InvalidJSON
 
   let get_entry_from_json llm json =
-    match get_field json "entry" with
+    match Utils.get_field json "entry" with
     | `String name ->
-        get_function_in_llm name llm
+        Utils.get_function_in_llm name llm
     | _ ->
-        raise InvalidJSON
+        raise Utils.InvalidJSON
 
   let get_call_edge_from_json llm json =
-    CallEdge.from_json llm (get_field json "call_edge")
+    CallEdge.from_json llm (Utils.get_field json "call_edge")
 
   let from_json llm json =
     let entry = get_entry_from_json llm json in
@@ -134,7 +123,7 @@ module Slices = struct
     | `List json_slice_list ->
         List.map (Slice.from_json llm) json_slice_list
     | _ ->
-        raise InvalidJSON
+        raise Utils.InvalidJSON
 end
 
 let get_call_graph (llm : Llvm.llmodule) : CallGraph.t =
