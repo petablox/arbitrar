@@ -54,19 +54,103 @@ module CallEdge = struct
 end
 
 module CallGraph = struct
-  type t = CallEdge.t list
+  module Node = struct
+    type t = Llvm.llvalue
 
-  let empty = []
+    let compare = compare
 
-  let add_edge graph caller callee instr =
-    CallEdge.create caller callee instr :: graph
+    let equal = ( = )
+
+    let hash = Hashtbl.hash
+
+    let to_string = Llvm.value_name
+
+    let label = Llvm.value_name
+  end
+
+  module G = Graph.Persistent.Digraph.ConcreteBidirectional (Node)
+  module E = G.E
+  module V = G.V
+
+  module CallInstrMap = Map.Make (struct
+    type t = Llvm.llvalue * Llvm.llvalue
+
+    let compare = compare
+
+    let hash = Hashtbl.hash
+  end)
+
+  module CallInstrSet = Set.Make (struct
+    type t = Llvm.llvalue
+
+    let compare = compare
+  end)
+
+  type t = {graph: G.t; call_instr_map: CallInstrSet.t CallInstrMap.t}
+
+  let empty = {graph= G.empty; call_instr_map= CallInstrMap.empty}
+
+  let add_edge_e g (caller, instr, callee) =
+    let graph = G.add_edge g.graph caller callee in
+    let call_instr_map =
+      try
+        let set = CallInstrMap.find (caller, callee) g.call_instr_map in
+        CallInstrMap.add (caller, callee)
+          (CallInstrSet.add instr set)
+          g.call_instr_map
+      with Not_found ->
+        CallInstrMap.add (caller, callee)
+          (CallInstrSet.singleton instr)
+          g.call_instr_map
+    in
+    {graph; call_instr_map}
+
+  let fold_edges_e f cg acc = G.fold_edges_e f cg.graph acc
+
+  let fold_edges_instr_set f cg acc =
+    G.fold_edges_e
+      (fun (caller, callee) acc ->
+        let instr_set = CallInstrMap.find (caller, callee) cg.call_instr_map in
+        CallInstrSet.fold
+          (fun instr acc -> f (caller, instr, callee) acc)
+          instr_set acc)
+      cg.graph acc
+
+  let iter_edges_e f cg = G.iter_edges_e f cg.graph
+
+  let iter_edges_instr_set f cg =
+    G.iter_edges
+      (fun caller callee ->
+        let instr_set = CallInstrMap.find (caller, callee) cg.call_instr_map in
+        CallInstrSet.iter (fun instr -> f (caller, instr, callee)) instr_set)
+      cg.graph
+
+  let iter_vertex f cg = G.iter_vertex f cg.graph
+
+  let graph_attributes g = []
+
+  let edge_attributes e = []
+
+  let default_edge_attributes g = []
+
+  let get_subgraph v = None
+
+  let vertex_name v = "\"" ^ Node.to_string v ^ "\""
+
+  let vertex_attributes v = []
+
+  let default_vertex_attributes g = []
 end
+
+module GraphViz = Graph.Graphviz.Dot (CallGraph)
 
 module Slice = struct
   type t =
     {functions: Llvm.llvalue list; entry: Llvm.llvalue; call_edge: CallEdge.t}
 
-  let create functions entry call_edge = {functions; entry; call_edge}
+  let create functions entry (caller, instr, callee) =
+    let call_edge = {CallEdge.caller; instr; callee} in
+    {functions; entry; call_edge}
 
   let to_json llm slice =
     `Assoc
@@ -142,22 +226,27 @@ let get_call_graph (llm : Llvm.llmodule) : CallGraph.t =
                   if
                     Llvm.classify_value callee = Llvm.ValueKind.Function
                     && not (Utils.is_llvm_function callee)
-                  then CallGraph.add_edge graph func callee instr
+                  then CallGraph.add_edge_e graph (func, instr, callee)
                   else graph
               | _ ->
                   graph)
             graph block)
         graph func)
-    [] llm
+    CallGraph.empty llm
 
-let print_call_edge (llm : Llvm.llmodule) (ce : CallEdge.t) : unit =
-  let callee_name = Llvm.value_name ce.callee in
-  let caller_name = Llvm.value_name ce.caller in
+let print_call_edge (llm : Llvm.llmodule) (caller, _, callee) : unit =
+  let callee_name = Llvm.value_name callee in
+  let caller_name = Llvm.value_name caller in
   ignore (printf "(%s -> %s); " caller_name callee_name)
 
 let print_call_graph (llm : Llvm.llmodule) (cg : CallGraph.t) : unit =
-  List.iter (fun ce -> print_call_edge llm ce) cg ;
+  CallGraph.iter_edges_instr_set (fun ce -> print_call_edge llm ce) cg ;
   ignore (printf "\n")
+
+let dump_call_graph cg =
+  let oc = open_out (!Options.outdir ^ "/callgraph.dot") in
+  GraphViz.output_graph oc cg ;
+  close_out oc
 
 let rec find_entries (depth : int) (env : CallGraph.t) (target : Llvm.llvalue)
     : (Llvm.llvalue * int) list =
@@ -166,12 +255,11 @@ let rec find_entries (depth : int) (env : CallGraph.t) (target : Llvm.llvalue)
       [(target, 0)]
   | _ ->
       let callers =
-        List.fold_left
-          (fun acc ce ->
-            if target == ce.CallEdge.callee then
-              find_entries (depth - 1) env ce.caller @ acc
+        CallGraph.fold_edges_instr_set
+          (fun (caller, inst, callee) acc ->
+            if target = callee then find_entries (depth - 1) env caller @ acc
             else acc)
-          [] env
+          env []
       in
       if List.length callers == 0 then [(target, depth)] else callers
 
@@ -181,24 +269,24 @@ let rec find_callees (depth : int) (env : CallGraph.t) (target : Llvm.llvalue)
   | 0 ->
       []
   | _ ->
-      List.fold_left
-        (fun acc ce ->
-          if ce.CallEdge.caller == target then
-            acc @ (ce.callee :: find_callees (depth - 1) env ce.callee)
+      CallGraph.fold_edges_instr_set
+        (fun (caller, inst, callee) acc ->
+          if caller == target then
+            acc @ (callee :: find_callees (depth - 1) env callee)
           else acc)
-        [] env
+        env []
 
-let need_find_slices_for_edge (llm : Llvm.llmodule) (ce : CallEdge.t) : bool =
+let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
   match !Options.target_function_name with
   | "" ->
       true
   | n ->
-      let callee_name = Llvm.value_name ce.callee in
+      let callee_name = Llvm.value_name callee in
       String.equal callee_name n
 
-let find_slices llm depth env (ce : CallEdge.t) : Slices.t =
-  if need_find_slices_for_edge llm ce then
-    let entries = find_entries depth env ce.caller in
+let find_slices llm depth env (caller, inst, callee) : Slices.t =
+  if need_find_slices_for_edge llm callee then
+    let entries = find_entries depth env caller in
     let uniq_entries = Utils.unique (fun (a, _) (b, _) -> a == b) entries in
     let slices =
       List.map
@@ -206,9 +294,9 @@ let find_slices llm depth env (ce : CallEdge.t) : Slices.t =
           let callees = find_callees ((depth * 2) - up_count) env entry in
           let uniq_funcs = Utils.unique ( == ) (entry :: callees) in
           let uniq_funcs_without_callee =
-            Utils.without (( == ) ce.callee) uniq_funcs
+            Utils.without (( == ) callee) uniq_funcs
           in
-          Slice.create uniq_funcs_without_callee entry ce)
+          Slice.create uniq_funcs_without_callee entry (caller, inst, callee))
         uniq_entries
     in
     slices
@@ -231,8 +319,9 @@ let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
 let slice (llm : Llvm.llmodule) (slice_depth : int) : Slices.t =
   let call_graph = get_call_graph llm in
   let slices =
-    List.map (find_slices llm slice_depth call_graph) call_graph
-    |> List.flatten
+    CallGraph.fold_edges_instr_set
+      (fun edge acc -> acc @ find_slices llm slice_depth call_graph edge)
+      call_graph []
   in
   slices
 
