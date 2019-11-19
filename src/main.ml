@@ -1,5 +1,5 @@
 open Semantics
-module Metadata = Llexecutor.Metadata
+module Metadata = Executor.Metadata
 
 type task = All | Slice | Execute | Analyze | DumpLL | CallGraph
 
@@ -22,10 +22,10 @@ let parse_arg arg =
         Options.options := Options.common_opts ;
         task := DumpLL
     | "call-graph" ->
-        Printf.printf "Printing call graph\n" ;
         Options.options := Options.common_opts ;
         task := CallGraph
     | "analyze" ->
+        Options.options := Options.common_opts ;
         task := Analyze
     | _ ->
         input_file := get_filename arg
@@ -45,26 +45,31 @@ let call_graph input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let call_graph = Llslicer.get_call_graph llm in
-  Llslicer.print_call_graph llm call_graph
+  let call_graph = Slicer.get_call_graph llm in
+  Slicer.print_call_graph llm call_graph
 
-let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) :
-    Llexecutor.Environment.t =
+let analyze input_directory =
+  Printf.printf "Analyzing directory %s\n" input_directory ;
+  Printf.printf "Not implemented\n" ;
+  ()
+
+let run_one_slice log_channel llctx llm idx (slice : Slicer.Slice.t) :
+    Executor.Environment.t =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
   let target = poi.instr in
   let initial_state =
-    Llexecutor.initialize llctx llm {State.empty with target= Some target}
+    Executor.initialize llctx llm {State.empty with target= Some target}
   in
   let env =
-    Llexecutor.execute_function llctx entry
-      {Llexecutor.Environment.empty with boundaries; initial_state}
+    Executor.execute_function llctx entry
+      {Executor.Environment.empty with boundaries; initial_state}
       initial_state
   in
   if !Options.verbose > 0 then
     Printf.printf "\n%d traces starting from %s\n"
-      (Llexecutor.Traces.length env.Llexecutor.Environment.traces)
+      (Executor.Traces.length env.Executor.Environment.traces)
       (Llvm.value_name entry) ;
   let target_name =
     Llvm.operand target (Llvm.num_operands target - 1) |> Llvm.value_name
@@ -72,9 +77,9 @@ let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) :
   let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
   let dugraph_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
   let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
-  if !Options.verbose > 0 then Llexecutor.print_report log_channel env ;
-  if !Options.debug then Llexecutor.dump_traces ~prefix:trace_prefix env ;
-  Llexecutor.dump_dugraph ~prefix:dugraph_prefix env ;
+  if !Options.verbose > 0 then Executor.print_report log_channel env ;
+  if !Options.debug then Executor.dump_traces ~prefix:trace_prefix env ;
+  Executor.dump_dugraph ~prefix:dugraph_prefix env ;
   env
 
 let run input_file =
@@ -86,8 +91,8 @@ let run input_file =
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   (* Start to slice the program *)
   let t0 = Sys.time () in
-  let slices = Llslicer.slice llm !Options.slice_depth in
-  Llslicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
+  let slices = Slicer.slice llm !Options.slice_depth in
+  Slicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
   flush stdout ;
   (* Run execution on each slice and merge all metadata *)
@@ -125,19 +130,18 @@ let initialize () =
 
 let main () =
   Arg.parse_dynamic Options.options parse_arg usage ;
-  initialize () ;
   match !task with
   | DumpLL ->
       dump !input_file
   | CallGraph ->
       call_graph !input_file
   | Analyze ->
-      Printf.printf "Not implemented\n"
+      analyze !input_file
   | Slice ->
-      Llslicer.main !input_file
+      Slicer.main !input_file
   | Execute ->
-      Llexecutor.main !input_file
+      initialize () ; Executor.main !input_file
   | All ->
-      run !input_file
+      initialize () ; run !input_file
 
 let _ = main ()
