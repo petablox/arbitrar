@@ -87,11 +87,12 @@ let run input_file =
   let metadata =
     List.fold_left
       (fun (metadata, idx) slice ->
-        Printf.printf "%d/%d slices processing\r" idx (List.length slices) ;
+        Printf.printf "%d/%d slices processing\r" (idx + 1)
+          (List.length slices) ;
         flush stdout ;
         let m = run_one_slice log_channel llctx llm idx slice in
         (Metadata.merge metadata m, idx + 1))
-      (Metadata.empty, 1) slices
+      (Metadata.empty, 0) slices
     |> fst
   in
   Printf.printf "\n" ;
