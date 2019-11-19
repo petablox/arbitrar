@@ -57,6 +57,7 @@ module Metadata = struct
       ; ("duplicated", `Int meta.num_duplicated) ]
 
   let print oc meta =
+    Printf.fprintf oc "Metadata:\n" ;
     Printf.fprintf oc "# Explored Traces: %d\n" meta.num_explored ;
     Printf.fprintf oc "# Target-Unvisited Traces: %d\n"
       meta.num_target_unvisited ;

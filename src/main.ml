@@ -48,11 +48,6 @@ let call_graph input_file =
   let call_graph = Slicer.get_call_graph llm in
   Slicer.print_call_graph llm call_graph
 
-let analyze input_directory =
-  Printf.printf "Analyzing directory %s\n" input_directory ;
-  Printf.printf "Not implemented\n" ;
-  ()
-
 let run_one_slice log_channel llctx llm idx (slice : Slicer.Slice.t) :
     Executor.Environment.t =
   let poi = slice.call_edge in
@@ -82,9 +77,17 @@ let run_one_slice log_channel llctx llm idx (slice : Slicer.Slice.t) :
   Executor.dump_dugraph ~prefix:dugraph_prefix env ;
   env
 
+let log_command log_channel : unit =
+  Printf.fprintf log_channel "Command:\n# " ;
+  Array.iter (fun arg -> Printf.fprintf log_channel "%s " arg) Sys.argv ;
+  Printf.fprintf log_channel "\n" ;
+  ()
+
 let run input_file =
   (* Start a log channel *)
   let log_channel = open_out (!Options.outdir ^ "/log.txt") in
+  log_command log_channel ;
+  flush log_channel ;
   (* Setup the llvm context and module *)
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
@@ -136,7 +139,7 @@ let main () =
   | CallGraph ->
       call_graph !input_file
   | Analyze ->
-      analyze !input_file
+      Analyzer.main !input_file
   | Slice ->
       Slicer.main !input_file
   | Execute ->
