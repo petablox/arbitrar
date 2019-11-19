@@ -39,10 +39,18 @@ module Metadata = struct
     { num_duplicated= meta.num_duplicated + 1
     ; num_explored= meta.num_explored + 1 }
 
+  let merge m1 m2 =
+    { num_explored= m1.num_explored + m2.num_explored
+    ; num_duplicated= m1.num_duplicated + m2.num_duplicated }
+
   let to_json meta =
     `Assoc
       [ ("num_traces", `Int meta.num_explored)
       ; ("duplicated", `Int meta.num_duplicated) ]
+
+  let print oc meta =
+    Printf.fprintf oc "# Explored Traces: %d\n" meta.num_explored ;
+    Printf.fprintf oc "# Duplicated Traces: %d\n" meta.num_duplicated
 end
 
 module GraphViz = Graph.Graphviz.Dot (DUGraph)

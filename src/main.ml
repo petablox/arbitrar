@@ -1,4 +1,5 @@
 open Semantics
+module Metadata = Llexecutor.Metadata
 
 type task = All | Slice | Execute | DumpLL | CallGraph
 
@@ -69,7 +70,8 @@ let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) =
   let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
   if !Options.verbose > 0 then Llexecutor.print_report log_channel env ;
   if !Options.debug then Llexecutor.dump_traces ~prefix:trace_prefix env ;
-  Llexecutor.dump_dugraph ~prefix:dugraph_prefix env
+  Llexecutor.dump_dugraph ~prefix:dugraph_prefix env ;
+  env.Llexecutor.Environment.metadata
 
 let run input_file =
   let llctx = Llvm.create_context () in
@@ -82,13 +84,18 @@ let run input_file =
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
   flush stdout ;
   let t0 = Sys.time () in
-  List.iteri
-    (fun idx slice ->
-      Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
-      flush stdout ;
-      run_one_slice log_channel llctx llm idx slice)
-    slices ;
+  let metadata =
+    List.fold_left
+      (fun (metadata, idx) slice ->
+        Printf.printf "%d/%d slices processing\r" idx (List.length slices) ;
+        flush stdout ;
+        let m = run_one_slice log_channel llctx llm idx slice in
+        (Metadata.merge metadata m, idx + 1))
+      (Metadata.empty, 1) slices
+    |> fst
+  in
   Printf.printf "\n" ;
+  Metadata.print stdout metadata ;
   flush stdout ;
   Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0) ;
   close_out log_channel
