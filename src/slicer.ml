@@ -1,5 +1,26 @@
 open Printf
 
+exception InvalidJSON
+
+let get_function_in_llm (func_name : string) (llm : Llvm.llmodule) :
+    Llvm.llvalue =
+  match Llvm.lookup_function func_name llm with
+  | Some entry ->
+      entry
+  | None ->
+      raise InvalidJSON
+
+let get_field json field : Yojson.Safe.t =
+  match json with
+  | `Assoc fields -> (
+    match List.find_opt (fun (key, _) -> key = field) fields with
+    | Some (_, field_data) ->
+        field_data
+    | None ->
+        raise InvalidJSON )
+  | _ ->
+      raise InvalidJSON
+
 module CallEdge = struct
   type t = {caller: Llvm.llvalue; callee: Llvm.llvalue; instr: Llvm.llvalue}
 
@@ -10,6 +31,37 @@ module CallEdge = struct
       [ ("caller", `String (Llvm.value_name ce.caller))
       ; ("callee", `String (Llvm.value_name ce.callee))
       ; ("instr", `String (Llvm.string_of_llvalue ce.instr)) ]
+
+  let get_function_of_field llm field_name json : Llvm.llvalue =
+    let field = get_field json field_name in
+    match field with
+    | `String name ->
+        get_function_in_llm name llm
+    | _ ->
+        raise InvalidJSON
+
+  let get_instr_string json : string =
+    let field = get_field json "instr" in
+    match field with `String instr_str -> instr_str | _ -> raise InvalidJSON
+
+  let from_json llm json =
+    let caller = get_function_of_field llm "caller" json in
+    let callee = get_function_of_field llm "callee" json in
+    let instr =
+      let instr_str = get_instr_string json in
+      let maybe_instr =
+        Llvm.fold_left_blocks
+          (fun acc block ->
+            Llvm.fold_left_instrs
+              (fun acc instr ->
+                if Llvm.string_of_llvalue instr = instr_str then Some instr
+                else acc)
+              acc block)
+          None caller
+      in
+      match maybe_instr with Some instr -> instr | None -> raise InvalidJSON
+    in
+    {caller; callee; instr}
 end
 
 module CallGraph = struct
@@ -35,6 +87,36 @@ module Slice = struct
         )
       ; ("entry", `String (Llvm.value_name slice.entry))
       ; ("call_edge", CallEdge.to_json llm slice.call_edge) ]
+
+  let get_functions_from_json llm json =
+    match get_field json "functions" with
+    | `List func_names ->
+        List.map
+          (fun func_name ->
+            match func_name with
+            | `String name ->
+                get_function_in_llm name llm
+            | _ ->
+                raise InvalidJSON)
+          func_names
+    | _ ->
+        raise InvalidJSON
+
+  let get_entry_from_json llm json =
+    match get_field json "entry" with
+    | `String name ->
+        get_function_in_llm name llm
+    | _ ->
+        raise InvalidJSON
+
+  let get_call_edge_from_json llm json =
+    CallEdge.from_json llm (get_field json "call_edge")
+
+  let from_json llm json =
+    let entry = get_entry_from_json llm json in
+    let functions = get_functions_from_json llm json in
+    let call_edge = get_call_edge_from_json llm json in
+    {functions; entry; call_edge}
 end
 
 module Slices = struct
@@ -46,6 +128,13 @@ module Slices = struct
     let json = to_json llm slices in
     let oc = open_out (prefix ^ "/slices.json") in
     Yojson.Safe.pretty_to_channel oc json
+
+  let from_json llm json =
+    match json with
+    | `List json_slice_list ->
+        List.map (Slice.from_json llm) json_slice_list
+    | _ ->
+        raise InvalidJSON
 end
 
 let get_call_graph (llm : Llvm.llmodule) : CallGraph.t =

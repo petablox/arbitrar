@@ -15,6 +15,8 @@ let target_function_name = ref ""
 
 (* Executor  Options *)
 
+let continue_extraction = ref false
+
 let max_traces = ref max_int
 
 let max_length = ref max_int
@@ -35,12 +37,18 @@ let executor_opts_local =
     , Arg.Set no_filter_duplication
     , "Do not fliter out duplicatated def-use graphs" ) ]
 
+let extractor_opts_local =
+  [ ( "-continue"
+    , Arg.Set continue_extraction
+    , "Continue from previously stopped position" ) ]
+
 let slicer_opts = common_opts_local @ slicer_opts_local
 
 let executor_opts = common_opts_local @ executor_opts_local
 
 let extractor_opts =
   common_opts_local @ slicer_opts_local @ executor_opts_local
+  @ extractor_opts_local
 
 let common_opts = common_opts_local
 

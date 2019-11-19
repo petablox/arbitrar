@@ -1,7 +1,7 @@
 open Semantics
 module Metadata = Executor.Metadata
 
-let run_one_slice log_channel llctx llm idx (slice : Slicer.Slice.t) :
+let run_one_slice lc llctx llm idx (slice : Slicer.Slice.t) :
     Executor.Environment.t =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
@@ -25,7 +25,7 @@ let run_one_slice log_channel llctx llm idx (slice : Slicer.Slice.t) :
   let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
   let dugraph_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
   let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
-  if !Options.verbose > 0 then Executor.print_report log_channel env ;
+  if !Options.verbose > 0 then Executor.print_report lc env ;
   if !Options.debug then Executor.dump_traces ~prefix:trace_prefix env ;
   Executor.dump_dugraph ~prefix:dugraph_prefix env ;
   env
@@ -36,22 +36,44 @@ let log_command log_channel : unit =
   Printf.fprintf log_channel "\n" ;
   ()
 
-let main input_file =
-  (* Start a log channel *)
+let setup_loc_channel () =
   let log_channel = open_out (!Options.outdir ^ "/log.txt") in
-  log_command log_channel ;
-  flush log_channel ;
-  (* Setup the llvm context and module *)
+  log_command log_channel ; flush log_channel ; log_channel
+
+let setup_ll_module input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  (* Start to slice the program *)
+  (llctx, llm)
+
+let slice lc llm : Slicer.Slices.t =
   let t0 = Sys.time () in
+  (* Generate slices and dump json *)
   let slices = Slicer.slice llm !Options.slice_depth in
   Slicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
-  Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
+  (* Log and print *)
+  let str =
+    Printf.sprintf "Slicing complete in %f sec\n" (Sys.time () -. t0)
+  in
+  Printf.printf "%s" str ;
   flush stdout ;
-  (* Run execution on each slice and merge all metadata *)
+  Printf.fprintf lc "%s" str ;
+  (* Return slices *)
+  slices
+
+let slices_file_exists slice_file : bool = Sys.file_exists slice_file
+
+let load_slices_from_json lc slice_file llm : Slicer.Slices.t =
+  let json = Yojson.Safe.from_file slice_file in
+  Slicer.Slices.from_json llm json
+
+let get_slices lc llm : Slicer.Slices.t =
+  let slice_file = !Options.outdir ^ "/slices.json" in
+  if !Options.continue_extraction && slices_file_exists slice_file then
+    load_slices_from_json lc slice_file llm
+  else slice lc llm
+
+let execute lc llctx llm slices =
   let t0 = Sys.time () in
   let metadata =
     List.fold_left
@@ -59,14 +81,20 @@ let main input_file =
         Printf.printf "%d/%d slices processing\r" (idx + 1)
           (List.length slices) ;
         flush stdout ;
-        let env = run_one_slice log_channel llctx llm idx slice in
+        let env = run_one_slice lc llctx llm idx slice in
         (Metadata.merge metadata env.metadata, idx + 1))
       (Metadata.empty, 0) slices
     |> fst
   in
-  (* Finish the run and log metadata *)
   Printf.printf "\n" ;
   flush stdout ;
-  Metadata.print log_channel metadata ;
+  Metadata.print lc metadata ;
   Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0) ;
+  ()
+
+let main input_file =
+  let log_channel = setup_loc_channel () in
+  let llctx, llm = setup_ll_module input_file in
+  let slices = get_slices log_channel llm in
+  let _ = execute log_channel llctx llm slices in
   close_out log_channel
