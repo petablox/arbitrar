@@ -104,7 +104,7 @@ module Environment = struct
 
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
 
-  let gen_dugraph trace dugraph env =
+  let gen_dugraph trace dugraph env : DUGraph.t =
     match env.initial_state.target with
     | Some target ->
         let target_node =
@@ -117,18 +117,13 @@ module Environment = struct
   let has_dugraph g1 env : bool =
     List.find_opt
       (fun g2 ->
-        let g1_verts = DUGraph.fold_vertex (fun v l -> v.Node.id :: l) g1 [] in
-        let g2_verts = DUGraph.fold_vertex (fun v l -> v.Node.id :: l) g2 [] in
-        let g1_contained_in_g2 =
-          List.fold_left
-            (fun acc g1_v ->
-              acc && List.find_opt (( == ) g1_v) g2_verts |> Option.is_some)
-            true g1_verts
-        in
-        let g1_g2_length_equal =
-          List.length g1_verts == List.length g2_verts
-        in
-        g1_contained_in_g2 && g1_g2_length_equal)
+        (* Check if the size are equal and if not, directly return false *)
+        if DUGraph.nb_vertex g1 = DUGraph.nb_vertex g2 then
+          (* Check if every vertex in g1 is contained in g2 *)
+          DUGraph.fold_vertex
+            (fun g1_vertex acc -> acc && DUGraph.mem_vertex g2 g1_vertex)
+            g1 true
+        else false)
       env.dugraphs
     |> Option.is_some
 end

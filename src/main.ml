@@ -1,7 +1,7 @@
 open Semantics
 module Metadata = Llexecutor.Metadata
 
-type task = All | Slice | Execute | DumpLL | CallGraph
+type task = All | Slice | Execute | Analyze | DumpLL | CallGraph
 
 let task = ref All
 
@@ -25,12 +25,15 @@ let parse_arg arg =
         Printf.printf "Printing call graph\n" ;
         Options.options := Options.common_opts ;
         task := CallGraph
+    | "analyze" ->
+        task := Analyze
     | _ ->
         input_file := get_filename arg
   else input_file := get_filename arg
 
 let usage =
-  "llexetractor [all | slice | execute | dump-ll | call-graph] [OPTIONS] [FILE]"
+  "llexetractor [all | slice | execute | analyze | dump-ll | call-graph] \
+   [OPTIONS] [FILE]"
 
 let dump input_file =
   let llctx = Llvm.create_context () in
@@ -45,7 +48,8 @@ let call_graph input_file =
   let call_graph = Llslicer.get_call_graph llm in
   Llslicer.print_call_graph llm call_graph
 
-let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) =
+let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) :
+    Llexecutor.Environment.t =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
@@ -71,18 +75,22 @@ let run_one_slice log_channel llctx llm idx (slice : Llslicer.Slice.t) =
   if !Options.verbose > 0 then Llexecutor.print_report log_channel env ;
   if !Options.debug then Llexecutor.dump_traces ~prefix:trace_prefix env ;
   Llexecutor.dump_dugraph ~prefix:dugraph_prefix env ;
-  env.Llexecutor.Environment.metadata
+  env
 
 let run input_file =
+  (* Start a log channel *)
+  let log_channel = open_out (!Options.outdir ^ "/log.txt") in
+  (* Setup the llvm context and module *)
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let log_channel = open_out (!Options.outdir ^ "/log.txt") in
+  (* Start to slice the program *)
   let t0 = Sys.time () in
   let slices = Llslicer.slice llm !Options.slice_depth in
   Llslicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
   Printf.printf "Slicing complete in %f sec\n" (Sys.time () -. t0) ;
   flush stdout ;
+  (* Run execution on each slice and merge all metadata *)
   let t0 = Sys.time () in
   let metadata =
     List.fold_left
@@ -90,14 +98,15 @@ let run input_file =
         Printf.printf "%d/%d slices processing\r" (idx + 1)
           (List.length slices) ;
         flush stdout ;
-        let m = run_one_slice log_channel llctx llm idx slice in
-        (Metadata.merge metadata m, idx + 1))
+        let env = run_one_slice log_channel llctx llm idx slice in
+        (Metadata.merge metadata env.metadata, idx + 1))
       (Metadata.empty, 0) slices
     |> fst
   in
+  (* Finish the run and log metadata *)
   Printf.printf "\n" ;
-  Metadata.print stdout metadata ;
   flush stdout ;
+  Metadata.print log_channel metadata ;
   Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0) ;
   close_out log_channel
 
@@ -122,6 +131,8 @@ let main () =
       dump !input_file
   | CallGraph ->
       call_graph !input_file
+  | Analyze ->
+      Printf.printf "Not implemented\n"
   | Slice ->
       Llslicer.main !input_file
   | Execute ->
