@@ -1,12 +1,19 @@
+(* Debug Options *)
 let debug = ref false
 
+let no_filter_duplication = ref false
+
+(* Output Options *)
 let outdir = ref "extractor-out"
 
+let verbose = ref 0
+
+(* Slicer Options *)
 let slice_depth = ref 5
 
 let target_function_name = ref ""
 
-let verbose = ref 0
+(* Executor  Options *)
 
 let max_traces = ref max_int
 
@@ -23,7 +30,10 @@ let slicer_opts_local =
 
 let executor_opts_local =
   [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")
-  ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace") ]
+  ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace")
+  ; ( "-no-filter-duplication"
+    , Arg.Set no_filter_duplication
+    , "Do not fliter out duplicatated def-use graphs" ) ]
 
 let slicer_opts = common_opts_local @ slicer_opts_local
 

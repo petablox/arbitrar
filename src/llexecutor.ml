@@ -29,27 +29,37 @@ module Traces = struct
 end
 
 module Metadata = struct
-  type t = {num_explored: int; num_duplicated: int}
+  type t = {num_explored: int; num_target_unvisited: int; num_duplicated: int}
 
-  let empty = {num_explored= 0; num_duplicated= 0}
+  let empty = {num_explored= 0; num_target_unvisited= 0; num_duplicated= 0}
 
   let incr_explored meta = {meta with num_explored= meta.num_explored + 1}
 
   let incr_duplicated meta =
-    { num_duplicated= meta.num_duplicated + 1
+    { meta with
+      num_duplicated= meta.num_duplicated + 1
+    ; num_explored= meta.num_explored + 1 }
+
+  let incr_target_unvisited meta =
+    { meta with
+      num_target_unvisited= meta.num_target_unvisited + 1
     ; num_explored= meta.num_explored + 1 }
 
   let merge m1 m2 =
     { num_explored= m1.num_explored + m2.num_explored
+    ; num_target_unvisited= m1.num_target_unvisited + m2.num_target_unvisited
     ; num_duplicated= m1.num_duplicated + m2.num_duplicated }
 
   let to_json meta =
     `Assoc
       [ ("num_traces", `Int meta.num_explored)
+      ; ("target_unvisited", `Int meta.num_target_unvisited)
       ; ("duplicated", `Int meta.num_duplicated) ]
 
   let print oc meta =
     Printf.fprintf oc "# Explored Traces: %d\n" meta.num_explored ;
+    Printf.fprintf oc "# Target-Unvisited Traces: %d\n"
+      meta.num_target_unvisited ;
     Printf.fprintf oc "# Duplicated Traces: %d\n" meta.num_duplicated
 end
 
@@ -337,15 +347,20 @@ and transfer_call llctx instr env state =
 and finish_execution llctx env state =
   let dugraph = Environment.gen_dugraph state.trace state.dugraph env in
   let target_visited = state.target_visited in
-  let not_duplicate = not (Environment.has_dugraph dugraph env) in
   let env =
-    if target_visited && not_duplicate then
-      let env =
-        Environment.add_trace state.State.trace env
-        |> Environment.add_dugraph dugraph
+    if target_visited then
+      let not_duplicate =
+        !Options.no_filter_duplication
+        || not (Environment.has_dugraph dugraph env)
       in
-      {env with metadata= Metadata.incr_explored env.metadata}
-    else {env with metadata= Metadata.incr_duplicated env.metadata}
+      if not_duplicate then
+        let env =
+          Environment.add_trace state.State.trace env
+          |> Environment.add_dugraph dugraph
+        in
+        {env with metadata= Metadata.incr_explored env.metadata}
+      else {env with metadata= Metadata.incr_duplicated env.metadata}
+    else {env with metadata= Metadata.incr_target_unvisited env.metadata}
   in
   if !Options.verbose > 1 then (
     Memory.pp F.err_formatter state.State.memory ;
