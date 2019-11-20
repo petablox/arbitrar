@@ -27,6 +27,8 @@ module Predicate = struct
           raise Utils.InvalidJSON )
     | _ ->
         raise Utils.InvalidJSON
+
+  let compare = compare
 end
 
 module Statement = struct
@@ -139,40 +141,95 @@ end
 
 module CheckerResult = struct
   type t = RetValCheck of (Predicate.t * string)
+
+  let compare = compare
+end
+
+module CheckerResultStats = struct
+  module CheckerResultStatsMap = struct
+    include Map.Make (CheckerResult)
+
+    let from_results (results : CheckerResult.t list) : int t =
+      List.fold_left
+        (fun stats result ->
+          update result
+            (fun maybe_count ->
+              match maybe_count with
+              | Some count ->
+                  Some (count + 1)
+              | None ->
+                  Some 1)
+            stats)
+        empty results
+
+    let get_count (map : int t) (result : CheckerResult.t) : int =
+      match find_opt result map with Some count -> count | None -> 0
+  end
+
+  type t = {map: int CheckerResultStatsMap.t; total_amount: int}
+
+  let from_results (results : CheckerResult.t list) : t =
+    let map = CheckerResultStatsMap.from_results results in
+    let total_amount = List.length results in
+    {map; total_amount}
+
+  let eval (stats : t) (result : CheckerResult.t) : float =
+    let count = CheckerResultStatsMap.get_count stats.map result in
+    1.0 -. (float_of_int count /. float_of_int stats.total_amount)
 end
 
 let rec retval_checker_helper (dugraph : DUGraph.t) (retval : string)
-    (fringe : Node.t list) : CheckerResult.t list =
+    (fringe : Node.t list) (result : CheckerResult.t list) :
+    CheckerResult.t list =
   match fringe with
-  | hd :: tl -> (
+  | hd :: tl ->
       let new_fringe = DUGraph.succ dugraph hd @ tl in
-      let rest = retval_checker_helper dugraph retval new_fringe in
-      match hd.stmt with
-      | Assume {pred; op0; op1} ->
-          if op0 = retval then
-            if (* Check if the compared value is constant *)
-               op1.[0] = '%' then rest
-            else RetValCheck (pred, op1) :: rest
-          else if op1 = retval then
-            if (* Same. Check if the compared value is constant *)
-               op0.[0] = '%'
-            then rest
-            else RetValCheck (pred, op0) :: rest
-          else rest
-      | _ ->
-          rest )
+      let new_result =
+        match hd.stmt with
+        | Assume {pred; op0; op1} ->
+            if op0 = retval then
+              if (* Check if the compared value is constant *)
+                 op1.[0] = '%'
+              then []
+              else [CheckerResult.RetValCheck (pred, op1)]
+            else if op1 = retval then
+              if
+                (* Same. Check if the compared value is constant *)
+                op0.[0] = '%'
+              then []
+              else [CheckerResult.RetValCheck (pred, op0)]
+            else []
+        | _ ->
+            []
+      in
+      retval_checker_helper dugraph retval new_fringe (new_result @ result)
   | [] ->
-      []
+      result
 
 let retval_checker (dp : Datapoint.t) : CheckerResult.t list =
   let fringe = [dp.target] in
   match dp.target.stmt with
   | Call {result= Some retval} ->
-      retval_checker_helper dp.dugraph retval fringe
+      retval_checker_helper dp.dugraph retval fringe []
   | _ ->
       []
 
 let checkers : (Datapoint.t -> CheckerResult.t list) list = [retval_checker]
+
+let run_one_checker datapoints checker =
+  let results = List.map checker datapoints |> List.flatten in
+  let stats = CheckerResultStats.from_results results in
+  List.iter
+    (fun datapoint ->
+      let results = checker datapoint in
+      let scores = List.map (CheckerResultStats.eval stats) results in
+      let min_score =
+        List.fold_left
+          (fun acc score -> if score < acc then score else acc)
+          1.0 scores
+      in
+      if min_score > 0.7 then Printf.printf "Found bug!")
+    datapoints
 
 let main (input_directory : string) : unit =
   Printf.printf "Analyzing directory %s\n" input_directory ;
@@ -191,9 +248,4 @@ let main (input_directory : string) : unit =
         else acc)
       [] children
   in
-  List.iter
-    (fun checker ->
-      let results = List.map checker datapoints |> List.flatten in
-      raise Utils.NotImplemented)
-    checkers
-  |> List.flatten
+  List.iter (run_one_checker datapoints) checkers
