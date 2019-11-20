@@ -382,6 +382,10 @@ let is_llvm_function f : bool =
   Str.string_match r1 (Llvm.value_name f) 0
   || Str.string_match r2 (Llvm.value_name f) 0
 
+let get_abs_path (name : string) =
+  let is_starting_from_root = name.[0] = '/' in
+  if is_starting_from_root then name else Filename.concat (Sys.getcwd ()) name
+
 let rec unique (f : 'a -> 'a -> bool) (ls : 'a list) : 'a list =
   match ls with
   | hd :: tl ->
@@ -417,8 +421,22 @@ let get_field json field : Yojson.Safe.t =
   | _ ->
       raise InvalidJSON
 
+let get_field_opt json field : Yojson.Safe.t option =
+  match json with
+  | `Assoc fields -> (
+    match List.find_opt (fun (key, _) -> key = field) fields with
+    | Some (_, field_data) ->
+        Some field_data
+    | None ->
+        None )
+  | _ ->
+      raise InvalidJSON
+
 let string_from_json json : string =
   match json with `String str -> str | _ -> raise InvalidJSON
+
+let string_opt_from_json json : string option =
+  match json with `String str -> Some str | _ -> None
 
 let int_from_json json : int =
   match json with `Int i -> i | _ -> raise InvalidJSON
@@ -430,6 +448,9 @@ let list_from_json json : Yojson.Safe.t list =
 
 let string_from_json_field json field : string =
   string_from_json (get_field json field)
+
+let string_opt_from_json_field json field : string option =
+  Option.bind (get_field_opt json field) string_opt_from_json
 
 let string_list_from_json json : string list =
   match json with

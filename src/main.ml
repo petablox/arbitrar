@@ -6,8 +6,6 @@ let task = ref All
 
 let input_file = ref ""
 
-let get_filename name = Filename.concat (Sys.getcwd ()) name
-
 let parse_arg arg =
   if !Arg.current = 1 then
     match arg with
@@ -27,8 +25,8 @@ let parse_arg arg =
         Options.options := Options.common_opts ;
         task := Analyze
     | _ ->
-        input_file := get_filename arg
-  else input_file := get_filename arg
+        input_file := Utils.get_abs_path arg
+  else input_file := Utils.get_abs_path arg
 
 let usage =
   "llexetractor [all | slice | execute | analyze | dump-ll | call-graph] \
