@@ -352,29 +352,46 @@ let json_of_instr instr =
       in
       `Assoc
         [opcode; ("result", result); ("func", callee); ("args", `List args)]
-  (*   | Select ->
-    | UserOp1 ->
-    | UserOp2 ->
-    | VAArg ->
-    | ExtractElement ->
-    | InsertElement ->
-    | ShuffleVector ->
-    | ExtractValue ->
-    | InsertValue ->
-    | Fence ->
-    | AtomicCmpXchg ->
-    | AtomicRMW ->
-    | Resume ->
-    | LandingPad ->
-    | AddrSpaceCast ->
-    | CleanupRet ->
-    | CatchRet ->
-    | CatchPad ->
-    | CleanupPad ->
-    | CatchSwitch ->
-*)
-  | _ ->
-      `Assoc []
+  | Select ->
+      json_of_opcode "select"
+  | UserOp1 ->
+      json_of_opcode "userop1"
+  | UserOp2 ->
+      json_of_opcode "userop2"
+  | VAArg ->
+      json_of_opcode "vaarg"
+  | ExtractElement ->
+      json_of_opcode "extractelement"
+  | InsertElement ->
+      json_of_opcode "insertelement"
+  | ShuffleVector ->
+      json_of_opcode "shufflevector"
+  | ExtractValue ->
+      json_of_opcode "extractvalue"
+  | InsertValue ->
+      json_of_opcode "insertvalue"
+  | Fence ->
+      json_of_opcode "fence"
+  | AtomicCmpXchg ->
+      json_of_opcode "atomiccmpxchg"
+  | AtomicRMW ->
+      json_of_opcode "atomicrmw"
+  | Resume ->
+      json_of_opcode "resume"
+  | LandingPad ->
+      json_of_opcode "landingpad"
+  | AddrSpaceCast ->
+      json_of_opcode "addrspacecast"
+  | CleanupRet ->
+      json_of_opcode "cleanupret"
+  | CatchRet ->
+      json_of_opcode "catchret"
+  | CatchPad ->
+      json_of_opcode "catchpad"
+  | CleanupPad ->
+      json_of_opcode "cleanuppad"
+  | CatchSwitch ->
+      json_of_opcode "catchswitch"
 
 let is_llvm_function f : bool =
   let r1 = Str.regexp "llvm\\.dbg\\..+" in
