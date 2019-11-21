@@ -2,6 +2,8 @@ exception InvalidJSON
 
 exception NotImplemented
 
+(* LLVM utility functions *)
+
 let string_of_instr instr = Llvm.string_of_llvalue instr |> String.trim
 
 let string_of_lhs instr =
@@ -114,6 +116,26 @@ let fold_left_all_instr f a m =
           (fun a blk -> Llvm.fold_left_instrs (fun a instr -> f a instr) a blk)
           a func)
     a m
+
+let string_of_location llctx instr =
+  let dbg = Llvm.metadata instr (Llvm.mdkind_id llctx "dbg") in
+  let func = Llvm.instr_parent instr |> Llvm.block_parent |> Llvm.value_name in
+  match dbg with
+  | Some s -> (
+      let str = Llvm.string_of_llvalue s in
+      let r =
+        Str.regexp "!DILocation(line: \\([0-9]+\\), column: \\([0-9]+\\)"
+      in
+      try
+        let _ = Str.search_forward r str 0 in
+        let line = Str.matched_group 1 str in
+        let column = Str.matched_group 2 str in
+        func ^ ":" ^ line ^ ":" ^ column
+      with Not_found -> func ^ ":0:0" )
+  | None ->
+      func ^ ":0:0"
+
+(* Json input/output functions *)
 
 let json_of_opcode name =
   let opcode = ("opcode", `String name) in
