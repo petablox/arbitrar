@@ -46,10 +46,10 @@ let setup_ll_module input_file =
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   (llctx, llm)
 
-let slice lc llm : Slicer.Slices.t =
+let slice lc llctx llm : Slicer.Slices.t =
   let t0 = Sys.time () in
   (* Generate slices and dump json *)
-  let slices = Slicer.slice llm !Options.slice_depth in
+  let slices = Slicer.slice llctx llm !Options.slice_depth in
   Slicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
   (* Log and print *)
   let str =
@@ -67,11 +67,11 @@ let load_slices_from_json lc slice_file llm : Slicer.Slices.t =
   let json = Yojson.Safe.from_file slice_file in
   Slicer.Slices.from_json llm json
 
-let get_slices lc llm : Slicer.Slices.t =
+let get_slices lc llctx llm : Slicer.Slices.t =
   let slice_file = !Options.outdir ^ "/slices.json" in
   if !Options.continue_extraction && slices_file_exists slice_file then
     load_slices_from_json lc slice_file llm
-  else slice lc llm
+  else slice lc llctx llm
 
 let execute lc llctx llm slices =
   let t0 = Sys.time () in
@@ -95,6 +95,6 @@ let execute lc llctx llm slices =
 let main input_file =
   let log_channel = setup_loc_channel () in
   let llctx, llm = setup_ll_module input_file in
-  let slices = get_slices log_channel llm in
+  let slices = get_slices log_channel llctx llm in
   let _ = execute log_channel llctx llm slices in
   close_out log_channel

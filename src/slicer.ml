@@ -1,15 +1,20 @@
 open Printf
 
 module CallEdge = struct
-  type t = {caller: Llvm.llvalue; callee: Llvm.llvalue; instr: Llvm.llvalue}
+  type t =
+    { caller: Llvm.llvalue
+    ; callee: Llvm.llvalue
+    ; instr: Llvm.llvalue
+    ; location: string }
 
-  let create caller callee instr = {caller; callee; instr}
+  let create caller callee instr location = {caller; callee; instr; location}
 
   let to_json llm ce =
     `Assoc
       [ ("caller", `String (Llvm.value_name ce.caller))
       ; ("callee", `String (Llvm.value_name ce.callee))
-      ; ("instr", `String (Llvm.string_of_llvalue ce.instr)) ]
+      ; ("instr", `String (Llvm.string_of_llvalue ce.instr))
+      ; ("location", `String ce.location) ]
 
   let get_function_of_field llm field_name json : Llvm.llvalue =
     let field = Utils.get_field json field_name in
@@ -28,12 +33,13 @@ module CallEdge = struct
         raise Utils.InvalidJSON
 
   let from_json llm json =
+    (*
     let caller = get_function_of_field llm "caller" json in
     let callee = get_function_of_field llm "callee" json in
     let instr =
       (* Want to have better algorithm instead of find the instr in linear *)
       raise Utils.NotImplemented
-      (* let instr_str = get_instr_string json in
+       let instr_str = get_instr_string json in
       let maybe_instr =
         Llvm.fold_left_blocks
           (fun acc block ->
@@ -48,9 +54,9 @@ module CallEdge = struct
       | Some instr ->
           instr
       | None ->
-          raise Utils.InvalidJSON *)
-    in
-    {caller; callee; instr}
+          raise Utils.InvalidJSON
+    in*)
+    raise Utils.NotImplemented
 end
 
 module LlvalueSet = Set.Make (struct
@@ -153,8 +159,8 @@ module Slice = struct
   type t =
     {functions: Llvm.llvalue list; entry: Llvm.llvalue; call_edge: CallEdge.t}
 
-  let create function_set entry (caller, instr, callee) =
-    let call_edge = {CallEdge.caller; instr; callee} in
+  let create function_set entry caller instr callee location =
+    let call_edge = {CallEdge.caller; instr; callee; location} in
     let functions = LlvalueSet.elements function_set in
     {functions; entry; call_edge}
 
@@ -292,7 +298,7 @@ let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
       let callee_name = Llvm.value_name callee in
       String.equal callee_name n
 
-let find_slices llm depth cg (caller, inst, callee) =
+let find_slices llctx llm depth cg (caller, inst, callee) =
   if need_find_slices_for_edge llm callee then
     let singleton_caller = LlvalueSet.singleton caller in
     let entries = find_entries depth cg singleton_caller singleton_caller in
@@ -303,7 +309,8 @@ let find_slices llm depth cg (caller, inst, callee) =
           find_callees (2 * depth) cg entry_set LlvalueSet.empty
           |> LlvalueSet.add entry |> LlvalueSet.remove callee
         in
-        let slice = Slice.create callees entry (caller, inst, callee) in
+        let location = Utils.string_of_location llctx inst in
+        let slice = Slice.create callees entry caller inst callee location in
         slice :: acc)
       entries []
   else []
@@ -322,15 +329,15 @@ let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
         entry_name func_names_str call_str instr_str)
     slices
 
-let slice (llm : Llvm.llmodule) (slice_depth : int) : Slices.t =
+let slice llctx (llm : Llvm.llmodule) (slice_depth : int) : Slices.t =
   let call_graph = get_call_graph llm in
   CallGraph.fold_edges_instr_set
-    (fun edge acc -> acc @ find_slices llm slice_depth call_graph edge)
+    (fun edge acc -> acc @ find_slices llctx llm slice_depth call_graph edge)
     call_graph []
 
 let main input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let slices = slice llm !Options.slice_depth in
+  let slices = slice llctx llm !Options.slice_depth in
   ignore (print_slices stdout llm slices)
