@@ -15,15 +15,15 @@ let parse_arg arg =
     | "execute" ->
         Options.options := Options.executor_opts ;
         task := Execute
+    | "analyze" ->
+        Options.options := Options.analyzer_opts ;
+        task := Analyze
     | "dump-ll" ->
         Options.options := Options.common_opts ;
         task := DumpLL
     | "call-graph" ->
         Options.options := Options.common_opts ;
         task := CallGraph
-    | "analyze" ->
-        Options.options := Options.common_opts ;
-        task := Analyze
     | _ ->
         input_file := Utils.get_abs_path arg
   else input_file := Utils.get_abs_path arg

@@ -13,13 +13,15 @@ let slice_depth = ref 5
 
 let target_function_name = ref ""
 
-(* Executor  Options *)
-
+(* Executor Options *)
 let continue_extraction = ref false
 
 let max_traces = ref max_int
 
 let max_length = ref max_int
+
+(* Analyzer Options *)
+let threshold = ref 0.8
 
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
@@ -42,6 +44,9 @@ let extractor_opts_local =
     , Arg.Set continue_extraction
     , "Continue from previously stopped position" ) ]
 
+let analyzer_opts_local =
+  [("-thres", Arg.Set_float threshold, "Score threshold for reporting bugs")]
+
 let slicer_opts = common_opts_local @ slicer_opts_local
 
 let executor_opts = common_opts_local @ executor_opts_local
@@ -49,6 +54,8 @@ let executor_opts = common_opts_local @ executor_opts_local
 let extractor_opts =
   common_opts_local @ slicer_opts_local @ executor_opts_local
   @ extractor_opts_local
+
+let analyzer_opts = common_opts_local @ analyzer_opts_local
 
 let common_opts = common_opts_local
 
