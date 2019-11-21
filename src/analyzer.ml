@@ -101,13 +101,17 @@ module Node = struct
 
   let equal n1 n2 = n1.id = n2.id
 
-  let find_node (nodes : t list) (id : int) : t option =
-    List.find_opt (fun (node : t) -> node.id = id) nodes
-
   let from_json (json : Yojson.Safe.t) : t =
     let id = Utils.int_from_json_field json "id" in
     let stmt = Statement.from_json json in
     {id; stmt}
+end
+
+module Nodes = struct
+  type t = Node.t list
+
+  let find_node_by_id nodes id : Node.t =
+    List.find (fun (node : Node.t) -> node.id = id) nodes
 end
 
 module DUGraph = struct
@@ -115,17 +119,15 @@ module DUGraph = struct
 
   type edge = int * int
 
-  let from_vertices_and_edges (nodes : Node.t list) (edges : edge list) =
+  let from_vertices_and_edges (nodes : Node.t list) (target : Node.t)
+      (edges : edge list) =
+    let with_target = add_vertex empty target in
     List.fold_left
       (fun graph (id1, id2) ->
-        let maybe_n1 = Node.find_node nodes id1 in
-        let maybe_n2 = Node.find_node nodes id2 in
-        match (maybe_n1, maybe_n2) with
-        | Some n1, Some n2 ->
-            add_edge graph n1 n2
-        | _ ->
-            raise Utils.InvalidJSON)
-      empty edges
+        let n1 = Nodes.find_node_by_id nodes id1 in
+        let n2 = Nodes.find_node_by_id nodes id2 in
+        add_edge graph n1 n2)
+      with_target edges
 end
 
 module Trace = struct
@@ -136,20 +138,18 @@ module Trace = struct
     ; target_node: Node.t
     ; target_func_name: string }
 
-  type edge = int * int
-
   let nodes_from_json json : Node.t list =
     let json_list = Utils.list_from_json json in
     List.map Node.from_json json_list
 
-  let edge_from_json json : edge =
+  let edge_from_json json : DUGraph.edge =
     match json with
     | `List [j1; j2] ->
         (Utils.int_from_json j1, Utils.int_from_json j2)
     | _ ->
         raise Utils.InvalidJSON
 
-  let edges_from_json json : edge list =
+  let edges_from_json json : DUGraph.edge list =
     let json_list = Utils.list_from_json json in
     List.map edge_from_json json_list
 
@@ -157,14 +157,8 @@ module Trace = struct
     let nodes = nodes_from_json (Utils.get_field json "vertex") in
     let edges = edges_from_json (Utils.get_field json "edge") in
     let target_id = Utils.int_from_json_field json "target" in
-    let dugraph = DUGraph.from_vertices_and_edges nodes edges in
-    let target_node =
-      match Node.find_node nodes target_id with
-      | Some target ->
-          target
-      | None ->
-          raise Utils.InvalidJSON
-    in
+    let target_node = Nodes.find_node_by_id nodes target_id in
+    let dugraph = DUGraph.from_vertices_and_edges nodes target_node edges in
     {dugraph; target_node; target_func_name; slice_id; trace_id}
 end
 
@@ -230,21 +224,29 @@ module RetValChecker : Checker = struct
 end
 
 module type CheckerStats = sig
+  (* The structure storing checker result *)
   type result
 
+  (* The structure storing statistic information *)
   type stats
 
   val checker_name : string
+  (** Get the name of the checker *)
 
   val add_trace : stats -> Trace.t -> stats
+  (** Add a single trace to existing stats *)
 
   val add_traces : stats -> Trace.t list -> stats
+  (** Add traces to existing stats *)
 
   val from_traces : Trace.t list -> stats
+  (** Generate stats from list of traces *)
 
   val evaluate : stats -> Trace.t -> result * float
+  (** Evaluate the score of a trace based on the stats *)
 
   val dump : out_channel -> stats -> unit
+  (** Dump the statistics to out channel *)
 end
 
 module Stats (C : Checker) : CheckerStats = struct
