@@ -245,6 +245,8 @@ module type CheckerStats = sig
   val evaluate : stats -> Trace.t -> result * float
   (** Evaluate the score of a trace based on the stats *)
 
+  val result_to_string : result -> string
+
   val dump : out_channel -> stats -> unit
   (** Dump the statistics to out channel *)
 end
@@ -325,6 +327,8 @@ module Stats (C : Checker) : CheckerStats = struct
         if score < snd acc then (result, score) else acc)
       (C.default, 1.0) results
 
+  let result_to_string result : string = C.to_string result
+
   let dump oc stats =
     iter
       (fun func_name stats ->
@@ -363,9 +367,19 @@ let run_one_checker traces checker_stats_module : unit =
   Printf.printf "Running checker [%s]...\n" M.checker_name ;
   (* Then generate and dump stats *)
   let stats = M.from_traces traces in
-  M.dump stdout stats
-
-(* Run evaluation on each trace *)
+  Printf.printf "Statistics:\n" ;
+  M.dump stdout stats ;
+  (* Run evaluation on each trace, report bug if found minority *)
+  Printf.printf "Bug reports:\n" ;
+  List.iter
+    (fun (trace : Trace.t) ->
+      let result, score = M.evaluate stats trace in
+      if score > !Options.report_threshold then
+        Printf.printf "[ Slice: %d, Trace: %d, Result: %s, Score: %f ]\n"
+          trace.slice_id trace.trace_id
+          (M.result_to_string result)
+          score)
+    traces
 
 let main (input_directory : string) =
   let dugraphs_dir = input_directory ^ "/dugraphs" in

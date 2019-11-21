@@ -21,7 +21,7 @@ let max_traces = ref max_int
 let max_length = ref max_int
 
 (* Analyzer Options *)
-let threshold = ref 0.8
+let report_threshold = ref 0.8
 
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
@@ -45,7 +45,9 @@ let extractor_opts_local =
     , "Continue from previously stopped position" ) ]
 
 let analyzer_opts_local =
-  [("-thres", Arg.Set_float threshold, "Score threshold for reporting bugs")]
+  [ ( "-thres"
+    , Arg.Set_float report_threshold
+    , "Score threshold for reporting bugs" ) ]
 
 let slicer_opts = common_opts_local @ slicer_opts_local
 
