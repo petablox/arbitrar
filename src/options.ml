@@ -20,6 +20,8 @@ let max_traces = ref max_int
 
 let max_length = ref max_int
 
+let no_control_flow = ref false
+
 (* Analyzer Options *)
 let report_threshold = ref 0.8
 
@@ -37,7 +39,10 @@ let executor_opts_local =
   ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace")
   ; ( "-no-filter-duplication"
     , Arg.Set no_filter_duplication
-    , "Do not fliter out duplicatated def-use graphs" ) ]
+    , "Do not fliter out duplicatated def-use graphs" )
+  ; ( "-no-control-flow"
+    , Arg.Set no_control_flow
+    , "Do not include control-flow edges" ) ]
 
 let extractor_opts_local =
   [ ( "-continue"

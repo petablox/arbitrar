@@ -34,12 +34,16 @@ module Trace = struct
 
   let empty = []
 
-  let append x t = t @ [x]
+  let is_empty t = t = []
+
+  let append x t = x :: t
+
+  let last = List.hd
 
   let length = List.length
 
   let to_json t =
-    let l = List.map Stmt.to_json t in
+    let l = List.fold_left (fun l x -> Stmt.to_json x :: l) [] t in
     `List l
 end
 
@@ -193,11 +197,22 @@ module Node = struct
 end
 
 module DUGraph = struct
-  include Graph.Persistent.Digraph.ConcreteBidirectional (Node)
+  module Edge = struct
+    type t = Data | Control
+
+    let compare = compare
+
+    let default = Data
+
+    let is_data e = e = Data
+  end
+
+  include Graph.Persistent.Digraph.ConcreteBidirectionalLabeled (Node) (Edge)
 
   let graph_attributes g = []
 
-  let edge_attributes e = []
+  let edge_attributes e =
+    match E.label e with Data -> [`Style `Dashed] | Control -> [`Style `Solid]
 
   let default_edge_attributes g = []
 
@@ -285,7 +300,14 @@ module State = struct
 
   let add_trace llctx x s =
     let stmt = Stmt.make llctx x in
-    {s with trace= Trace.append stmt s.trace}
+    let dugraph =
+      if Trace.is_empty s.trace then s.dugraph
+      else
+        let src = NodeMap.find (Trace.last s.trace).instr s.nodemap in
+        let dst = NodeMap.find x s.nodemap in
+        DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, dst)
+    in
+    {s with trace= Trace.append stmt s.trace; dugraph}
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
@@ -305,6 +327,12 @@ module State = struct
 
   let is_target node s =
     match s.target with Some t -> t = node | None -> false
+
+  let add_control_edge src dst s =
+    let src = NodeMap.find src s.nodemap in
+    let dst = NodeMap.find dst s.nodemap in
+    { s with
+      dugraph= DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, dst) }
 
   let add_du_edge src dst s =
     let src = NodeMap.find src s.nodemap in

@@ -110,27 +110,32 @@ module Environment = struct
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
 
   let gen_dugraph trace dugraph env : DUGraph.t =
-    match env.initial_state.target with
-    | Some target ->
-        let target_node =
-          NodeMap.find target env.initial_state.State.nodemap
-        in
-        filter target_node dugraph
-    | None ->
-        dugraph
+    if !Options.no_control_flow then
+      match env.initial_state.target with
+      | Some target ->
+          let target_node =
+            NodeMap.find target env.initial_state.State.nodemap
+          in
+          filter target_node dugraph
+      | None ->
+          dugraph
+    else dugraph
 
-  let has_dugraph g1 env : bool =
-    List.find_opt
-      (fun g2 ->
-        (* Check if the size are equal and if not, directly return false *)
-        if DUGraph.nb_vertex g1 = DUGraph.nb_vertex g2 then
-          (* Check if every vertex in g1 is contained in g2 *)
-          DUGraph.fold_vertex
-            (fun g1_vertex acc -> acc && DUGraph.mem_vertex g2 g1_vertex)
-            g1 true
-        else false)
-      env.dugraphs
-    |> Option.is_some
+  let should_include g1 env : bool =
+    if not !Options.no_control_flow then true
+    else if !Options.no_filter_duplication then true
+    else
+      List.find_opt
+        (fun g2 ->
+          (* Check if the size are equal and if not, directly return false *)
+          if DUGraph.nb_vertex g1 = DUGraph.nb_vertex g2 then
+            (* Check if every vertex in g1 is contained in g2 *)
+            DUGraph.fold_vertex
+              (fun g1_vertex acc -> acc && DUGraph.mem_vertex g2 g1_vertex)
+              g1 true
+          else false)
+        env.dugraphs
+      |> Option.is_none
 end
 
 let initialize llctx llm state =
@@ -366,11 +371,7 @@ and finish_execution llctx env state =
   let target_visited = state.target_visited in
   let env =
     if target_visited then
-      let not_duplicate =
-        !Options.no_filter_duplication
-        || not (Environment.has_dugraph dugraph env)
-      in
-      if not_duplicate then
+      if Environment.should_include dugraph env then
         let env =
           Environment.add_trace state.State.trace env
           |> Environment.add_dugraph dugraph
