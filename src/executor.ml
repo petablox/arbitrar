@@ -303,9 +303,26 @@ and transfer llctx instr env state =
         |> State.add_memory_def lv v1 instr
         |> State.add_semantic_du_edges [lv1] instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
+    | x when Utils.is_binary_op x ->
+        let exp0 = Llvm.operand instr 0 in
+        let exp1 = Llvm.operand instr 1 in
+        let _, uses0 = eval exp0 state.State.memory in
+        let _, uses1 = eval exp1 state.State.memory in
+        State.add_trace llctx instr state
+        |> add_syntactic_du_edge instr env
+        |> State.add_semantic_du_edges (uses0 @ uses1) instr
+        |> execute_instr llctx (Llvm.instr_succ instr) env
+    | x when Utils.is_unary_op x ->
+        let exp0 = Llvm.operand instr 0 in
+        let _, uses0 = eval exp0 state.State.memory in
+        State.add_trace llctx instr state
+        |> add_syntactic_du_edge instr env
+        |> State.add_semantic_du_edges uses0 instr
+        |> execute_instr llctx (Llvm.instr_succ instr) env
     | x ->
         State.add_trace llctx instr state
         |> add_syntactic_du_edge instr env
+        (* Note: Maybe expand *)
         |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and transfer_call llctx instr env state =

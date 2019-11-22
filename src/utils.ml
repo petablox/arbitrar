@@ -70,6 +70,48 @@ let is_assignment = function
   | _ ->
       false
 
+let is_binary_op = function
+  | Llvm.Opcode.Add
+  | FAdd
+  | Sub
+  | FSub
+  | Mul
+  | FMul
+  | UDiv
+  | SDiv
+  | FDiv
+  | URem
+  | SRem
+  | FRem
+  | Shl
+  | LShr
+  | AShr
+  | And
+  | Or
+  | Xor
+  | ICmp
+  | FCmp ->
+      true
+  | _ ->
+      false
+
+let is_unary_op = function
+  | Llvm.Opcode.Trunc
+  | ZExt
+  | SExt
+  | FPToUI
+  | FPToSI
+  | UIToFP
+  | SIToFP
+  | FPTrunc
+  | FPExt
+  | PtrToInt
+  | IntToPtr
+  | BitCast ->
+      true
+  | _ ->
+      false
+
 let string_of_exp exp =
   match Llvm.classify_value exp with
   | Llvm.ValueKind.NullValue ->
