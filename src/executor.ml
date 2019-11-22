@@ -417,11 +417,7 @@ let dump_dugraph ?(prefix = "") env =
       let oc = open_out (prefix ^ string_of_int idx ^ "-" ^ "dugraph.dot") in
       GraphViz.output_graph oc g ; close_out oc)
     env.Environment.dugraphs ;
-  let json =
-    List.fold_left
-      (fun l g -> DUGraph.to_json g :: l)
-      [] env.Environment.dugraphs
-  in
+  let json = List.map DUGraph.to_json env.Environment.dugraphs in
   let oc = open_out (prefix ^ "dugraph.json") in
   Yojson.Safe.pretty_to_channel oc (`List json) ;
   close_out oc

@@ -136,7 +136,8 @@ module Trace = struct
     ; trace_id: int
     ; dugraph: DUGraph.t
     ; target_node: Node.t
-    ; target_func_name: string }
+    ; target_func_name: string
+    ; location: string }
 
   let nodes_from_json json : Node.t list =
     let json_list = Utils.list_from_json json in
@@ -153,13 +154,20 @@ module Trace = struct
     let json_list = Utils.list_from_json json in
     List.map edge_from_json json_list
 
-  let from_json target_func_name slice_id trace_id json : t =
-    let nodes = nodes_from_json (Utils.get_field json "vertex") in
-    let edges = edges_from_json (Utils.get_field json "edge") in
-    let target_id = Utils.int_from_json_field json "target" in
+  let info_from_slice_json slice_json : string * string =
+    let call_edge = Utils.get_field slice_json "call_edge" in
+    let callee_name = Utils.string_from_json_field call_edge "callee" in
+    let location = Utils.string_from_json_field call_edge "location" in
+    (callee_name, location)
+
+  let from_json slice_json slice_id trace_id trace_json : t =
+    let target_func_name, location = info_from_slice_json slice_json in
+    let nodes = nodes_from_json (Utils.get_field trace_json "vertex") in
+    let edges = edges_from_json (Utils.get_field trace_json "edge") in
+    let target_id = Utils.int_from_json_field trace_json "target" in
     let target_node = Nodes.find_node_by_id nodes target_id in
     let dugraph = DUGraph.from_vertices_and_edges nodes target_node edges in
-    {dugraph; target_node; target_func_name; slice_id; trace_id}
+    {dugraph; target_node; target_func_name; slice_id; trace_id; location}
 end
 
 module type Checker = sig
@@ -340,8 +348,9 @@ end
 let checker_stats_modules : (module CheckerStats) list =
   [(module Stats (RetValChecker))]
 
-let callee_name_from_slice_json json : string =
-  Utils.string_from_json_field (Utils.get_field json "call_edge") "callee"
+let callee_name_from_slice_json slice_json : string =
+  let call_edge = Utils.get_field slice_json "call_edge" in
+  Utils.string_from_json_field call_edge "callee"
 
 let load_traces dugraphs_dir slices_json_dir : Trace.t list =
   let slices_json = Yojson.Safe.from_file slices_json_dir in
@@ -356,7 +365,7 @@ let load_traces dugraphs_dir slices_json_dir : Trace.t list =
         in
         let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
         let trace_json_list = Utils.list_from_json dugraph_json in
-        List.mapi (Trace.from_json target_func_name slice_id) trace_json_list)
+        List.mapi (Trace.from_json slice_json slice_id) trace_json_list)
       slice_json_list
   in
   List.flatten traces_list
@@ -375,8 +384,9 @@ let run_one_checker traces checker_stats_module : unit =
     (fun (trace : Trace.t) ->
       let result, score = M.evaluate stats trace in
       if score > !Options.report_threshold then
-        Printf.printf "[ Slice: %d, Trace: %d, Result: %s, Score: %f ]\n"
-          trace.slice_id trace.trace_id
+        Printf.printf
+          "[ Slice: %d, Trace: %d, Location: %s, Result: %s, Score: %f ]\n"
+          trace.slice_id trace.trace_id trace.location
           (M.result_to_string result)
           score)
     traces
