@@ -47,7 +47,8 @@ let extractor_opts_local =
 let analyzer_opts_local =
   [ ( "-thres"
     , Arg.Set_float report_threshold
-    , "Score threshold for reporting bugs" ) ]
+    , "Score threshold for reporting bugs" )
+  ; ("-fn", Arg.Set_string target_function_name, "Target function name") ]
 
 let slicer_opts = common_opts_local @ slicer_opts_local
 
