@@ -39,7 +39,7 @@ module CallEdge = struct
     let instr =
       (* Want to have better algorithm instead of find the instr in linear *)
       raise Utils.NotImplemented
-       let instr_str = get_instr_string json in
+      let instr_str = get_instr_string json in
       let maybe_instr =
         Llvm.fold_left_blocks
           (fun acc block ->
@@ -260,35 +260,45 @@ let dump_call_graph cg =
   GraphViz.output_graph oc cg ;
   close_out oc
 
-let rec find_entries depth cg targets callers =
+let rec find_entries depth cg fringe entries =
   match depth with
   | 0 ->
-      callers
+      LlvalueSet.union fringe entries
   | _ ->
-      let direct_callers =
+      let direct_callers, terminating_callers =
         LlvalueSet.fold
-          (fun target direct_callers ->
-            LlvalueSet.of_list (CallGraph.pred cg target)
-            |> LlvalueSet.union direct_callers)
-          targets LlvalueSet.empty
+          (fun target (direct, terminating) ->
+            let preds = CallGraph.pred cg target in
+            match preds with
+            | [] ->
+                let new_terminating = LlvalueSet.add target terminating in
+                (direct, new_terminating)
+            | _ ->
+                let preds_set = LlvalueSet.of_list preds in
+                let new_direct = LlvalueSet.union direct preds_set in
+                (new_direct, terminating))
+          fringe
+          (LlvalueSet.empty, LlvalueSet.empty)
       in
-      LlvalueSet.union callers direct_callers
-      |> find_entries (depth - 1) cg direct_callers
+      let new_entries = LlvalueSet.union entries terminating_callers in
+      find_entries (depth - 1) cg direct_callers new_entries
 
-let rec find_callees depth cg targets callees =
+let rec find_callees depth cg poi_callee fringe callees =
   match depth with
   | 0 ->
-      callees
+      LlvalueSet.union fringe callees |> LlvalueSet.remove poi_callee
   | _ ->
       let direct_callees =
         LlvalueSet.fold
           (fun target direct_callees ->
-            LlvalueSet.of_list (CallGraph.succ cg target)
-            |> LlvalueSet.union direct_callees)
-          targets LlvalueSet.empty
+            if target = poi_callee then direct_callees
+            else
+              LlvalueSet.of_list (CallGraph.succ cg target)
+              |> LlvalueSet.union direct_callees)
+          fringe LlvalueSet.empty
       in
       LlvalueSet.union callees direct_callees
-      |> find_callees (depth - 1) cg direct_callees
+      |> find_callees (depth - 1) cg poi_callee direct_callees
 
 let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
   match !Options.target_function_name with
@@ -300,15 +310,12 @@ let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
 
 let find_slices llctx llm depth cg (caller, inst, callee) =
   if need_find_slices_for_edge llm callee then
-    let singleton_caller = LlvalueSet.singleton caller in
-    let entries = find_entries depth cg singleton_caller singleton_caller in
+    let singleton_callee = LlvalueSet.singleton callee in
+    let entries = find_entries depth cg singleton_callee LlvalueSet.empty in
     LlvalueSet.fold
       (fun entry acc ->
         let entry_set = LlvalueSet.singleton entry in
-        let callees =
-          find_callees (2 * depth) cg entry_set LlvalueSet.empty
-          |> LlvalueSet.add entry |> LlvalueSet.remove callee
-        in
+        let callees = find_callees (2 * depth) cg callee entry_set entry_set in
         let location = Utils.string_of_location llctx inst in
         let slice = Slice.create callees entry caller inst callee location in
         slice :: acc)
