@@ -86,11 +86,13 @@ let execute lc llctx llm slices =
       (Metadata.empty, 0) slices
     |> fst
   in
-  Printf.printf "\n" ;
+  let msg =
+    Printf.sprintf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
+  in
+  Printf.printf "\n%s" msg ;
   flush stdout ;
-  Metadata.print lc metadata ;
-  Printf.printf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0) ;
-  ()
+  Printf.fprintf lc "%s" msg ;
+  Metadata.print lc metadata
 
 let main input_file =
   let log_channel = setup_loc_channel () in
