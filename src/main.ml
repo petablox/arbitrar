@@ -1,6 +1,6 @@
 module F = Format
 
-type task = All | Slice | Execute | Analyze | DumpLL | CallGraph
+type task = All | Slice | Analyze | DumpLL | CallGraph
 
 let task = ref All
 
@@ -12,9 +12,6 @@ let parse_arg arg =
     | "slice" ->
         Options.options := Options.slicer_opts ;
         task := Slice
-    | "execute" ->
-        Options.options := Options.executor_opts ;
-        task := Execute
     | "analyze" ->
         Options.options := Options.analyzer_opts ;
         task := Analyze
@@ -29,8 +26,7 @@ let parse_arg arg =
   else input_file := Utils.get_abs_path arg
 
 let usage =
-  "llexetractor [all | slice | execute | analyze | dump-ll | call-graph] \
-   [OPTIONS] [FILE]"
+  "llexetractor [all | slice | analyze | dump-ll | call-graph] [OPTIONS] [FILE]"
 
 let dump input_file =
   let llctx = Llvm.create_context () in
@@ -46,19 +42,6 @@ let call_graph input_file =
   Slicer.dump_call_graph call_graph ;
   Slicer.print_call_graph llm call_graph
 
-let mkdir dirname =
-  if Sys.file_exists dirname && Sys.is_directory dirname then ()
-  else if Sys.file_exists dirname && not (Sys.is_directory dirname) then
-    let _ = F.fprintf F.err_formatter "Error: %s already exists." dirname in
-    exit 1
-  else Unix.mkdir dirname 0o755
-
-let initialize_directories () =
-  List.iter mkdir
-    [ !Options.outdir
-    ; !Options.outdir ^ "/dugraphs"
-    ; !Options.outdir ^ "/traces" ]
-
 let main () =
   Arg.parse_dynamic Options.options parse_arg usage ;
   match !task with
@@ -70,9 +53,7 @@ let main () =
       Analyzer.main !input_file
   | Slice ->
       Slicer.main !input_file
-  | Execute ->
-      initialize_directories () ; Executor.main !input_file
   | All ->
-      initialize_directories () ; Extractor.main !input_file
+      Extractor.main !input_file
 
 let _ = main ()

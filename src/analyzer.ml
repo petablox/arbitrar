@@ -188,7 +188,7 @@ end
 module RetValChecker : Checker = struct
   type t = Checked of Predicate.t * string | NoCheck
 
-  let name = "Return Value Checker"
+  let name = "retval_checker"
 
   let rec check_helper dugraph fringe result : t list =
     match fringe with

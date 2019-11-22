@@ -4,7 +4,7 @@ let debug = ref false
 let no_filter_duplication = ref false
 
 (* Output Options *)
-let outdir = ref "extractor-out"
+let outdir = ref "out"
 
 let verbose = ref 0
 
@@ -21,6 +21,10 @@ let max_traces = ref max_int
 let max_length = ref max_int
 
 let no_control_flow = ref false
+
+let output_dot = ref false
+
+let output_trace = ref false
 
 (* Analyzer Options *)
 let report_threshold = ref 0.8
@@ -42,7 +46,9 @@ let executor_opts_local =
     , "Do not fliter out duplicatated def-use graphs" )
   ; ( "-no-control-flow"
     , Arg.Set no_control_flow
-    , "Do not include control-flow edges" ) ]
+    , "Do not include control-flow edges" )
+  ; ("-output-dot", Arg.Set output_dot, "Output Graphviz dot files")
+  ; ("-output-trace", Arg.Set output_trace, "Output trace files") ]
 
 let extractor_opts_local =
   [ ( "-continue"

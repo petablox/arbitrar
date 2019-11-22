@@ -419,38 +419,15 @@ let dump_traces ?(prefix = "") env =
   let oc = open_out (prefix ^ "traces.json") in
   Yojson.Safe.pretty_to_channel oc json
 
-let dump_dugraph ?(prefix = "") env =
+let dump_dots ?(prefix = "") env =
   List.iteri
     (fun idx g ->
       let oc = open_out (prefix ^ string_of_int idx ^ "-" ^ "dugraph.dot") in
       GraphViz.output_graph oc g ; close_out oc)
-    env.Environment.dugraphs ;
+    env.Environment.dugraphs
+
+let dump_dugraphs ?(prefix = "") env =
   let json = List.map DUGraph.to_json env.Environment.dugraphs in
   let oc = open_out (prefix ^ "dugraph.json") in
   Yojson.Safe.pretty_to_channel oc (`List json) ;
   close_out oc
-
-let main input_file =
-  let llctx = Llvm.create_context () in
-  let llmem = Llvm.MemoryBuffer.of_file input_file in
-  let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let target = find_target_instr llm in
-  let initial_state = initialize llctx llm {State.empty with target} in
-  let main_function = find_starting_point initial_state in
-  let env =
-    execute_function llctx main_function Environment.empty initial_state
-  in
-  let dugraphs =
-    match target with
-    | Some instr ->
-        let target_node = NodeMap.find instr initial_state.State.nodemap in
-        List.map (filter target_node) env.dugraphs
-    | None ->
-        env.dugraphs
-  in
-  let env = {env with dugraphs} in
-  let log_channel = open_out (!Options.outdir ^ "/log.txt") in
-  print_report log_channel env ;
-  dump_traces env ;
-  dump_dugraph env ;
-  close_out log_channel

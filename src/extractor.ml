@@ -21,11 +21,13 @@ let run_one_slice lc llctx llm initial_state idx (slice : Slicer.Slice.t) :
     Llvm.operand target (Llvm.num_operands target - 1) |> Llvm.value_name
   in
   let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
-  let dugraph_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
-  let trace_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
+  let dugraphs_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
+  let traces_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
+  let dots_prefix = !Options.outdir ^ "/dots/" ^ file_prefix in
   if !Options.verbose > 0 then Executor.print_report lc env ;
-  if !Options.debug then Executor.dump_traces ~prefix:trace_prefix env ;
-  Executor.dump_dugraph ~prefix:dugraph_prefix env ;
+  if !Options.output_trace then Executor.dump_traces ~prefix:traces_prefix env ;
+  if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
+  Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
   env
 
 let log_command log_channel : unit =
@@ -93,7 +95,22 @@ let execute lc llctx llm slices =
   Printf.fprintf lc "%s" msg ;
   Metadata.print lc metadata
 
+let mkdir dirname =
+  if Sys.file_exists dirname && Sys.is_directory dirname then ()
+  else if Sys.file_exists dirname && not (Sys.is_directory dirname) then
+    let _ = F.fprintf F.err_formatter "Error: %s already exists." dirname in
+    exit 1
+  else Unix.mkdir dirname 0o755
+
+let initialize_directories () =
+  List.iter mkdir
+    [ !Options.outdir
+    ; !Options.outdir ^ "/dugraphs"
+    ; !Options.outdir ^ "/dots"
+    ; !Options.outdir ^ "/traces" ]
+
 let main input_file =
+  initialize_directories () ;
   let log_channel = setup_loc_channel () in
   let llctx, llm = setup_ll_module input_file in
   let slices = get_slices log_channel llctx llm in
