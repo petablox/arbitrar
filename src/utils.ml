@@ -123,6 +123,11 @@ let string_of_location llctx instr =
   match dbg with
   | Some s -> (
       let str = Llvm.string_of_llvalue s in
+      let blk_mdnode = (Llvm.get_mdnode_operands s).(0) in
+      let fun_mdnode = (Llvm.get_mdnode_operands blk_mdnode).(0) in
+      let file_mdnode = (Llvm.get_mdnode_operands fun_mdnode).(0) in
+      let filename = Llvm.string_of_llvalue file_mdnode in
+      let filename = String.sub filename 2 (String.length filename - 3) in
       let r =
         Str.regexp "!DILocation(line: \\([0-9]+\\), column: \\([0-9]+\\)"
       in
@@ -130,7 +135,7 @@ let string_of_location llctx instr =
         let _ = Str.search_forward r str 0 in
         let line = Str.matched_group 1 str in
         let column = Str.matched_group 2 str in
-        func ^ ":" ^ line ^ ":" ^ column
+        filename ^ ":" ^ func ^ ":" ^ line ^ ":" ^ column
       with Not_found -> func ^ ":0:0" )
   | None ->
       func ^ ":0:0"
