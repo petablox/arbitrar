@@ -1,22 +1,22 @@
 module F = Format
 
 module Stmt = struct
-  type t = {instr: Llvm.llvalue; location: string}
+  type t = {instr: Llvm.llvalue; instr_str: string; location: string}
 
-  let compare = compare
+  let compare x y = compare x.instr y.instr
 
-  let hash = Hashtbl.hash
+  let hash x = Hashtbl.hash x.instr
 
-  let equal = ( = )
+  let equal x y = x.instr == y.instr
 
   let make llctx instr =
+    let instr_str = Utils.string_of_instr instr in
     let location = Utils.string_of_location llctx instr in
-    {instr; location}
+    {instr; instr_str; location}
 
   let to_json s =
     let common =
-      [ ("location", `String s.location)
-      ; ("instr", `String (Utils.string_of_instr s.instr)) ]
+      [("location", `String s.location); ("instr", `String s.instr_str)]
     in
     match Utils.json_of_instr s.instr with
     | `Assoc l ->
@@ -176,7 +176,7 @@ module Node = struct
 
   let compare n1 n2 = compare n1.id n2.id
 
-  let hash = Hashtbl.hash
+  let hash x = Hashtbl.hash x.id
 
   let equal = ( = )
 

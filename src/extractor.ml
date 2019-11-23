@@ -1,15 +1,13 @@
 open Semantics
 module Metadata = Executor.Metadata
 
-let run_one_slice lc llctx llm idx (slice : Slicer.Slice.t) :
+let run_one_slice lc llctx llm initial_state idx (slice : Slicer.Slice.t) :
     Executor.Environment.t =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
   let target = poi.instr in
-  let initial_state =
-    Executor.initialize llctx llm {State.empty with target= Some target}
-  in
+  let initial_state = {initial_state with State.target= Some target} in
   let env =
     Executor.execute_function llctx entry
       {Executor.Environment.empty with boundaries; initial_state}
@@ -75,13 +73,14 @@ let get_slices lc llctx llm : Slicer.Slices.t =
 
 let execute lc llctx llm slices =
   let t0 = Sys.time () in
+  let initial_state = Executor.initialize llctx llm State.empty in
   let metadata =
     List.fold_left
       (fun (metadata, idx) slice ->
         Printf.printf "%d/%d slices processing\r" (idx + 1)
           (List.length slices) ;
         flush stdout ;
-        let env = run_one_slice lc llctx llm idx slice in
+        let env = run_one_slice lc llctx llm initial_state idx slice in
         (Metadata.merge metadata env.metadata, idx + 1))
       (Metadata.empty, 0) slices
     |> fst
