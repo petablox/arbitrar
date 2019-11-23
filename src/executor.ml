@@ -149,15 +149,7 @@ let initialize llctx llm state =
         Llvm.fold_left_blocks
           (fun state blk ->
             Llvm.fold_left_instrs
-              (fun state instr ->
-                let is_target =
-                  match state.State.target with
-                  | Some s ->
-                      s = instr
-                  | None ->
-                      false
-                in
-                State.add_node llctx instr is_target state)
+              (fun state instr -> State.add_node llctx instr false state)
               state blk)
           state func)
     state llm

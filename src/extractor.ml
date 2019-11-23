@@ -7,7 +7,7 @@ let run_one_slice lc llctx llm initial_state idx (slice : Slicer.Slice.t) :
   let boundaries = slice.functions in
   let entry = slice.entry in
   let target = poi.instr in
-  let initial_state = {initial_state with State.target= Some target} in
+  let initial_state = State.set_target target initial_state in
   let env =
     Executor.execute_function llctx entry
       {Executor.Environment.empty with boundaries; initial_state}

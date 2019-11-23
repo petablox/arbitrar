@@ -241,16 +241,21 @@ module DUGraph = struct
           (vertex :: l, t))
         g ([], -1)
     in
-    let edges =
-      fold_edges
-        (fun src dst l ->
+    let du_edges, cf_edges =
+      fold_edges_e
+        (fun (src, e, dst) (du_edges, cf_edges) ->
           let edge = `List [`Int src.Node.id; `Int dst.Node.id] in
-          edge :: l)
-        g []
+          match e with
+          | Edge.Data ->
+              (edge :: du_edges, cf_edges)
+          | Control ->
+              (du_edges, edge :: cf_edges))
+        g ([], [])
     in
     `Assoc
       [ ("vertex", `List vertices)
-      ; ("edge", `List edges)
+      ; ("du_edge", `List du_edges)
+      ; ("cf_edge", `List cf_edges)
       ; ("target", `Int target_id) ]
 end
 
@@ -366,6 +371,12 @@ module State = struct
     NodeMap.add s.nodemap instr node ;
     if is_target then {s with dugraph= DUGraph.add_vertex s.dugraph node}
     else s
+
+  let set_target t s =
+    let candidate_node = NodeMap.find t s.nodemap in
+    let target_node = {candidate_node with is_target= true} in
+    NodeMap.add s.nodemap t target_node ;
+    {s with target= Some t}
 
   let visit_target s = {s with target_visited= true}
 end
