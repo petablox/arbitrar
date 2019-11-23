@@ -4,7 +4,16 @@ exception NotImplemented
 
 (* LLVM utility functions *)
 
-let string_of_instr instr = Llvm.string_of_llvalue instr |> String.trim
+let string_cache = Hashtbl.create 2048
+
+let string_of_llvalue_cache instr =
+  if Hashtbl.mem string_cache instr then Hashtbl.find string_cache instr
+  else
+    let str = Llvm.string_of_llvalue instr |> String.trim in
+    Hashtbl.add string_cache instr str ;
+    str
+
+let string_of_instr = string_of_llvalue_cache
 
 let string_of_lhs instr =
   let s = string_of_instr instr in
@@ -126,7 +135,7 @@ let string_of_exp exp =
   | ConstantDataArray
   | ConstantDataVector
   | ConstantExpr ->
-      Llvm.string_of_llvalue exp
+      string_of_llvalue_cache exp
   | Argument | ConstantFP | ConstantInt ->
       let s = string_of_instr exp in
       let r = Str.regexp " " in
@@ -135,11 +144,11 @@ let string_of_exp exp =
   | ConstantPointerNull ->
       "0"
   | ConstantStruct | ConstantVector ->
-      Llvm.string_of_llvalue exp
+      string_of_llvalue_cache exp
   | Function ->
       Llvm.value_name exp
   | GlobalIFunc | GlobalAlias ->
-      Llvm.string_of_llvalue exp
+      string_of_llvalue_cache exp
   | GlobalVariable ->
       Llvm.value_name exp
   | UndefValue ->
@@ -164,11 +173,11 @@ let string_of_location llctx instr =
   let func = Llvm.instr_parent instr |> Llvm.block_parent |> Llvm.value_name in
   match dbg with
   | Some s -> (
-      let str = Llvm.string_of_llvalue s in
+      let str = string_of_llvalue_cache s in
       let blk_mdnode = (Llvm.get_mdnode_operands s).(0) in
       let fun_mdnode = (Llvm.get_mdnode_operands blk_mdnode).(0) in
       let file_mdnode = (Llvm.get_mdnode_operands fun_mdnode).(0) in
-      let filename = Llvm.string_of_llvalue file_mdnode in
+      let filename = string_of_llvalue_cache file_mdnode in
       let filename = String.sub filename 2 (String.length filename - 3) in
       let r =
         Str.regexp "!DILocation(line: \\([0-9]+\\), column: \\([0-9]+\\)"

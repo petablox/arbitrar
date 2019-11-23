@@ -1,7 +1,7 @@
 module F = Format
 
 module Stmt = struct
-  type t = {instr: Llvm.llvalue; instr_str: string; location: string}
+  type t = {instr: Llvm.llvalue; location: string}
 
   let compare x y = compare x.instr y.instr
 
@@ -10,13 +10,13 @@ module Stmt = struct
   let equal x y = x.instr == y.instr
 
   let make llctx instr =
-    let instr_str = Utils.string_of_instr instr in
     let location = Utils.string_of_location llctx instr in
-    {instr; instr_str; location}
+    {instr; location}
 
   let to_json s =
     let common =
-      [("location", `String s.location); ("instr", `String s.instr_str)]
+      [ ("location", `String s.location)
+      ; ("instr", `String (Utils.string_of_instr s.instr)) ]
     in
     match Utils.json_of_instr s.instr with
     | `Assoc l ->
