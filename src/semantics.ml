@@ -306,7 +306,7 @@ module State = struct
   let add_trace llctx x s =
     let stmt = Stmt.make llctx x in
     let dugraph =
-      if Trace.is_empty s.trace then s.dugraph
+      if !Options.no_control_flow || Trace.is_empty s.trace then s.dugraph
       else
         let src = NodeMap.find (Trace.last s.trace).instr s.nodemap in
         let dst = NodeMap.find x s.nodemap in
