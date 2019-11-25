@@ -396,11 +396,17 @@ let callee_name_from_slice_json slice_json : string =
   Utils.string_from_json_field call_edge "callee"
 
 let load_traces dugraphs_dir slices_json_dir : Trace.t list =
+  Printf.printf "Loading traces...\n" ;
+  flush stdout ;
+  let t0 = Sys.time () in
   let slices_json = Yojson.Safe.from_file slices_json_dir in
   let slice_json_list = Utils.list_from_json slices_json in
+  let num_slices = List.length slice_json_list in
   let traces_list =
     List.mapi
       (fun slice_id slice_json ->
+        Printf.printf "%d/%d slice loaded...\r" (slice_id + 1) num_slices ;
+        flush stdout ;
         let target_func_name = callee_name_from_slice_json slice_json in
         let dugraph_json_dir =
           Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir target_func_name
@@ -416,6 +422,8 @@ let load_traces dugraphs_dir slices_json_dir : Trace.t list =
         with Sys_error _ -> None)
       slice_json_list
   in
+  Printf.printf "\nTraces loaded in %f sec\n" (Sys.time () -. t0) ;
+  flush stdout ;
   List.flatten (List.filter_map (fun x -> x) traces_list)
 
 let init_checker_dir (prefix : string) (name : string) : string =
@@ -426,10 +434,12 @@ let run_one_checker analysis_dir traces checker_stats_module : unit =
   (* First get back the module *)
   let module M = (val checker_stats_module : CheckerStats) in
   Printf.printf "Running checker [%s]...\n" M.checker_name ;
+  flush stdout ;
   let checker_dir = init_checker_dir analysis_dir M.checker_name in
   (* Then generate and dump stats *)
   let stats = M.from_traces traces in
   Printf.printf "Dumping statistics...\n" ;
+  flush stdout ;
   M.dump_csv checker_dir stats ;
   (* Run evaluation on each trace, report bug if found minority *)
   let header =
@@ -440,6 +450,7 @@ let run_one_checker analysis_dir traces checker_stats_module : unit =
   let bugs_oc = open_out (checker_dir ^ "/bugs.csv") in
   Printf.fprintf bugs_oc "%s" header ;
   Printf.printf "Dumping results and bug reports...\n" ;
+  flush stdout ;
   let _ =
     List.iter
       (fun (trace : Trace.t) ->
@@ -461,6 +472,8 @@ let init_analysis_dir (prefix : string) : string =
   Utils.mkdir analysis_dir ; analysis_dir
 
 let main (input_directory : string) =
+  Printf.printf "Analyzing %s...\n" input_directory ;
+  flush stdout ;
   let analysis_dir = init_analysis_dir input_directory in
   let dugraphs_dir = input_directory ^ "/dugraphs" in
   let slices_json_dir = input_directory ^ "/slices.json" in
