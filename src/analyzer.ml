@@ -363,12 +363,17 @@ let load_traces dugraphs_dir slices_json_dir : Trace.t list =
           Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir target_func_name
             slice_id
         in
-        let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
-        let trace_json_list = Utils.list_from_json dugraph_json in
-        List.mapi (Trace.from_json slice_json slice_id) trace_json_list)
+        try
+          let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
+          let trace_json_list = Utils.list_from_json dugraph_json in
+          let trace_list =
+            List.mapi (Trace.from_json slice_json slice_id) trace_json_list
+          in
+          Some trace_list
+        with Sys_error _ -> None)
       slice_json_list
   in
-  List.flatten traces_list
+  List.flatten (List.filter_map (fun x -> x) traces_list)
 
 let run_one_checker traces checker_stats_module : unit =
   (* First get back the module *)
