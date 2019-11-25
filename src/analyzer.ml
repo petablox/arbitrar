@@ -176,7 +176,7 @@ module Trace = struct
       CallEdge.from_json (Utils.get_field slice_json "call_edge")
     in
     let nodes = nodes_from_json (Utils.get_field trace_json "vertex") in
-    let edges = edges_from_json (Utils.get_field trace_json "edge") in
+    let edges = edges_from_json (Utils.get_field trace_json "du_edge") in
     let target_id = Utils.int_from_json_field trace_json "target" in
     let target_node = Nodes.find_node_by_id nodes target_id in
     let dugraph = DUGraph.from_vertices_and_edges nodes target_node edges in
