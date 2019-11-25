@@ -95,15 +95,8 @@ let execute lc llctx llm slices =
   Printf.fprintf lc "%s" msg ;
   Metadata.print lc metadata
 
-let mkdir dirname =
-  if Sys.file_exists dirname && Sys.is_directory dirname then ()
-  else if Sys.file_exists dirname && not (Sys.is_directory dirname) then
-    let _ = F.fprintf F.err_formatter "Error: %s already exists." dirname in
-    exit 1
-  else Unix.mkdir dirname 0o755
-
 let initialize_directories () =
-  List.iter mkdir
+  List.iter Utils.mkdir
     [ !Options.outdir
     ; !Options.outdir ^ "/dugraphs"
     ; !Options.outdir ^ "/dots"

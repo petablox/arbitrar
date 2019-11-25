@@ -2,6 +2,17 @@ exception InvalidJSON
 
 exception NotImplemented
 
+(* System operation *)
+
+module F = Format
+
+let mkdir dirname =
+  if Sys.file_exists dirname && Sys.is_directory dirname then ()
+  else if Sys.file_exists dirname && not (Sys.is_directory dirname) then
+    let _ = F.fprintf F.err_formatter "Error: %s already exists." dirname in
+    exit 1
+  else Unix.mkdir dirname 0o755
+
 (* LLVM utility functions *)
 
 let string_cache = Hashtbl.create 2048

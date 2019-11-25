@@ -1,5 +1,3 @@
-module F = Format
-
 type task = All | Slice | Analyze | DumpLL | CallGraph
 
 let task = ref All
