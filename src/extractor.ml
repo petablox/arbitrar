@@ -1,8 +1,8 @@
 open Semantics
 module Metadata = Executor.Metadata
 
-let run_one_slice lc llctx llm initial_state idx (slice : Slicer.Slice.t) :
-    Executor.Environment.t =
+let run_one_slice lc outdir llctx llm initial_state idx
+    (slice : Slicer.Slice.t) : Executor.Environment.t =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
@@ -21,9 +21,9 @@ let run_one_slice lc llctx llm initial_state idx (slice : Slicer.Slice.t) :
     Llvm.operand target (Llvm.num_operands target - 1) |> Llvm.value_name
   in
   let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
-  let dugraphs_prefix = !Options.outdir ^ "/dugraphs/" ^ file_prefix in
-  let traces_prefix = !Options.outdir ^ "/traces/" ^ file_prefix in
-  let dots_prefix = !Options.outdir ^ "/dots/" ^ file_prefix in
+  let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
+  let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
+  let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
   if !Options.verbose > 0 then Executor.print_report lc env ;
   if !Options.output_trace then Executor.dump_traces ~prefix:traces_prefix env ;
   if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
@@ -36,8 +36,8 @@ let log_command log_channel : unit =
   Printf.fprintf log_channel "\n" ;
   ()
 
-let setup_loc_channel () =
-  let log_channel = open_out (!Options.outdir ^ "/log.txt") in
+let setup_loc_channel outdir =
+  let log_channel = open_out (outdir ^ "/log.txt") in
   log_command log_channel ; flush log_channel ; log_channel
 
 let setup_ll_module input_file =
@@ -46,11 +46,11 @@ let setup_ll_module input_file =
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   (llctx, llm)
 
-let slice lc llctx llm : Slicer.Slices.t =
+let slice lc outdir llctx llm : Slicer.Slices.t =
   let t0 = Sys.time () in
   (* Generate slices and dump json *)
   let slices = Slicer.slice llctx llm !Options.slice_depth in
-  Slicer.Slices.dump_json ~prefix:!Options.outdir llm slices ;
+  Slicer.Slices.dump_json ~prefix:outdir llm slices ;
   (* Log and print *)
   let str =
     Printf.sprintf "Slicing complete in %f sec\n" (Sys.time () -. t0)
@@ -67,13 +67,13 @@ let load_slices_from_json lc slice_file llm : Slicer.Slices.t =
   let json = Yojson.Safe.from_file slice_file in
   Slicer.Slices.from_json llm json
 
-let get_slices lc llctx llm : Slicer.Slices.t =
-  let slice_file = !Options.outdir ^ "/slices.json" in
+let get_slices lc outdir llctx llm : Slicer.Slices.t =
+  let slice_file = outdir ^ "/slices.json" in
   if !Options.continue_extraction && slices_file_exists slice_file then
     load_slices_from_json lc slice_file llm
-  else slice lc llctx llm
+  else slice lc outdir llctx llm
 
-let execute lc llctx llm slices =
+let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
   let metadata =
@@ -82,7 +82,7 @@ let execute lc llctx llm slices =
         Printf.printf "%d/%d slices processing\r" (idx + 1)
           (List.length slices) ;
         flush stdout ;
-        let env = run_one_slice lc llctx llm initial_state idx slice in
+        let env = run_one_slice lc outdir llctx llm initial_state idx slice in
         (Metadata.merge metadata env.metadata, idx + 1))
       (Metadata.empty, 0) slices
     |> fst
@@ -95,17 +95,15 @@ let execute lc llctx llm slices =
   Printf.fprintf lc "%s" msg ;
   Metadata.print lc metadata
 
-let initialize_directories () =
+let initialize_directories outdir =
   List.iter Utils.mkdir
-    [ !Options.outdir
-    ; !Options.outdir ^ "/dugraphs"
-    ; !Options.outdir ^ "/dots"
-    ; !Options.outdir ^ "/traces" ]
+    [outdir; outdir ^ "/dugraphs"; outdir ^ "/dots"; outdir ^ "/traces"]
 
 let main input_file =
-  initialize_directories () ;
-  let log_channel = setup_loc_channel () in
+  let outdir = Options.outdir () in
+  initialize_directories outdir ;
+  let log_channel = setup_loc_channel outdir in
   let llctx, llm = setup_ll_module input_file in
-  let slices = get_slices log_channel llctx llm in
-  let _ = execute log_channel llctx llm slices in
+  let slices = get_slices log_channel outdir llctx llm in
+  let _ = execute log_channel outdir llctx llm slices in
   close_out log_channel

@@ -256,7 +256,7 @@ let print_call_graph (llm : Llvm.llmodule) (cg : CallGraph.t) : unit =
   ignore (printf "\n")
 
 let dump_call_graph cg =
-  let oc = open_out (!Options.outdir ^ "/callgraph.dot") in
+  let oc = open_out (Options.outdir () ^ "/callgraph.dot") in
   GraphViz.output_graph oc cg ;
   close_out oc
 

@@ -4,7 +4,9 @@ let debug = ref false
 let no_filter_duplication = ref false
 
 (* Output Options *)
-let outdir = ref "out"
+let outdir_ = ref "out"
+
+let outdir () = Utils.get_abs_path !outdir_
 
 let verbose = ref 0
 
@@ -32,7 +34,7 @@ let report_threshold = ref 0.8
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
   ; ("-verbose", Arg.Set_int verbose, "Verbose")
-  ; ("-outdir", Arg.Set_string outdir, "Output directory") ]
+  ; ("-outdir", Arg.Set_string outdir_, "Output directory") ]
 
 let slicer_opts_local =
   [ ("-n", Arg.Set_int slice_depth, "Code slicing depth")
