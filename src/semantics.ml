@@ -172,7 +172,7 @@ module ReachingDef = struct
 end
 
 module Node = struct
-  type t = {stmt: Stmt.t; id: int; is_target: bool}
+  type t = {stmt: Stmt.t; id: int; mutable is_target: bool}
 
   let compare n1 n2 = compare n1.id n2.id
 
@@ -267,6 +267,8 @@ module NodeMap = struct
   let add = Hashtbl.add
 
   let find instr m = Hashtbl.find m instr
+
+  let iter = Hashtbl.iter
 end
 
 module State = struct
@@ -373,9 +375,10 @@ module State = struct
     else s
 
   let set_target t s =
+    NodeMap.iter (fun _ node -> node.Node.is_target <- false) s.nodemap ;
     let candidate_node = NodeMap.find t s.nodemap in
-    let target_node = {candidate_node with is_target= true} in
-    NodeMap.add s.nodemap t target_node ;
+    candidate_node.is_target <- true ;
+    NodeMap.add s.nodemap t candidate_node ;
     {s with target= Some t}
 
   let visit_target s = {s with target_visited= true}

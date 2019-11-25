@@ -72,18 +72,18 @@ module GraphViz = Graph.Graphviz.Dot (DUGraph)
 module Path = Graph.Path.Check (DUGraph)
 
 let filter target g =
-  let checker = Path.create g in
   if not (DUGraph.mem_vertex g target) then DUGraph.empty
   else
     DUGraph.fold_vertex
       (fun v g ->
-        if Llvm.instr_opcode v.Node.stmt.Stmt.instr = Llvm.Opcode.Alloca then
-          DUGraph.remove_vertex g v
-        else if
-          (not (Path.check_path checker v target))
-          && not (Path.check_path checker target v)
-        then DUGraph.remove_vertex g v
-        else g)
+        let incoming_edges = DUGraph.pred_e g v in
+        let entry = incoming_edges = [] in
+        let reachable =
+          List.exists
+            (fun e -> DUGraph.E.label e = DUGraph.Edge.Control)
+            incoming_edges
+        in
+        if entry || reachable then g else DUGraph.remove_vertex g v)
       g g
 
 module Environment = struct
@@ -110,16 +110,14 @@ module Environment = struct
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
 
   let gen_dugraph trace dugraph env : DUGraph.t =
-    if !Options.no_control_flow then
-      match env.initial_state.target with
-      | Some target ->
-          let target_node =
-            NodeMap.find target env.initial_state.State.nodemap
-          in
-          filter target_node dugraph
-      | None ->
-          dugraph
-    else dugraph
+    match env.initial_state.target with
+    | Some target ->
+        let target_node =
+          NodeMap.find target env.initial_state.State.nodemap
+        in
+        filter target_node dugraph
+    | None ->
+        dugraph
 
   let should_include g1 env : bool =
     if not !Options.no_control_flow then true
