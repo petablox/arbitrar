@@ -454,6 +454,10 @@ let init_checker_dir (prefix : string) (name : string) : string =
   let dir = prefix ^ "/" ^ name in
   Utils.mkdir dir ; dir
 
+let init_func_stats_dir (prefix : string) : string =
+  let dir = prefix ^ "/functions" in
+  Utils.mkdir dir ; dir
+
 let run_one_checker analysis_dir traces checker_stats_module : unit =
   (* First get back the module *)
   let module M = (val checker_stats_module : CheckerStats) in
@@ -461,10 +465,11 @@ let run_one_checker analysis_dir traces checker_stats_module : unit =
   flush stdout ;
   let checker_dir = init_checker_dir analysis_dir M.checker_name in
   (* Then generate and dump stats *)
+  let func_stats_dir = init_func_stats_dir checker_dir in
   let stats = M.from_traces traces in
   Printf.printf "Dumping statistics...\n" ;
   flush stdout ;
-  M.dump_csv checker_dir stats ;
+  M.dump_csv func_stats_dir stats ;
   (* Run evaluation on each trace, report bug if found minority *)
   let header =
     Printf.sprintf "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n"
