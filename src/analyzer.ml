@@ -114,6 +114,8 @@ module Nodes = struct
     List.find (fun (node : Node.t) -> node.id = id) nodes
 end
 
+module NodeSet = Set.Make (Node)
+
 module DUGraph = struct
   include Graph.Persistent.Digraph.ConcreteBidirectional (Node)
 
@@ -205,31 +207,42 @@ module RetValChecker : Checker = struct
 
   let name = "retval_checker"
 
-  let rec check_helper dugraph fringe result : t list =
-    match fringe with
-    | hd :: tl ->
-        let new_fringe = DUGraph.succ dugraph hd @ tl in
-        let new_result =
-          match hd.stmt with
-          | Assume {pred; op0; op1} ->
-              let is_op0_var = op0.[0] = '%' in
-              let is_op1_var = op1.[0] = '%' in
-              if is_op0_var && is_op1_var then []
-              else if is_op0_var then [Checked (pred, op1)]
-              else if is_op1_var then [Checked (pred, op0)]
-              else []
-          | _ ->
-              []
-        in
-        check_helper dugraph new_fringe (new_result @ result)
-    | [] ->
+  let rec check_helper (dugraph : DUGraph.t) (explored : NodeSet.t)
+      (fringe : NodeSet.t) (result : t list) : t list =
+    match NodeSet.choose_opt fringe with
+    | Some hd ->
+        let rst = NodeSet.remove hd fringe in
+        if NodeSet.mem hd explored then
+          check_helper dugraph explored rst result
+        else
+          let new_explored = NodeSet.add hd explored in
+          let new_fringe =
+            NodeSet.union (NodeSet.of_list (DUGraph.succ dugraph hd)) rst
+          in
+          let new_result =
+            match hd.stmt with
+            | Assume {pred; op0; op1} ->
+                let is_op0_var = op0.[0] = '%' in
+                let is_op1_var = op1.[0] = '%' in
+                if is_op0_var && is_op1_var then []
+                else if is_op0_var then [Checked (pred, op1)]
+                else if is_op1_var then [Checked (pred, op0)]
+                else []
+            | _ ->
+                []
+          in
+          check_helper dugraph new_explored new_fringe (new_result @ result)
+    | None ->
         result
 
   let check (trace : Trace.t) : t list =
-    let fringe = [trace.target_node] in
     match trace.target_node.stmt with
     | Call _ -> (
-        let results = check_helper trace.dugraph fringe [] in
+        let results =
+          check_helper trace.dugraph NodeSet.empty
+            (NodeSet.singleton trace.target_node)
+            []
+        in
         match results with [] -> [NoCheck] | _ -> results )
     | _ ->
         []
@@ -353,9 +366,20 @@ module Stats (C : Checker) : CheckerStats = struct
       stats
 
   let add_traces (stats : stats) (traces : Trace.t list) : stats =
-    List.fold_left add_trace stats traces
+    let num_traces = List.length traces in
+    let stats, _ =
+      List.fold_left
+        (fun (stats, i) trace ->
+          Printf.printf "%d/%d traces added\r" (i + 1) num_traces ;
+          let new_stats = add_trace stats trace in
+          (new_stats, i + 1))
+        (stats, 0) traces
+    in
+    stats
 
-  let from_traces (traces : Trace.t list) : stats = add_traces empty traces
+  let from_traces (traces : Trace.t list) : stats =
+    let stats = add_traces empty traces in
+    Printf.printf "\n" ; stats
 
   let evaluate (stats : stats) (trace : Trace.t) : result * float =
     let func_name = trace.call_edge.callee in
