@@ -71,21 +71,6 @@ end
 module GraphViz = Graph.Graphviz.Dot (DUGraph)
 module Path = Graph.Path.Check (DUGraph)
 
-let filter target g =
-  if not (DUGraph.mem_vertex g target) then DUGraph.empty
-  else
-    DUGraph.fold_vertex
-      (fun v g ->
-        let incoming_edges = DUGraph.pred_e g v in
-        let entry = incoming_edges = [] in
-        let reachable =
-          List.exists
-            (fun e -> DUGraph.E.label e = DUGraph.Edge.Control)
-            incoming_edges
-        in
-        if entry || reachable then g else DUGraph.remove_vertex g v)
-      g g
-
 module Environment = struct
   type t =
     { metadata: Metadata.t
@@ -109,16 +94,6 @@ module Environment = struct
 
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
 
-  let gen_dugraph trace dugraph env : DUGraph.t =
-    match env.initial_state.target with
-    | Some target ->
-        let target_node =
-          NodeMap.find target env.initial_state.State.nodemap
-        in
-        filter target_node dugraph
-    | None ->
-        dugraph
-
   let should_include g1 env : bool =
     if not !Options.no_control_flow then true
     else if !Options.no_filter_duplication then true
@@ -139,17 +114,7 @@ end
 let initialize llctx llm state =
   Llvm.fold_left_functions
     (fun state func ->
-      let state =
-        State.add_memory (Location.variable func) (Value.func func) state
-      in
-      if Llvm.is_declaration func then state
-      else
-        Llvm.fold_left_blocks
-          (fun state blk ->
-            Llvm.fold_left_instrs
-              (fun state instr -> State.add_node llctx instr false state)
-              state blk)
-          state func)
+      State.add_memory (Location.variable func) (Value.func func) state)
     state llm
 
 let need_step_into_function boundaries f : bool =
@@ -184,9 +149,20 @@ let eval_lv exp memory =
       Location.unknown
 
 let add_syntactic_du_edge instr env state =
-  Llvm.fold_left_uses
-    (fun env use -> State.add_du_edge instr (Llvm.user use) env)
-    state instr
+  let numop = Llvm.num_operands instr in
+  let rec loop i state =
+    if i < numop then
+      let use = Llvm.operand_use instr i in
+      let v = Llvm.used_value use in
+      let state =
+        if Llvm.is_constant v || Llvm.value_is_block v || Utils.is_argument v
+        then state
+        else try State.add_du_edge v instr state with Not_found -> state
+      in
+      loop (i + 1) state
+    else state
+  in
+  loop 0 state
 
 let mark_visit_target instr state =
   match state.State.target with
@@ -327,11 +303,11 @@ and transfer_call llctx instr env state =
   let boundaries = env.boundaries in
   match Memory.find var state.State.memory with
   | Value.Function f when Utils.is_llvm_function f ->
-      add_syntactic_du_edge instr env state
-      |> execute_instr llctx (Llvm.instr_succ instr) env
+      execute_instr llctx (Llvm.instr_succ instr) env state
   | Value.Function f
     when need_step_into_function boundaries f
          || not (FuncSet.mem callee_expr state.visited_funcs) ->
+      let state = State.add_trace llctx instr state in
       let state, _ =
         Llvm.fold_left_params
           (fun (state, count) param ->
@@ -345,7 +321,6 @@ and transfer_call llctx instr env state =
             (state, count + 1))
           (state, 0) f
       in
-      let state = State.add_trace llctx instr state in
       let state = State.push_stack instr state in
       execute_function llctx f env state
   | _ ->
@@ -357,14 +332,13 @@ and transfer_call llctx instr env state =
       failwith "not found"
 
 and finish_execution llctx env state =
-  let dugraph = Environment.gen_dugraph state.trace state.dugraph env in
   let target_visited = state.target_visited in
   let env =
     if target_visited then
-      if Environment.should_include dugraph env then
+      if Environment.should_include state.dugraph env then
         let env =
           Environment.add_trace state.State.trace env
-          |> Environment.add_dugraph dugraph
+          |> Environment.add_dugraph state.dugraph
         in
         {env with metadata= Metadata.incr_explored env.metadata}
       else {env with metadata= Metadata.incr_duplicated env.metadata}

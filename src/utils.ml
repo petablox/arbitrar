@@ -132,6 +132,16 @@ let is_unary_op = function
   | _ ->
       false
 
+let is_phi instr =
+  match Llvm.instr_opcode instr with Llvm.Opcode.PHI -> true | _ -> false
+
+let is_argument exp =
+  match Llvm.classify_value exp with
+  | Llvm.ValueKind.Argument ->
+      true
+  | _ ->
+      false
+
 let string_of_exp exp =
   match Llvm.classify_value exp with
   | Llvm.ValueKind.NullValue ->

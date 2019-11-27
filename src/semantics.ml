@@ -29,24 +29,6 @@ module Stmt = struct
   let pp fmt s = F.fprintf fmt "%s" (Utils.string_of_instr s)
 end
 
-module Trace = struct
-  type t = Stmt.t list
-
-  let empty = []
-
-  let is_empty t = t = []
-
-  let append x t = x :: t
-
-  let last = List.hd
-
-  let length = List.length
-
-  let to_json t =
-    let l = List.fold_left (fun l x -> Stmt.to_json x :: l) [] t in
-    `List l
-end
-
 module Stack = struct
   type t = Llvm.llvalue list
 
@@ -196,6 +178,24 @@ module Node = struct
         failwith "Node.to_json"
 end
 
+module Trace = struct
+  type t = Node.t list
+
+  let empty = []
+
+  let is_empty t = t = []
+
+  let append x t = x :: t
+
+  let last = List.hd
+
+  let length = List.length
+
+  let to_json t =
+    let l = List.fold_left (fun l x -> Node.to_json x :: l) [] t in
+    `List l
+end
+
 module DUGraph = struct
   module Edge = struct
     type t = Data | Control
@@ -259,17 +259,11 @@ module DUGraph = struct
       ; ("target", `Int target_id) ]
 end
 
-module NodeMap = struct
-  type t = (Llvm.llvalue, Node.t) Hashtbl.t
+module NodeMap = Map.Make (struct
+  type t = Llvm.llvalue
 
-  let create () = Hashtbl.create 65535
-
-  let add = Hashtbl.add
-
-  let find instr m = Hashtbl.find m instr
-
-  let iter = Hashtbl.iter
-end
+  let compare = compare
+end)
 
 module State = struct
   type t =
@@ -280,7 +274,7 @@ module State = struct
     ; visited_funcs: FuncSet.t
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
-    ; nodemap: NodeMap.t
+    ; nodemap: Node.t NodeMap.t
     ; target: Llvm.llvalue option
     ; target_visited: bool }
 
@@ -292,9 +286,15 @@ module State = struct
     ; visited_funcs= FuncSet.empty
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
-    ; nodemap= NodeMap.create ()
+    ; nodemap= NodeMap.empty
     ; target= None
     ; target_visited= false }
+
+  let instr_count = ref (-1)
+
+  let new_instr_count () =
+    instr_count := !instr_count + 1 ;
+    !instr_count
 
   let push_stack x s = {s with stack= Stack.push x s.stack}
 
@@ -305,16 +305,20 @@ module State = struct
     | None ->
         None
 
-  let add_trace llctx x s =
-    let stmt = Stmt.make llctx x in
+  let is_target node s =
+    match s.target with Some t -> t = node | None -> false
+
+  let add_trace llctx instr s =
+    let new_id = new_instr_count () in
+    let node = Node.make llctx instr new_id (is_target instr s) in
+    let nodemap = NodeMap.add instr node s.nodemap in
     let dugraph =
       if !Options.no_control_flow || Trace.is_empty s.trace then s.dugraph
       else
-        let src = NodeMap.find (Trace.last s.trace).instr s.nodemap in
-        let dst = NodeMap.find x s.nodemap in
-        DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, dst)
+        let src = Trace.last s.trace in
+        DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, node)
     in
-    {s with trace= Trace.append stmt s.trace; dugraph}
+    {s with trace= Trace.append node s.trace; nodemap; dugraph}
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
@@ -331,15 +335,6 @@ module State = struct
     { s with
       memory= Memory.add x v s.memory
     ; reachingdef= ReachingDef.add x instr s.reachingdef }
-
-  let is_target node s =
-    match s.target with Some t -> t = node | None -> false
-
-  let add_control_edge src dst s =
-    let src = NodeMap.find src s.nodemap in
-    let dst = NodeMap.find dst s.nodemap in
-    { s with
-      dugraph= DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, dst) }
 
   let add_du_edge src dst s =
     let src = NodeMap.find src s.nodemap in
@@ -361,25 +356,7 @@ module State = struct
     in
     {s with dugraph}
 
-  let instr_count = ref (-1)
-
-  let new_instr_count () =
-    instr_count := !instr_count + 1 ;
-    !instr_count
-
-  let add_node llctx instr is_target s =
-    let new_id = new_instr_count () in
-    let node = Node.make llctx instr new_id is_target in
-    NodeMap.add s.nodemap instr node ;
-    if is_target then {s with dugraph= DUGraph.add_vertex s.dugraph node}
-    else s
-
-  let set_target t s =
-    NodeMap.iter (fun _ node -> node.Node.is_target <- false) s.nodemap ;
-    let candidate_node = NodeMap.find t s.nodemap in
-    candidate_node.is_target <- true ;
-    NodeMap.add s.nodemap t candidate_node ;
-    {s with target= Some t}
+  let set_target t s = {s with target= Some t}
 
   let visit_target s = {s with target_visited= true}
 end
