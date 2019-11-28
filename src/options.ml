@@ -18,9 +18,11 @@ let target_function_name = ref ""
 (* Executor Options *)
 let continue_extraction = ref false
 
-let max_traces = ref max_int
+let max_traces = ref 50
 
 let max_length = ref max_int
+
+let max_trials = ref 2000
 
 let no_control_flow = ref false
 
@@ -43,6 +45,7 @@ let slicer_opts_local =
 let executor_opts_local =
   [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")
   ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace")
+  ; ("-max-trials", Arg.Set_int max_trials, "Maximum number of trials")
   ; ( "-no-filter-duplication"
     , Arg.Set no_filter_duplication
     , "Do not fliter out duplicatated def-use graphs" )

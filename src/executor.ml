@@ -7,11 +7,13 @@ module Worklist = struct
 
   let empty = []
 
-  let push x s = x :: s
+  let push x s = s @ [x]
 
   let pop = function x :: s -> (x, s) | [] -> failwith "empty worklist"
 
   let is_empty s = s = []
+
+  let length = List.length
 end
 
 module Traces = struct
@@ -220,9 +222,9 @@ and transfer llctx instr env state =
               let state = State.visit_block b1 state in
               execute_block llctx b1 env state
             else
+              let new_state = State.visit_block b2 state in
+              let env = Environment.add_work (b2, new_state) env in
               let state = State.visit_block b1 state in
-              let state = State.visit_block b2 state in
-              let env = Environment.add_work (b2, state) env in
               execute_block llctx b1 env state
         | Some (`Unconditional b) ->
             let visited = BlockSet.mem b state.State.visited_blocks in
@@ -298,7 +300,6 @@ and transfer llctx instr env state =
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
-  let state = State.visit_func callee_expr state in
   let var = Location.variable callee_expr in
   let boundaries = env.boundaries in
   match Memory.find var state.State.memory with
@@ -306,7 +307,8 @@ and transfer_call llctx instr env state =
       execute_instr llctx (Llvm.instr_succ instr) env state
   | Value.Function f
     when need_step_into_function boundaries f
-         || not (FuncSet.mem callee_expr state.visited_funcs) ->
+         && not (FuncSet.mem callee_expr state.visited_funcs) ->
+      let state = State.visit_func callee_expr state in
       let state = State.add_trace llctx instr state in
       let state, _ =
         Llvm.fold_left_params
@@ -344,14 +346,15 @@ and finish_execution llctx env state =
       else {env with metadata= Metadata.incr_duplicated env.metadata}
     else {env with metadata= Metadata.incr_target_unvisited env.metadata}
   in
-  if !Options.verbose > 1 then (
+  if !Options.verbose > 2 then (
     Memory.pp F.err_formatter state.State.memory ;
     ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
   let out_of_traces =
-    if !Options.max_traces == -1 then false
-    else Traces.length env.Environment.traces >= !Options.max_traces
+    Traces.length env.Environment.traces >= !Options.max_traces
   in
-  if Worklist.is_empty env.worklist || out_of_traces then env
+  let out_of_explored = env.metadata.num_explored > !Options.max_trials in
+  if Worklist.is_empty env.worklist || out_of_traces || out_of_explored then
+    env
   else
     let (blk, state), wl = Worklist.pop env.worklist in
     execute_block llctx blk {env with worklist= wl} state
@@ -391,7 +394,8 @@ let print_report oc env =
 let dump_traces ?(prefix = "") env =
   let json = Traces.to_json env.Environment.traces in
   let oc = open_out (prefix ^ "traces.json") in
-  Yojson.Safe.pretty_to_channel oc json
+  Yojson.Safe.pretty_to_channel oc json ;
+  close_out oc
 
 let dump_dots ?(prefix = "") env =
   List.iteri
