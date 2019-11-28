@@ -338,6 +338,7 @@ let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
 
 let slice llctx (llm : Llvm.llmodule) (slice_depth : int) : Slices.t =
   let call_graph = get_call_graph llm in
+  dump_call_graph call_graph ;
   CallGraph.fold_edges_instr_set
     (fun edge acc -> acc @ find_slices llctx llm slice_depth call_graph edge)
     call_graph []
