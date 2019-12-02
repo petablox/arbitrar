@@ -261,9 +261,9 @@ module RetValChecker : Checker = struct
   let to_csv r : string =
     match r with
     | Checked (pred, value) ->
-        Printf.sprintf "Checked,%s,%s" (Predicate.to_string pred) value
+        Printf.sprintf "\"Checked(%s,%s)\"" (Predicate.to_string pred) value
     | NoCheck ->
-        "NoCheck,,"
+        "NoCheck"
 end
 
 module type CheckerStats = sig
@@ -471,18 +471,19 @@ let run_one_checker analysis_dir traces checker_stats_module : unit =
   flush stdout ;
   M.dump_csv func_stats_dir stats ;
   (* Run evaluation on each trace, report bug if found minority *)
-  let header =
-    Printf.sprintf "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n"
-  in
+  Printf.printf "Dumping results and bug reports...\n" ;
+  flush stdout ;
+  let header = "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n" in
+  let brief_header = "Slice Id,Entry,Function,Location,Score,Result\n" in
   let results_oc = open_out (checker_dir ^ "/results.csv") in
   Printf.fprintf results_oc "%s" header ;
   let bugs_oc = open_out (checker_dir ^ "/bugs.csv") in
   Printf.fprintf bugs_oc "%s" header ;
-  Printf.printf "Dumping results and bug reports...\n" ;
-  flush stdout ;
+  let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
+  Printf.fprintf bugs_brief_oc "%s" brief_header ;
   let _ =
-    List.iter
-      (fun (trace : Trace.t) ->
+    List.fold_left
+      (fun (last_slice : int option) (trace : Trace.t) ->
         let result, score = M.evaluate stats trace in
         let csv_row =
           Printf.sprintf "%d,%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.trace_id
@@ -490,9 +491,24 @@ let run_one_checker analysis_dir traces checker_stats_module : unit =
             (M.result_to_csv result)
         in
         Printf.fprintf results_oc "%s" csv_row ;
-        if score > !Options.report_threshold then
-          Printf.fprintf bugs_oc "%s" csv_row)
-      traces
+        if score > !Options.report_threshold then (
+          Printf.fprintf bugs_oc "%s" csv_row ;
+          let need_print_brief =
+            match last_slice with
+            | Some ls ->
+                ls <> trace.slice_id
+            | None ->
+                true
+          in
+          if need_print_brief then
+            let brief_csv_row =
+              Printf.sprintf "%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.entry
+                trace.call_edge.callee trace.call_edge.location score
+                (M.result_to_csv result)
+            in
+            Printf.fprintf bugs_brief_oc "%s" brief_csv_row ) ;
+        Some trace.slice_id)
+      None traces
   in
   close_out results_oc ; close_out bugs_oc
 
