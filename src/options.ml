@@ -18,7 +18,7 @@ let target_function_name = ref ""
 (* Executor Options *)
 let continue_extraction = ref false
 
-let min_slices = ref 0
+let min_freq = ref 0
 
 let max_traces = ref 50
 
@@ -42,8 +42,8 @@ let common_opts_local =
 
 let slicer_opts_local =
   [ ("-n", Arg.Set_int slice_depth, "Code slicing depth")
-  ; ( "-min-slices"
-    , Arg.Set_int min_slices
+  ; ( "-min-freq"
+    , Arg.Set_int min_freq
     , "Target function requires minimum amount of slices" )
   ; ("-fn", Arg.Set_string target_function_name, "Target function name") ]
 

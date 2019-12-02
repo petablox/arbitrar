@@ -312,7 +312,7 @@ let find_slices llctx llm depth cg (caller, inst, callee) =
   if need_find_slices_for_edge llm callee then
     let singleton_caller = LlvalueSet.singleton caller in
     let entries = find_entries depth cg singleton_caller LlvalueSet.empty in
-    if LlvalueSet.cardinal entries >= !Options.min_slices then
+    if LlvalueSet.cardinal entries >= !Options.min_freq then
       LlvalueSet.fold
         (fun entry acc ->
           let entry_set = LlvalueSet.singleton entry in
