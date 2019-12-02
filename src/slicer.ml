@@ -312,14 +312,18 @@ let find_slices llctx llm depth cg (caller, inst, callee) =
   if need_find_slices_for_edge llm callee then
     let singleton_caller = LlvalueSet.singleton caller in
     let entries = find_entries depth cg singleton_caller LlvalueSet.empty in
-    LlvalueSet.fold
-      (fun entry acc ->
-        let entry_set = LlvalueSet.singleton entry in
-        let callees = find_callees (2 * depth) cg callee entry_set entry_set in
-        let location = Utils.string_of_location llctx inst in
-        let slice = Slice.create callees entry caller inst callee location in
-        slice :: acc)
-      entries []
+    if LlvalueSet.cardinal entries >= !Options.min_slices then
+      LlvalueSet.fold
+        (fun entry acc ->
+          let entry_set = LlvalueSet.singleton entry in
+          let callees =
+            find_callees (2 * depth) cg callee entry_set entry_set
+          in
+          let location = Utils.string_of_location llctx inst in
+          let slice = Slice.create callees entry caller inst callee location in
+          slice :: acc)
+        entries []
+    else []
   else []
 
 let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
