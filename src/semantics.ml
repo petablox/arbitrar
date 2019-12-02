@@ -261,7 +261,7 @@ module DUGraph = struct
       ; ("target", `Int target_id) ]
 end
 
-module NodeMap = Map.Make (struct
+module InstrMap = Map.Make (struct
   type t = Llvm.llvalue
 
   let compare = compare
@@ -276,7 +276,7 @@ module State = struct
     ; visited_funcs: FuncSet.t
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
-    ; nodemap: Node.t NodeMap.t
+    ; instrmap: Node.t InstrMap.t
     ; target: Llvm.llvalue option
     ; target_visited: bool }
 
@@ -288,7 +288,7 @@ module State = struct
     ; visited_funcs= FuncSet.empty
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
-    ; nodemap= NodeMap.empty
+    ; instrmap= InstrMap.empty
     ; target= None
     ; target_visited= false }
 
@@ -313,14 +313,14 @@ module State = struct
   let add_trace llctx instr s =
     let new_id = new_instr_count () in
     let node = Node.make llctx instr new_id (is_target instr s) in
-    let nodemap = NodeMap.add instr node s.nodemap in
+    let instrmap = InstrMap.add instr node s.instrmap in
     let dugraph =
       if !Options.no_control_flow || Trace.is_empty s.trace then s.dugraph
       else
         let src = Trace.last s.trace in
         DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, node)
     in
-    {s with trace= Trace.append node s.trace; nodemap; dugraph}
+    {s with trace= Trace.append node s.trace; instrmap; dugraph}
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
@@ -339,8 +339,8 @@ module State = struct
     ; reachingdef= ReachingDef.add x instr s.reachingdef }
 
   let add_du_edge src dst s =
-    let src = NodeMap.find src s.nodemap in
-    let dst = NodeMap.find dst s.nodemap in
+    let src = InstrMap.find src s.instrmap in
+    let dst = InstrMap.find dst s.instrmap in
     {s with dugraph= DUGraph.add_edge s.dugraph src dst}
 
   let add_semantic_du_edges lv_list instr s =
@@ -349,8 +349,8 @@ module State = struct
         (fun dugraph lv ->
           match ReachingDef.find lv s.reachingdef with
           | v ->
-              let src = NodeMap.find v s.nodemap in
-              let dst = NodeMap.find instr s.nodemap in
+              let src = InstrMap.find v s.instrmap in
+              let dst = InstrMap.find instr s.instrmap in
               DUGraph.add_edge dugraph src dst
           | exception Not_found ->
               dugraph)
