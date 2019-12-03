@@ -212,6 +212,11 @@ let string_of_location llctx instr =
   | None ->
       func ^ ":0:0"
 
+let is_void_type t =
+  match Llvm.classify_type t with Llvm.TypeKind.Void -> true | _ -> false
+
+let function_of_instr instr = Llvm.instr_parent instr |> Llvm.block_parent
+
 (* Json input/output functions *)
 
 let json_of_opcode name =

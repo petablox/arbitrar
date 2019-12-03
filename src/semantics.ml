@@ -61,7 +61,11 @@ module Symbol = struct
 end
 
 module Location = struct
-  type t = Address of int | Variable of Llvm.llvalue | Unknown
+  type t =
+    | Address of int
+    | Variable of Llvm.llvalue
+    | Symbol of Symbol.t
+    | Unknown
 
   let compare = compare
 
@@ -75,6 +79,16 @@ module Location = struct
     count := !count + 1 ;
     Address !count
 
+  let to_json = function
+    | Address a ->
+        `String ("&" ^ string_of_int a)
+    | Variable l ->
+        `String (Utils.string_of_exp l)
+    | Symbol s ->
+        `String (Symbol.to_string s)
+    | Unknown ->
+        `String "$unknown"
+
   let pp fmt = function
     | Address a ->
         F.fprintf fmt "&%d" a
@@ -82,6 +96,8 @@ module Location = struct
         let name = Llvm.value_name v in
         if name = "" then F.fprintf fmt "%s" (Utils.string_of_exp v)
         else F.fprintf fmt "%s" name
+    | Symbol s ->
+        Symbol.pp fmt s
     | Unknown ->
         F.fprintf fmt "Unknown"
 end
@@ -94,11 +110,25 @@ module Value = struct
     | Location of Location.t
     | Unknown
 
+  let new_symbol () = Symbol (Symbol.new_symbol ())
+
   let location l = Location l
 
   let func v = Function v
 
   let unknown = Unknown
+
+  let to_json = function
+    | Function f ->
+        `String (Llvm.value_name f)
+    | Symbol s ->
+        `String (Symbol.to_string s)
+    | Int i ->
+        `String (Int64.to_string i)
+    | Location l ->
+        Location.to_json l
+    | Unknown ->
+        `String "$unknown"
 
   let pp fmt = function
     | Function l ->
@@ -114,11 +144,17 @@ module Value = struct
 end
 
 module Memory = struct
-  include Map.Make (struct
+  module M = Map.Make (struct
     type t = Location.t
 
     let compare = Location.compare
   end)
+
+  include M
+
+  type t = Value.t M.t
+
+  let add k v m = if k = Location.unknown then m else add k v m
 
   let find k v = match find_opt k v with Some w -> w | None -> Value.unknown
 
@@ -156,7 +192,11 @@ module ReachingDef = struct
 end
 
 module Node = struct
-  type t = {stmt: Stmt.t; id: int; mutable is_target: bool}
+  type t =
+    { stmt: Stmt.t
+    ; id: int
+    ; mutable is_target: bool
+    ; semantic_sig: Yojson.Safe.t }
 
   let compare n1 n2 = compare n1.id n2.id
 
@@ -164,18 +204,18 @@ module Node = struct
 
   let equal = ( = )
 
-  let make llctx instr id is_target =
+  let make llctx instr id is_target semantic_sig =
     let stmt = Stmt.make llctx instr in
-    {stmt; id; is_target}
+    {stmt; id; is_target; semantic_sig}
 
   let to_string v = string_of_int v.id
 
   let label v = "[" ^ v.stmt.location ^ "]\n" ^ Stmt.to_string v.stmt
 
   let to_json v =
-    match Stmt.to_json v.stmt with
-    | `Assoc j ->
-        `Assoc ([("id", `Int v.id)] @ j)
+    match (Stmt.to_json v.stmt, v.semantic_sig) with
+    | `Assoc j, `Assoc k ->
+        `Assoc ([("id", `Int v.id)] @ j @ k)
     | _ ->
         failwith "Node.to_json"
 end
@@ -267,10 +307,12 @@ module InstrMap = Map.Make (struct
   let compare = compare
 end)
 
+module NodeMap = Map.Make (Node)
+
 module State = struct
   type t =
     { stack: Stack.t
-    ; memory: Value.t Memory.t
+    ; memory: Memory.t
     ; trace: Trace.t
     ; visited_blocks: BlockSet.t
     ; visited_funcs: FuncSet.t
@@ -310,9 +352,9 @@ module State = struct
   let is_target node s =
     match s.target with Some t -> t = node | None -> false
 
-  let add_trace llctx instr s =
+  let add_trace llctx instr semantic_sig s =
     let new_id = new_instr_count () in
-    let node = Node.make llctx instr new_id (is_target instr s) in
+    let node = Node.make llctx instr new_id (is_target instr s) semantic_sig in
     let instrmap = InstrMap.add instr node s.instrmap in
     let dugraph =
       if !Options.no_control_flow || Trace.is_empty s.trace then s.dugraph

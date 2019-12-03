@@ -134,6 +134,8 @@ let eval exp memory =
         (Value.Int i, [])
     | None ->
         (Value.Unknown, []) )
+  | NullValue | ConstantPointerNull ->
+      (Value.Int Int64.zero, [])
   | Instruction _ | Argument ->
       let lv = Location.variable exp in
       (Memory.find lv memory, [lv])
@@ -173,6 +175,44 @@ let mark_visit_target instr state =
   | _ ->
       state
 
+let semantic_sig_of_binop v0 v1 =
+  let result_json = Value.to_json Value.unknown in
+  let v0_json = Value.to_json v0 in
+  let v1_json = Value.to_json v1 in
+  `Assoc
+    [("result_sem", result_json); ("op0_sem", v0_json); ("op1_sem", v1_json)]
+
+let semantic_sig_of_store v0 v1 =
+  let v0_json = Value.to_json v0 in
+  let v1_json = Value.to_json v1 in
+  `Assoc [("op0_sem", v0_json); ("op1_sem", v1_json)]
+
+let semantic_sig_of_unop result op0 =
+  let result_json = Value.to_json result in
+  let op0_json = Value.to_json op0 in
+  `Assoc [("result_sem", result_json); ("op0_sem", op0_json)]
+
+let semantic_sig_of_libcall v args =
+  let ret_json = match v with Some s -> Value.to_json s | None -> `Null in
+  let args_json = List.map Value.to_json args in
+  `Assoc [("result_sem", ret_json); ("args_sem", `List args_json)]
+
+let semantic_sig_of_call args =
+  let args_json = List.map Value.to_json args in
+  `Assoc [("args_sem", `List args_json)]
+
+let sem_sig_of_return = function
+  | Some v ->
+      `Assoc [("op0_sem", Value.to_json v)]
+  | None ->
+      `Assoc [("op0_sem", `Null)]
+
+let sem_sig_of_br = function
+  | Some v ->
+      `Assoc [("cond_sem", Value.to_json v)]
+  | None ->
+      `Assoc [("cond_sem", `Null)]
+
 let rec execute_function llctx f env state =
   let entry = Llvm.entry_block f in
   execute_block llctx entry env state
@@ -196,56 +236,76 @@ and transfer llctx instr env state =
     let state = mark_visit_target instr state in
     match Llvm.instr_opcode instr with
     | Llvm.Opcode.Ret -> (
-        let state =
-          State.add_trace llctx instr state |> add_syntactic_du_edge instr env
-        in
-        match State.pop_stack state with
-        | Some (callsite, state) ->
-            let lv = eval_lv callsite state.State.memory in
-            State.add_reaching_def lv instr state
-            |> execute_instr llctx (Llvm.instr_succ callsite) env
-        | None ->
-            execute_instr llctx (Llvm.instr_succ instr) env state )
+      match State.pop_stack state with
+      | Some (callsite, state) ->
+          let lv = eval_lv callsite state.State.memory in
+          let exp0 = Llvm.operand instr 0 in
+          let v, _ = eval exp0 state.State.memory in
+          let sem_sig = sem_sig_of_return (Some v) in
+          State.add_trace llctx instr sem_sig state
+          |> add_syntactic_du_edge instr env
+          |> State.add_memory_def lv v instr
+          |> execute_instr llctx (Llvm.instr_succ callsite) env
+      | None ->
+          let sem_sig =
+            if Llvm.num_operands instr = 0 then sem_sig_of_return None
+            else
+              let exp0 = Llvm.operand instr 0 in
+              let v, _ = eval exp0 state.State.memory in
+              sem_sig_of_return (Some v)
+          in
+          State.add_trace llctx instr sem_sig state
+          |> add_syntactic_du_edge instr env
+          |> execute_instr llctx (Llvm.instr_succ instr) env )
     | Br -> (
-        let state =
-          State.add_trace llctx instr state |> add_syntactic_du_edge instr env
-        in
-        match Llvm.get_branch instr with
-        | Some (`Conditional (_, b1, b2)) ->
-            let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
-            let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
-            if b1_visited && b2_visited then finish_execution llctx env state
-            else if b1_visited then
-              let state = State.visit_block b2 state in
-              execute_block llctx b2 env state
-            else if b2_visited then
-              let state = State.visit_block b1 state in
-              execute_block llctx b1 env state
-            else
-              let new_state = State.visit_block b2 state in
-              let env = Environment.add_work (b2, new_state) env in
-              let state = State.visit_block b1 state in
-              execute_block llctx b1 env state
-        | Some (`Unconditional b) ->
-            let visited = BlockSet.mem b state.State.visited_blocks in
-            if visited then finish_execution llctx env state
-            else
-              let state = State.visit_block b state in
-              execute_block llctx b env state
-        | _ ->
-            prerr_endline "warning: unknown branch" ;
-            execute_instr llctx (Llvm.instr_succ instr) env state )
+      match Llvm.get_branch instr with
+      | Some (`Conditional (cond, b1, b2)) ->
+          let v, _ = eval cond state.State.memory in
+          let sem_sig = sem_sig_of_br (Some v) in
+          let state =
+            State.add_trace llctx instr sem_sig state
+            |> add_syntactic_du_edge instr env
+          in
+          let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
+          let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
+          if b1_visited && b2_visited then finish_execution llctx env state
+          else if b1_visited then
+            let state = State.visit_block b2 state in
+            execute_block llctx b2 env state
+          else if b2_visited then
+            let state = State.visit_block b1 state in
+            execute_block llctx b1 env state
+          else
+            let new_state = State.visit_block b2 state in
+            let env = Environment.add_work (b2, new_state) env in
+            let state = State.visit_block b1 state in
+            execute_block llctx b1 env state
+      | Some (`Unconditional b) ->
+          let sem_sig = sem_sig_of_br None in
+          let state =
+            State.add_trace llctx instr sem_sig state
+            |> add_syntactic_du_edge instr env
+          in
+          let visited = BlockSet.mem b state.State.visited_blocks in
+          if visited then finish_execution llctx env state
+          else
+            let state = State.visit_block b state in
+            execute_block llctx b env state
+      | _ ->
+          prerr_endline "warning: unknown branch" ;
+          execute_instr llctx (Llvm.instr_succ instr) env state )
     | Switch ->
-        let state =
-          State.add_trace llctx instr state |> add_syntactic_du_edge instr env
-        in
-        execute_instr llctx (Llvm.instr_succ instr) env state
+        let sem_sig = `Assoc [] in
+        State.add_trace llctx instr sem_sig state
+        |> add_syntactic_du_edge instr env
+        |> execute_instr llctx (Llvm.instr_succ instr) env
     | Call ->
         transfer_call llctx instr env state
     | Alloca ->
         let var = Location.variable instr in
         let addr = Location.new_address () |> Value.location in
-        State.add_trace llctx instr state
+        let sem_sig = semantic_sig_of_unop addr Value.unknown in
+        State.add_trace llctx instr sem_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def var addr instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -257,7 +317,8 @@ and transfer llctx instr env state =
         let lv =
           match v1 with Value.Location l -> l | _ -> Location.Unknown
         in
-        State.add_trace llctx instr state
+        let sem_sig = semantic_sig_of_store v0 v1 in
+        State.add_trace llctx instr sem_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
         |> State.add_semantic_du_edges (uses0 @ uses1) instr
@@ -271,7 +332,8 @@ and transfer llctx instr env state =
         in
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        State.add_trace llctx instr state
+        let sem_sig = semantic_sig_of_unop v1 v0 in
+        State.add_trace llctx instr sem_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
         |> State.add_semantic_du_edges [lv1] instr
@@ -279,21 +341,27 @@ and transfer llctx instr env state =
     | x when Utils.is_binary_op x ->
         let exp0 = Llvm.operand instr 0 in
         let exp1 = Llvm.operand instr 1 in
-        let _, uses0 = eval exp0 state.State.memory in
-        let _, uses1 = eval exp1 state.State.memory in
-        State.add_trace llctx instr state
+        let v0, uses0 = eval exp0 state.State.memory in
+        let v1, uses1 = eval exp1 state.State.memory in
+        let sem_sig = semantic_sig_of_binop v0 v1 in
+        State.add_trace llctx instr sem_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_semantic_du_edges (uses0 @ uses1) instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | x when Utils.is_unary_op x ->
+        (* Casting operators *)
         let exp0 = Llvm.operand instr 0 in
-        let _, uses0 = eval exp0 state.State.memory in
-        State.add_trace llctx instr state
+        let v0, uses0 = eval exp0 state.State.memory in
+        let lv = eval_lv instr state.State.memory in
+        let sem_sig = semantic_sig_of_unop v0 v0 in
+        State.add_trace llctx instr sem_sig state
         |> add_syntactic_du_edge instr env
+        |> State.add_memory lv v0
         |> State.add_semantic_du_edges uses0 instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | x ->
-        State.add_trace llctx instr state
+        let sem_sig = `Assoc [] in
+        State.add_trace llctx instr sem_sig state
         |> add_syntactic_du_edge instr env
         (* Note: Maybe expand *)
         |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -308,25 +376,48 @@ and transfer_call llctx instr env state =
   | Value.Function f
     when need_step_into_function boundaries f
          && not (FuncSet.mem callee_expr state.visited_funcs) ->
-      let state = State.visit_func callee_expr state in
-      let state = State.add_trace llctx instr state in
-      let state, _ =
+      let state, args, uses, _ =
         Llvm.fold_left_params
-          (fun (state, count) param ->
+          (fun (state, args, uses, count) param ->
             let arg = Llvm.operand instr count in
-            let v, uses = eval arg state.State.memory in
+            let v, ul = eval arg state.State.memory in
             let lv = eval_lv param state.State.memory in
-            let state =
-              State.add_memory_def lv v instr state
-              |> State.add_semantic_du_edges uses instr
-            in
-            (state, count + 1))
-          (state, 0) f
+            let state = State.add_memory_def lv v instr state in
+            (state, args @ [v], uses @ ul, count + 1))
+          (state, [], [], 0) f
       in
-      let state = State.push_stack instr state in
-      execute_function llctx f env state
+      let sem_sig = semantic_sig_of_call args in
+      State.visit_func callee_expr state
+      |> State.add_trace llctx instr sem_sig
+      |> State.add_semantic_du_edges uses instr
+      |> State.push_stack instr
+      |> execute_function llctx f env
+  | Value.Function f
+    when Llvm.type_of f |> Llvm.return_type |> Utils.is_void_type |> not ->
+      let lv = eval_lv instr state.State.memory in
+      let v = Value.new_symbol () in
+      let args =
+        List.init
+          (Llvm.num_operands instr - 1)
+          (fun i ->
+            let arg = Llvm.operand instr i in
+            eval arg state.State.memory |> fst)
+      in
+      let sem_sig = semantic_sig_of_libcall (Some v) args in
+      State.add_trace llctx instr sem_sig state
+      |> State.add_memory lv v
+      |> add_syntactic_du_edge instr env
+      |> execute_instr llctx (Llvm.instr_succ instr) env
   | _ ->
-      State.add_trace llctx instr state
+      let args =
+        List.init
+          (Llvm.num_operands instr - 1)
+          (fun i ->
+            let arg = Llvm.operand instr i in
+            eval arg state.State.memory |> fst)
+      in
+      let sem_sig = semantic_sig_of_libcall None args in
+      State.add_trace llctx instr sem_sig state
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | exception Not_found ->
