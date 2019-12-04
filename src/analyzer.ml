@@ -445,7 +445,9 @@ module Bugs = struct
             (Utils.list_from_json dugraph_json)
         in
         let dugraph_json = `List trace_json_list in
-        Yojson.Safe.to_file dugraph_json_dir dugraph_json)
+        let oc = open_out dugraph_json_dir in
+        Options.json_to_channel oc dugraph_json ;
+        close_out oc)
       bugs
 end
 

@@ -10,6 +10,12 @@ let outdir () = Utils.get_abs_path !outdir_
 
 let verbose = ref 0
 
+let pretty_json = ref false
+
+let json_to_channel oc json =
+  if !pretty_json then Yojson.Safe.pretty_to_channel oc json
+  else Yojson.Safe.to_channel oc json
+
 (* Slicer Options *)
 let slice_depth = ref 5
 
@@ -37,12 +43,13 @@ let output_trace = ref false
 (* Analyzer Options *)
 let report_threshold = ref 0.9
 
-let do_label = ref true
+let do_label = ref false
 
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
   ; ("-verbose", Arg.Set_int verbose, "Verbose")
-  ; ("-outdir", Arg.Set_string outdir_, "Output directory") ]
+  ; ("-outdir", Arg.Set_string outdir_, "Output directory")
+  ; ("-pretty-json", Arg.Set pretty_json, "Output prettified JSON") ]
 
 let slicer_opts_local =
   [ ("-n", Arg.Set_int slice_depth, "Code slicing depth")

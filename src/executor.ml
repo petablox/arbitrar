@@ -394,7 +394,7 @@ let print_report oc env =
 let dump_traces ?(prefix = "") env =
   let json = Traces.to_json env.Environment.traces in
   let oc = open_out (prefix ^ "traces.json") in
-  Yojson.Safe.pretty_to_channel oc json ;
+  Options.json_to_channel oc json ;
   close_out oc
 
 let dump_dots ?(prefix = "") env =
@@ -407,5 +407,5 @@ let dump_dots ?(prefix = "") env =
 let dump_dugraphs ?(prefix = "") env =
   let json = List.map DUGraph.to_json env.Environment.dugraphs in
   let oc = open_out (prefix ^ "dugraph.json") in
-  Yojson.Safe.pretty_to_channel oc (`List json) ;
+  Options.json_to_channel oc (`List json) ;
   close_out oc

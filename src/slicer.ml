@@ -241,7 +241,7 @@ module Slices = struct
   let dump_json ?(prefix = "") llm slices =
     let json = to_json llm slices in
     let oc = open_out (prefix ^ "/slices.json") in
-    Yojson.Safe.pretty_to_channel oc json
+    Options.json_to_channel oc json
 
   let from_json llm json =
     match json with
