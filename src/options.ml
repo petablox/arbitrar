@@ -13,12 +13,14 @@ let verbose = ref 0
 (* Slicer Options *)
 let slice_depth = ref 5
 
+let output_callgraph = ref false
+
+let min_freq = ref 0
+
 let target_function_name = ref ""
 
 (* Executor Options *)
 let continue_extraction = ref false
-
-let min_freq = ref 0
 
 let max_traces = ref 50
 
@@ -42,6 +44,7 @@ let common_opts_local =
 
 let slicer_opts_local =
   [ ("-n", Arg.Set_int slice_depth, "Code slicing depth")
+  ; ("-output-callgraph", Arg.Set output_callgraph, "Output callgraph dot file")
   ; ( "-min-freq"
     , Arg.Set_int min_freq
     , "Target function requires minimum amount of slices" )
