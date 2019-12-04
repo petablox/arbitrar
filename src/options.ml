@@ -36,6 +36,8 @@ let max_trials = ref 2000
 
 let no_control_flow = ref false
 
+let include_instr = ref false
+
 let output_dot = ref false
 
 let output_trace = ref false
@@ -70,7 +72,10 @@ let executor_opts_local =
     , Arg.Set no_control_flow
     , "Do not include control-flow edges" )
   ; ("-output-dot", Arg.Set output_dot, "Output Graphviz dot files")
-  ; ("-output-trace", Arg.Set output_trace, "Output trace files") ]
+  ; ("-output-trace", Arg.Set output_trace, "Output trace files")
+  ; ( "-include-instr"
+    , Arg.Set include_instr
+    , "Include instruction in dugraph JSON" ) ]
 
 let extractor_opts_local =
   [ ( "-continue"

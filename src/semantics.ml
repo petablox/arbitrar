@@ -14,9 +14,11 @@ module Stmt = struct
     {instr; location}
 
   let to_json s =
+    let common = [("location", `String s.location)] in
     let common =
-      [ ("location", `String s.location)
-      ; ("instr", `String (Utils.string_of_instr s.instr)) ]
+      if !Options.include_instr then
+        ("instr", `String (Utils.string_of_instr s.instr)) :: common
+      else common
     in
     match Utils.json_of_instr s.instr with
     | `Assoc l ->
