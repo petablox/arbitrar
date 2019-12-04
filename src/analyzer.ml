@@ -172,7 +172,7 @@ module Trace = struct
     let location = Utils.string_from_json_field call_edge "location" in
     (callee_name, location)
 
-  let from_json slice_json slice_id trace_id trace_json : t =
+  let from_json slice_id slice_json trace_id trace_json : t =
     let entry = Utils.string_from_json_field slice_json "entry" in
     let call_edge =
       CallEdge.from_json (Utils.get_field slice_json "call_edge")
@@ -185,27 +185,35 @@ module Trace = struct
     {slice_id; trace_id; entry; dugraph; target_node; call_edge}
 end
 
-module type Checker = sig
-  (* type t is the result of the checker *)
+module type CHECKER = sig
   type t
 
   val name : string
 
-  val check : Trace.t -> t list
+  val default : t
 
   val compare : t -> t -> int
 
-  val default : t
-
   val to_string : t -> string
 
-  val to_csv : t -> string
+  val check : Trace.t -> t list
 end
 
-module RetValChecker : Checker = struct
+module RetValChecker : CHECKER = struct
   type t = Checked of Predicate.t * string | NoCheck
 
   let name = "retval_checker"
+
+  let default = NoCheck
+
+  let compare = compare
+
+  let to_string r : string =
+    match r with
+    | Checked (pred, value) ->
+        Printf.sprintf "\"Checked(%s,%s)\"" (Predicate.to_string pred) value
+    | NoCheck ->
+        "NoCheck"
 
   let rec check_helper (dugraph : DUGraph.t) (explored : NodeSet.t)
       (fringe : NodeSet.t) (result : t list) : t list =
@@ -246,191 +254,124 @@ module RetValChecker : Checker = struct
         match results with [] -> [NoCheck] | _ -> results )
     | _ ->
         []
-
-  let compare = compare
-
-  let default = NoCheck
-
-  let to_string r : string =
-    match r with
-    | Checked (pred, value) ->
-        Printf.sprintf "Checked\t%s\t%s" (Predicate.to_string pred) value
-    | NoCheck ->
-        "NoCheck\t\t"
-
-  let to_csv r : string =
-    match r with
-    | Checked (pred, value) ->
-        Printf.sprintf "\"Checked(%s,%s)\"" (Predicate.to_string pred) value
-    | NoCheck ->
-        "NoCheck"
 end
 
-module type CheckerStats = sig
-  (* The structure storing checker result *)
-  type result
+module type CHECKER_STATS = sig
+  module Checker : CHECKER
 
-  (* The structure storing statistic information *)
+  module FunctionStats : sig
+    type t
+
+    val empty : t
+
+    val add : t -> Checker.t -> t
+
+    val eval : t -> Checker.t -> float
+
+    val dump : out_channel -> t -> unit
+  end
+
   type stats
 
-  val checker_name : string
-  (** Get the name of the checker *)
+  val empty : stats
 
   val add_trace : stats -> Trace.t -> stats
-  (** Add a single trace to existing stats *)
 
-  val add_traces : stats -> Trace.t list -> stats
-  (** Add traces to existing stats *)
+  val eval : stats -> Trace.t -> Checker.t * float
 
-  val from_traces : Trace.t list -> stats
-  (** Generate stats from list of traces *)
-
-  val evaluate : stats -> Trace.t -> result * float
-  (** Evaluate the score of a trace based on the stats *)
-
-  val result_to_string : result -> string
-
-  val result_to_csv : result -> string
-
-  val dump : out_channel -> stats -> unit
-  (** Dump the statistics to the out channel *)
-
-  val dump_csv : string -> stats -> unit
-  (** Dump the statistics in csv format in the directory *)
+  val dump : string -> stats -> unit
 end
 
-module Stats (C : Checker) : CheckerStats = struct
+module CheckerStats (C : CHECKER) : CHECKER_STATS = struct
   include Map.Make (String)
+  module Checker = C
 
-  module ResultStats = struct
-    module ResultStatsMap = struct
-      include Map.Make (C)
+  module FunctionStats = struct
+    module ResultCountMap = struct
+      include Map.Make (Checker)
 
       type stats = int t
     end
 
-    type t = {map: ResultStatsMap.stats; total: int}
+    type t = {map: ResultCountMap.stats; total: int}
 
-    let empty = {map= ResultStatsMap.empty; total= 0}
+    let empty = {map= ResultCountMap.empty; total= 0}
 
-    let add (stats : t) (results : C.t list) : t =
+    let add stats result =
       let map =
-        List.fold_left
-          (fun stats result ->
-            ResultStatsMap.update result
-              (fun maybe_count ->
-                match maybe_count with
-                | Some count ->
-                    Some (count + 1)
-                | None ->
-                    Some 1)
-              stats)
-          stats.map results
+        ResultCountMap.update result
+          (fun maybe_count ->
+            match maybe_count with
+            | Some count ->
+                Some (count + 1)
+            | None ->
+                Some 1)
+          stats.map
       in
-      let total = stats.total + List.length results in
+      let total = stats.total + 1 in
       {map; total}
 
-    let eval (stats : t) (result : C.t) : float =
-      let count = ResultStatsMap.find result stats.map in
+    let eval stats result =
+      let count = ResultCountMap.find result stats.map in
       1.0 -. (float_of_int count /. float_of_int stats.total)
 
-    let dump oc stats : unit =
-      ResultStatsMap.iter
+    let dump oc stats =
+      ResultCountMap.iter
         (fun result count ->
-          Printf.fprintf oc "%s\t%d\n" (C.to_string result) count)
-        stats.map
-
-    let dump_csv oc stats : unit =
-      ResultStatsMap.iter
-        (fun result count ->
-          Printf.fprintf oc "%d,%s\n" count (C.to_csv result))
+          Printf.fprintf oc "%d,%s\n" count (Checker.to_string result))
         stats.map
   end
 
-  type result = C.t
+  type stats = FunctionStats.t t
 
-  type stats = ResultStats.t t
-
-  let checker_name = C.name
-
-  let add_trace (stats : stats) (trace : Trace.t) : stats =
+  let add_trace (stats : stats) (trace : Trace.t) =
     let func_name = trace.call_edge.callee in
     let results = C.check trace in
     update func_name
       (fun maybe_result_stats ->
-        match maybe_result_stats with
-        | Some result_stats ->
-            Some (ResultStats.add result_stats results)
-        | None ->
-            Some (ResultStats.add ResultStats.empty results))
+        let stats =
+          match maybe_result_stats with
+          | Some result_stats ->
+              result_stats
+          | None ->
+              FunctionStats.empty
+        in
+        Some
+          (List.fold_left
+             (fun stats result -> FunctionStats.add stats result)
+             stats results))
       stats
 
-  let add_traces (stats : stats) (traces : Trace.t list) : stats =
-    let num_traces = List.length traces in
-    let stats, _ =
-      List.fold_left
-        (fun (stats, i) trace ->
-          Printf.printf "%d/%d traces added\r" (i + 1) num_traces ;
-          let new_stats = add_trace stats trace in
-          (new_stats, i + 1))
-        (stats, 0) traces
-    in
-    stats
-
-  let from_traces (traces : Trace.t list) : stats =
-    let stats = add_traces empty traces in
-    Printf.printf "\n" ; stats
-
-  let evaluate (stats : stats) (trace : Trace.t) : result * float =
+  let eval (stats : stats) (trace : Trace.t) : Checker.t * float =
     let func_name = trace.call_edge.callee in
     let func_stats = find func_name stats in
     let results = C.check trace in
     List.fold_left
       (fun acc result ->
-        let score = ResultStats.eval func_stats result in
+        let score = FunctionStats.eval func_stats result in
         if score < snd acc then (result, score) else acc)
       (C.default, 1.0) results
 
-  let result_to_string result : string = C.to_string result
-
-  let result_to_csv result : string = C.to_csv result
-
-  let dump (oc : out_channel) (stats : stats) =
+  let dump (dir : string) (stats : stats) =
     iter
-      (fun (func_name : string) (stats : ResultStats.t) ->
-        Printf.fprintf oc "Function %s (%d)\n" func_name stats.total ;
-        ResultStats.dump oc stats)
-      stats
-
-  let dump_csv (dir : string) (stats : stats) =
-    iter
-      (fun (func_name : string) (stats : ResultStats.t) ->
+      (fun (func_name : string) (stats : FunctionStats.t) ->
         let oc = open_out (Printf.sprintf "%s/%s-stats.csv" dir func_name) in
         Printf.fprintf oc "Count,Result\n" ;
-        ResultStats.dump_csv oc stats ;
+        FunctionStats.dump oc stats ;
         close_out oc)
       stats
 end
-
-let checker_stats_modules : (module CheckerStats) list =
-  [(module Stats (RetValChecker))]
 
 let callee_name_from_slice_json slice_json : string =
   let call_edge = Utils.get_field slice_json "call_edge" in
   Utils.string_from_json_field call_edge "callee"
 
-let load_traces dugraphs_dir slices_json_dir : Trace.t list =
-  Printf.printf "Loading traces...\n" ;
-  flush stdout ;
-  let t0 = Sys.time () in
+let fold_traces dugraphs_dir slices_json_dir f base =
   let slices_json = Yojson.Safe.from_file slices_json_dir in
   let slice_json_list = Utils.list_from_json slices_json in
-  let num_slices = List.length slice_json_list in
-  let traces_list =
-    List.mapi
-      (fun slice_id slice_json ->
-        Printf.printf "%d/%d slice loaded...\r" (slice_id + 1) num_slices ;
-        flush stdout ;
+  let result, _ =
+    List.fold_left
+      (fun (acc, slice_id) slice_json ->
         let target_func_name = callee_name_from_slice_json slice_json in
         let dugraph_json_dir =
           Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir target_func_name
@@ -439,16 +380,21 @@ let load_traces dugraphs_dir slices_json_dir : Trace.t list =
         try
           let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
           let trace_json_list = Utils.list_from_json dugraph_json in
-          let trace_list =
-            List.mapi (Trace.from_json slice_json slice_id) trace_json_list
+          let next_acc, _ =
+            List.fold_left
+              (fun (acc, trace_id) trace_json ->
+                let trace =
+                  Trace.from_json slice_id slice_json trace_id trace_json
+                in
+                let next_acc = f acc trace in
+                (next_acc, trace_id + 1))
+              (acc, 0) trace_json_list
           in
-          Some trace_list
-        with Sys_error _ -> None)
-      slice_json_list
+          (next_acc, slice_id + 1)
+        with Sys_error _ -> (acc, slice_id + 1))
+      (base, 0) slice_json_list
   in
-  Printf.printf "\nTraces loaded in %f sec\n" (Sys.time () -. t0) ;
-  flush stdout ;
-  List.flatten (List.filter_map (fun x -> x) traces_list)
+  result
 
 let init_checker_dir (prefix : string) (name : string) : string =
   let dir = prefix ^ "/" ^ name in
@@ -458,18 +404,24 @@ let init_func_stats_dir (prefix : string) : string =
   let dir = prefix ^ "/functions" in
   Utils.mkdir dir ; dir
 
-let run_one_checker analysis_dir traces checker_stats_module : unit =
-  (* First get back the module *)
-  let module M = (val checker_stats_module : CheckerStats) in
-  Printf.printf "Running checker [%s]...\n" M.checker_name ;
+let run_one_checker dugraphs_dir slices_json_dir analysis_dir
+    checker_stats_module =
+  let module M = (val checker_stats_module : CHECKER_STATS) in
+  Printf.printf "Running checker [%s]...\n" M.Checker.name ;
   flush stdout ;
-  let checker_dir = init_checker_dir analysis_dir M.checker_name in
-  (* Then generate and dump stats *)
+  let checker_dir = init_checker_dir analysis_dir M.Checker.name in
   let func_stats_dir = init_func_stats_dir checker_dir in
-  let stats = M.from_traces traces in
+  let stats, _ =
+    fold_traces dugraphs_dir slices_json_dir
+      (fun (stats, i) (trace : Trace.t) ->
+        Printf.printf "%d traces loaded\r" (i + 1) ;
+        let new_stats = M.add_trace stats trace in
+        (new_stats, i + 1))
+      (M.empty, 0)
+  in
   Printf.printf "Dumping statistics...\n" ;
   flush stdout ;
-  M.dump_csv func_stats_dir stats ;
+  M.dump func_stats_dir stats ;
   (* Run evaluation on each trace, report bug if found minority *)
   Printf.printf "Dumping results and bug reports...\n" ;
   flush stdout ;
@@ -482,39 +434,37 @@ let run_one_checker analysis_dir traces checker_stats_module : unit =
   let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
   Printf.fprintf bugs_brief_oc "%s" brief_header ;
   let _ =
-    List.fold_left
-      (fun (last_slice : int option) (trace : Trace.t) ->
-        let result, score = M.evaluate stats trace in
+    fold_traces dugraphs_dir slices_json_dir
+      (fun last_slice trace ->
+        let result, score = M.eval stats trace in
         let csv_row =
           Printf.sprintf "%d,%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.trace_id
             trace.entry trace.call_edge.callee trace.call_edge.location score
-            (M.result_to_csv result)
+            (M.Checker.to_string result)
         in
         Printf.fprintf results_oc "%s" csv_row ;
         if score > !Options.report_threshold then (
           Printf.fprintf bugs_oc "%s" csv_row ;
-          let need_print_brief =
-            match last_slice with
-            | Some ls ->
-                ls <> trace.slice_id
-            | None ->
-                true
-          in
-          if need_print_brief then
+          if last_slice <> trace.slice_id then
             let brief_csv_row =
               Printf.sprintf "%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.entry
                 trace.call_edge.callee trace.call_edge.location score
-                (M.result_to_csv result)
+                (M.Checker.to_string result)
             in
             Printf.fprintf bugs_brief_oc "%s" brief_csv_row ) ;
-        Some trace.slice_id)
-      None traces
+        trace.slice_id)
+      (-1)
   in
-  close_out results_oc ; close_out bugs_oc
+  close_out results_oc ; close_out bugs_oc ; close_out bugs_brief_oc
 
 let init_analysis_dir (prefix : string) : string =
   let analysis_dir = prefix ^ "/analysis" in
   Utils.mkdir analysis_dir ; analysis_dir
+
+module RetValCheckerStats = CheckerStats (RetValChecker)
+
+let checker_stats_modules : (module CHECKER_STATS) list =
+  [(module RetValCheckerStats)]
 
 let main (input_directory : string) =
   Printf.printf "Analyzing %s...\n" input_directory ;
@@ -522,5 +472,6 @@ let main (input_directory : string) =
   let analysis_dir = init_analysis_dir input_directory in
   let dugraphs_dir = input_directory ^ "/dugraphs" in
   let slices_json_dir = input_directory ^ "/slices.json" in
-  let traces = load_traces dugraphs_dir slices_json_dir in
-  List.iter (run_one_checker analysis_dir traces) checker_stats_modules
+  List.iter
+    (run_one_checker dugraphs_dir slices_json_dir analysis_dir)
+    checker_stats_modules
