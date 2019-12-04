@@ -67,15 +67,15 @@ module Statement = struct
 
   let icmp_from_json (json : Yojson.Safe.t) : t =
     let pred = predicate_from_stmt_json json in
-    let op0 = Utils.string_from_json_field json "op0" in
-    let op1 = Utils.string_from_json_field json "op1" in
-    let result = Utils.string_from_json_field json "result" in
+    let op0 = Utils.string_from_json_field json "op0_sem" in
+    let op1 = Utils.string_from_json_field json "op1_sem" in
+    let result = Utils.string_from_json_field json "result_sem" in
     Assume {pred; op0; op1; result}
 
   let call_from_json (json : Yojson.Safe.t) : t =
     let func = Utils.string_from_json_field json "func" in
     let args = Utils.string_list_from_json (Utils.get_field json "args") in
-    let result = Utils.string_opt_from_json_field json "result" in
+    let result = Utils.string_opt_from_json_field json "result_sem" in
     Call {func; args; result}
 
   let from_json (json : Yojson.Safe.t) : t =
@@ -211,17 +211,19 @@ module RetValChecker : CHECKER = struct
   let to_string r : string =
     match r with
     | Checked (pred, value) ->
-        Printf.sprintf "\"Checked(%s,%s)\"" (Predicate.to_string pred) value
+        Printf.sprintf "Checked(%s,%s)" (Predicate.to_string pred) value
     | NoCheck ->
         "NoCheck"
 
-  let rec check_helper (dugraph : DUGraph.t) (explored : NodeSet.t)
-      (fringe : NodeSet.t) (result : t list) : t list =
+  let is_value_variable value : bool = value.[0] = '$' || value.[0] = '&'
+
+  let rec check_helper (dugraph : DUGraph.t) (ret : string)
+      (explored : NodeSet.t) (fringe : NodeSet.t) (result : t list) : t list =
     match NodeSet.choose_opt fringe with
     | Some hd ->
         let rst = NodeSet.remove hd fringe in
         if NodeSet.mem hd explored then
-          check_helper dugraph explored rst result
+          check_helper dugraph ret explored rst result
         else
           let new_explored = NodeSet.add hd explored in
           let new_fringe =
@@ -230,28 +232,33 @@ module RetValChecker : CHECKER = struct
           let new_result =
             match hd.stmt with
             | Assume {pred; op0; op1} ->
-                let is_op0_var = op0.[0] = '%' in
-                let is_op1_var = op1.[0] = '%' in
+                let is_op0_var = is_value_variable op0 in
+                let is_op1_var = is_value_variable op1 in
                 if is_op0_var && is_op1_var then []
-                else if is_op0_var then [Checked (pred, op1)]
-                else if is_op1_var then [Checked (pred, op0)]
+                else if is_op0_var && String.equal op0 ret then
+                  [Checked (pred, op1)]
+                else if is_op1_var && String.equal op1 ret then
+                  [Checked (pred, op0)]
                 else []
             | _ ->
                 []
           in
-          check_helper dugraph new_explored new_fringe (new_result @ result)
+          check_helper dugraph ret new_explored new_fringe (new_result @ result)
     | None ->
         result
 
   let check (trace : Trace.t) : t list =
     match trace.target_node.stmt with
-    | Call _ -> (
-        let results =
-          check_helper trace.dugraph NodeSet.empty
-            (NodeSet.singleton trace.target_node)
-            []
-        in
-        match results with [] -> [NoCheck] | _ -> results )
+    | Call {result} -> (
+      match result with
+      | Some ret -> (
+          let targets = NodeSet.singleton trace.target_node in
+          let results =
+            check_helper trace.dugraph ret NodeSet.empty targets []
+          in
+          match results with [] -> [NoCheck] | _ -> results )
+      | None ->
+          [] )
     | _ ->
         []
 end
@@ -470,11 +477,12 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
     fold_traces dugraphs_dir slices_json_dir
       (fun (stats, i) (trace : Trace.t) ->
         Printf.printf "%d traces loaded\r" (i + 1) ;
+        flush stdout ;
         let new_stats = M.add_trace stats trace in
         (new_stats, i + 1))
       (M.empty, 0)
   in
-  Printf.printf "Dumping statistics...\n" ;
+  Printf.printf "\nDumping statistics...\n" ;
   flush stdout ;
   M.dump func_stats_dir stats ;
   (* Run evaluation on each trace, report bug if found minority *)
@@ -493,8 +501,9 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
       (fun (bugs, last_slice) trace ->
         let result, score = M.eval stats trace in
         let csv_row =
-          Printf.sprintf "%d,%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.trace_id
-            trace.entry trace.call_edge.callee trace.call_edge.location score
+          Printf.sprintf "%d,%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
+            trace.trace_id trace.entry trace.call_edge.callee
+            trace.call_edge.location score
             (M.Checker.to_string result)
         in
         Printf.fprintf results_oc "%s" csv_row ;
@@ -507,8 +516,9 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
             in
             ( if last_slice <> trace.slice_id then
               let brief_csv_row =
-                Printf.sprintf "%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.entry
-                  trace.call_edge.callee trace.call_edge.location score
+                Printf.sprintf "%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
+                  trace.entry trace.call_edge.callee trace.call_edge.location
+                  score
                   (M.Checker.to_string result)
               in
               Printf.fprintf bugs_brief_oc "%s" brief_csv_row ) ;
