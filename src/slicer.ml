@@ -80,6 +80,13 @@ module CallGraph = struct
     let label = Llvm.value_name
   end
 
+  module Edge = struct
+    (* Caller, Instr, Callee *)
+    type t = Llvm.llvalue * Llvm.llvalue * Llvm.llvalue
+
+    let compare = compare
+  end
+
   module G = Graph.Persistent.Digraph.ConcreteBidirectional (Node)
   module E = G.E
   module V = G.V
@@ -222,6 +229,52 @@ module Slices = struct
         raise Utils.InvalidJSON
 end
 
+module Llvalue = struct
+  type t = Llvm.llvalue
+
+  let compare = compare
+end
+
+module FunctionCounter = struct
+  module FunctionMap = Map.Make (Llvalue)
+
+  type t = int FunctionMap.t
+
+  let empty = FunctionMap.empty
+
+  let add ctr func count =
+    FunctionMap.update func
+      (fun maybe_count ->
+        match maybe_count with
+        | Some old_count ->
+            Some (old_count + count)
+        | None ->
+            Some count)
+      ctr
+
+  let get ctr func = FunctionMap.find func ctr
+end
+
+module EdgeEntriesMap = struct
+  module EdgeMap = Map.Make (CallGraph.Edge)
+
+  type t = LlvalueSet.t EdgeMap.t
+
+  let add map edge entries =
+    EdgeMap.update edge
+      (fun maybe_entries ->
+        match maybe_entries with
+        | Some old_entries ->
+            Some (LlvalueSet.union old_entries entries)
+        | None ->
+            Some entries)
+      map
+
+  let empty = EdgeMap.empty
+
+  let fold = EdgeMap.fold
+end
+
 let get_call_graph (llm : Llvm.llmodule) : CallGraph.t =
   Llvm.fold_left_functions
     (fun graph func ->
@@ -308,24 +361,6 @@ let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
       let callee_name = Llvm.value_name callee in
       String.equal callee_name n
 
-let find_slices llctx llm depth cg (caller, inst, callee) =
-  if need_find_slices_for_edge llm callee then
-    let singleton_caller = LlvalueSet.singleton caller in
-    let entries = find_entries depth cg singleton_caller LlvalueSet.empty in
-    if LlvalueSet.cardinal entries >= !Options.min_freq then
-      LlvalueSet.fold
-        (fun entry acc ->
-          let entry_set = LlvalueSet.singleton entry in
-          let callees =
-            find_callees (2 * depth) cg callee entry_set entry_set
-          in
-          let location = Utils.string_of_location llctx inst in
-          let slice = Slice.create callees entry caller inst callee location in
-          slice :: acc)
-        entries []
-    else []
-  else []
-
 let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
   List.iter
     (fun (slice : Slice.t) ->
@@ -340,12 +375,45 @@ let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
         entry_name func_names_str call_str instr_str)
     slices
 
-let slice llctx (llm : Llvm.llmodule) (slice_depth : int) : Slices.t =
+let slice llctx (llm : Llvm.llmodule) (depth : int) : Slices.t =
   let call_graph = get_call_graph llm in
   dump_call_graph call_graph ;
-  CallGraph.fold_edges_instr_set
-    (fun edge acc -> acc @ find_slices llctx llm slice_depth call_graph edge)
-    call_graph []
+  let func_counter, edge_entries =
+    CallGraph.fold_edges_instr_set
+      (fun edge (func_counter, edge_entries) ->
+        let caller, _, callee = edge in
+        let singleton_caller = LlvalueSet.singleton caller in
+        let entries =
+          find_entries depth call_graph singleton_caller LlvalueSet.empty
+        in
+        let num_entries = LlvalueSet.cardinal entries in
+        let func_counter =
+          FunctionCounter.add func_counter callee num_entries
+        in
+        let edge_entries = EdgeEntriesMap.add edge_entries edge entries in
+        (func_counter, edge_entries))
+      call_graph
+      (FunctionCounter.empty, EdgeEntriesMap.empty)
+  in
+  EdgeEntriesMap.fold
+    (fun edge entries slices ->
+      let caller, instr, callee = edge in
+      let count = FunctionCounter.get func_counter callee in
+      if count >= !Options.min_freq then
+        LlvalueSet.fold
+          (fun entry acc ->
+            let entry_set = LlvalueSet.singleton entry in
+            let callees =
+              find_callees (2 * depth) call_graph callee entry_set entry_set
+            in
+            let location = Utils.string_of_location llctx instr in
+            let slice =
+              Slice.create callees entry caller instr callee location
+            in
+            slice :: acc)
+          entries slices
+      else slices)
+    edge_entries []
 
 let main input_file =
   let llctx = Llvm.create_context () in
