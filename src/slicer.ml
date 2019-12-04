@@ -1,5 +1,3 @@
-open Printf
-
 module CallEdge = struct
   type t =
     { caller: Llvm.llvalue
@@ -158,6 +156,30 @@ module CallGraph = struct
   let vertex_attributes v = []
 
   let default_vertex_attributes g = []
+
+  let from_llm llm =
+    Llvm.fold_left_functions
+      (fun graph func ->
+        Llvm.fold_left_blocks
+          (fun graph block ->
+            Llvm.fold_left_instrs
+              (fun graph instr ->
+                let opcode = Llvm.instr_opcode instr in
+                match opcode with
+                | Call ->
+                    let callee =
+                      Llvm.operand instr (Llvm.num_operands instr - 1)
+                    in
+                    if
+                      Llvm.classify_value callee = Llvm.ValueKind.Function
+                      && not (Utils.is_llvm_function callee)
+                    then add_edge_e graph (func, instr, callee)
+                    else graph
+                | _ ->
+                    graph)
+              graph block)
+          graph func)
+      empty llm
 end
 
 module GraphViz = Graph.Graphviz.Dot (CallGraph)
@@ -227,6 +249,23 @@ module Slices = struct
         List.map (Slice.from_json llm) json_slice_list
     | _ ->
         raise Utils.InvalidJSON
+
+  let dump oc llm slices : unit =
+    List.iter
+      (fun (slice : Slice.t) ->
+        let entry_name = Llvm.value_name slice.entry in
+        let func_names =
+          List.map (fun f -> Llvm.value_name f) slice.functions
+        in
+        let func_names_str = String.concat ", " func_names in
+        let callee_name = Llvm.value_name slice.call_edge.callee in
+        let caller_name = Llvm.value_name slice.call_edge.caller in
+        let instr_str = Llvm.string_of_llvalue slice.call_edge.instr in
+        let call_str = Printf.sprintf "(%s -> %s)" caller_name callee_name in
+        Printf.fprintf oc
+          "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
+          entry_name func_names_str call_str instr_str)
+      slices
 end
 
 module Llvalue = struct
@@ -275,38 +314,14 @@ module EdgeEntriesMap = struct
   let fold = EdgeMap.fold
 end
 
-let get_call_graph (llm : Llvm.llmodule) : CallGraph.t =
-  Llvm.fold_left_functions
-    (fun graph func ->
-      Llvm.fold_left_blocks
-        (fun graph block ->
-          Llvm.fold_left_instrs
-            (fun graph instr ->
-              let opcode = Llvm.instr_opcode instr in
-              match opcode with
-              | Call ->
-                  let callee =
-                    Llvm.operand instr (Llvm.num_operands instr - 1)
-                  in
-                  if
-                    Llvm.classify_value callee = Llvm.ValueKind.Function
-                    && not (Utils.is_llvm_function callee)
-                  then CallGraph.add_edge_e graph (func, instr, callee)
-                  else graph
-              | _ ->
-                  graph)
-            graph block)
-        graph func)
-    CallGraph.empty llm
-
 let print_call_edge (llm : Llvm.llmodule) (caller, _, callee) : unit =
   let callee_name = Llvm.value_name callee in
   let caller_name = Llvm.value_name caller in
-  ignore (printf "(%s -> %s); " caller_name callee_name)
+  Printf.printf "(%s -> %s); " caller_name callee_name
 
 let print_call_graph (llm : Llvm.llmodule) (cg : CallGraph.t) : unit =
-  CallGraph.iter_edges_instr_set (fun ce -> print_call_edge llm ce) cg ;
-  ignore (printf "\n")
+  CallGraph.iter_edges_instr_set (print_call_edge llm) cg ;
+  Printf.printf "\n"
 
 let dump_call_graph cg =
   let oc = open_out (Options.outdir () ^ "/callgraph.dot") in
@@ -353,7 +368,7 @@ let rec find_callees depth cg poi_callee fringe callees =
       LlvalueSet.union callees direct_callees
       |> find_callees (depth - 1) cg poi_callee direct_callees
 
-let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
+let need_find_slices_for_edge llm callee : bool =
   match !Options.target_function_name with
   | "" ->
       true
@@ -361,37 +376,25 @@ let need_find_slices_for_edge (llm : Llvm.llmodule) callee : bool =
       let callee_name = Llvm.value_name callee in
       String.equal callee_name n
 
-let print_slices oc (llm : Llvm.llmodule) (slices : Slices.t) : unit =
-  List.iter
-    (fun (slice : Slice.t) ->
-      let entry_name = Llvm.value_name slice.entry in
-      let func_names = List.map (fun f -> Llvm.value_name f) slice.functions in
-      let func_names_str = String.concat ", " func_names in
-      let callee_name = Llvm.value_name slice.call_edge.callee in
-      let caller_name = Llvm.value_name slice.call_edge.caller in
-      let instr_str = Llvm.string_of_llvalue slice.call_edge.instr in
-      let call_str = Printf.sprintf "(%s -> %s)" caller_name callee_name in
-      fprintf oc "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
-        entry_name func_names_str call_str instr_str)
-    slices
-
-let slice llctx (llm : Llvm.llmodule) (depth : int) : Slices.t =
-  let call_graph = get_call_graph llm in
+let slice llctx llm depth : Slices.t =
+  let call_graph = CallGraph.from_llm llm in
   dump_call_graph call_graph ;
   let func_counter, edge_entries =
     CallGraph.fold_edges_instr_set
       (fun edge (func_counter, edge_entries) ->
         let caller, _, callee = edge in
-        let singleton_caller = LlvalueSet.singleton caller in
-        let entries =
-          find_entries depth call_graph singleton_caller LlvalueSet.empty
-        in
-        let num_entries = LlvalueSet.cardinal entries in
-        let func_counter =
-          FunctionCounter.add func_counter callee num_entries
-        in
-        let edge_entries = EdgeEntriesMap.add edge_entries edge entries in
-        (func_counter, edge_entries))
+        if need_find_slices_for_edge llm callee then
+          let singleton_caller = LlvalueSet.singleton caller in
+          let entries =
+            find_entries depth call_graph singleton_caller LlvalueSet.empty
+          in
+          let num_entries = LlvalueSet.cardinal entries in
+          let func_counter =
+            FunctionCounter.add func_counter callee num_entries
+          in
+          let edge_entries = EdgeEntriesMap.add edge_entries edge entries in
+          (func_counter, edge_entries)
+        else (func_counter, edge_entries))
       call_graph
       (FunctionCounter.empty, EdgeEntriesMap.empty)
   in
@@ -420,4 +423,4 @@ let main input_file =
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
   let slices = slice llctx llm !Options.slice_depth in
-  ignore (print_slices stdout llm slices)
+  Slices.dump stdout llm slices

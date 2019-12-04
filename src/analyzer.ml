@@ -396,6 +396,59 @@ let fold_traces dugraphs_dir slices_json_dir f base =
   in
   result
 
+module Bugs = struct
+  module SliceIdMap = Map.Make (struct
+    (* Target function name, Slice id *)
+    type t = string * int
+
+    let compare = compare
+  end)
+
+  module TraceIdSet = Set.Make (Int)
+
+  type t = TraceIdSet.t SliceIdMap.t
+
+  let empty = SliceIdMap.empty
+
+  let add (bugs : t) (func_name : string) (slice_id : int) (trace_id : int) : t
+      =
+    SliceIdMap.update (func_name, slice_id)
+      (fun maybe_trace_id_set ->
+        let new_set =
+          match maybe_trace_id_set with
+          | Some set ->
+              TraceIdSet.add trace_id set
+          | None ->
+              TraceIdSet.singleton trace_id
+        in
+        Some new_set)
+      bugs
+
+  let label (dugraphs_dir : string) (bugs : t) : unit =
+    SliceIdMap.iter
+      (fun (func_name, slice_id) trace_ids ->
+        let dugraph_json_dir =
+          Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir func_name
+            slice_id
+        in
+        let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
+        let trace_json_list =
+          List.mapi
+            (fun trace_id trace_json ->
+              if TraceIdSet.mem trace_id trace_ids then
+                match trace_json with
+                | `Assoc assocs ->
+                    `Assoc (("is_bug", `Bool true) :: assocs)
+                | _ ->
+                    raise Utils.InvalidJSON
+              else trace_json)
+            (Utils.list_from_json dugraph_json)
+        in
+        let dugraph_json = `List trace_json_list in
+        Yojson.Safe.to_file dugraph_json_dir dugraph_json)
+      bugs
+end
+
 let init_checker_dir (prefix : string) (name : string) : string =
   let dir = prefix ^ "/" ^ name in
   Utils.mkdir dir ; dir
@@ -433,9 +486,9 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   Printf.fprintf bugs_oc "%s" header ;
   let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
   Printf.fprintf bugs_brief_oc "%s" brief_header ;
-  let _ =
+  let bugs, _ =
     fold_traces dugraphs_dir slices_json_dir
-      (fun last_slice trace ->
+      (fun (bugs, last_slice) trace ->
         let result, score = M.eval stats trace in
         let csv_row =
           Printf.sprintf "%d,%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.trace_id
@@ -443,19 +496,30 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
             (M.Checker.to_string result)
         in
         Printf.fprintf results_oc "%s" csv_row ;
-        if score > !Options.report_threshold then (
-          Printf.fprintf bugs_oc "%s" csv_row ;
-          if last_slice <> trace.slice_id then
-            let brief_csv_row =
-              Printf.sprintf "%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.entry
-                trace.call_edge.callee trace.call_edge.location score
-                (M.Checker.to_string result)
+        let bugs =
+          if score > !Options.report_threshold then (
+            Printf.fprintf bugs_oc "%s" csv_row ;
+            let bugs =
+              Bugs.add bugs trace.call_edge.callee trace.slice_id
+                trace.trace_id
             in
-            Printf.fprintf bugs_brief_oc "%s" brief_csv_row ) ;
-        trace.slice_id)
-      (-1)
+            ( if last_slice <> trace.slice_id then
+              let brief_csv_row =
+                Printf.sprintf "%d,%s,%s,%s,%f,%s\n" trace.slice_id trace.entry
+                  trace.call_edge.callee trace.call_edge.location score
+                  (M.Checker.to_string result)
+              in
+              Printf.fprintf bugs_brief_oc "%s" brief_csv_row ) ;
+            bugs )
+          else bugs
+        in
+        (bugs, trace.slice_id))
+      (Bugs.empty, -1)
   in
-  close_out results_oc ; close_out bugs_oc ; close_out bugs_brief_oc
+  if !Options.do_label then Bugs.label dugraphs_dir bugs ;
+  close_out results_oc ;
+  close_out bugs_oc ;
+  close_out bugs_brief_oc
 
 let init_analysis_dir (prefix : string) : string =
   let analysis_dir = prefix ^ "/analysis" in

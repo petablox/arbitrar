@@ -35,7 +35,9 @@ let output_dot = ref false
 let output_trace = ref false
 
 (* Analyzer Options *)
-let report_threshold = ref 0.8
+let report_threshold = ref 0.9
+
+let do_label = ref true
 
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
@@ -72,7 +74,8 @@ let analyzer_opts_local =
   [ ( "-thres"
     , Arg.Set_float report_threshold
     , "Score threshold for reporting bugs" )
-  ; ("-fn", Arg.Set_string target_function_name, "Target function name") ]
+  ; ("-fn", Arg.Set_string target_function_name, "Target function name")
+  ; ("-label", Arg.Set do_label, "Label the dugraph JSON files") ]
 
 let slicer_opts = common_opts_local @ slicer_opts_local
 

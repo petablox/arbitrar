@@ -40,7 +40,7 @@ let call_graph input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  let call_graph = Slicer.get_call_graph llm in
+  let call_graph = Slicer.CallGraph.from_llm llm in
   Slicer.dump_call_graph call_graph ;
   Slicer.print_call_graph llm call_graph
 
