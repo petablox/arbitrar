@@ -34,6 +34,8 @@ let max_length = ref max_int
 
 let max_trials = ref 2000
 
+let max_symbols = ref 10
+
 let no_control_flow = ref false
 
 let include_instr = ref false
@@ -68,6 +70,9 @@ let executor_opts_local =
   ; ( "-no-filter-duplication"
     , Arg.Set no_filter_duplication
     , "Do not fliter out duplicatated def-use graphs" )
+  ; ( "-max-symbols"
+    , Arg.Set_int max_symbols
+    , "Maximum size of a symbolic expression" )
   ; ( "-no-control-flow"
     , Arg.Set no_control_flow
     , "Do not include control-flow edges" )

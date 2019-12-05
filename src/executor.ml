@@ -175,8 +175,8 @@ let mark_visit_target instr state =
   | _ ->
       state
 
-let semantic_sig_of_binop v0 v1 =
-  let result_json = Value.to_json Value.unknown in
+let semantic_sig_of_binop res v0 v1 =
+  let result_json = Value.to_json res in
   let v0_json = Value.to_json v0 in
   let v1_json = Value.to_json v1 in
   `Assoc
@@ -284,15 +284,7 @@ and transfer llctx instr env state =
         |> State.add_semantic_du_edges [lv1] instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | x when Utils.is_binary_op x ->
-        let exp0 = Llvm.operand instr 0 in
-        let exp1 = Llvm.operand instr 1 in
-        let v0, uses0 = eval exp0 state.State.memory in
-        let v1, uses1 = eval exp1 state.State.memory in
-        let sem_sig = semantic_sig_of_binop v0 v1 in
-        State.add_trace llctx instr sem_sig state
-        |> add_syntactic_du_edge instr env
-        |> State.add_semantic_du_edges (uses0 @ uses1) instr
-        |> execute_instr llctx (Llvm.instr_succ instr) env
+        transfer_binop llctx instr env state
     | x when Utils.is_unary_op x ->
         (* Casting operators *)
         let exp0 = Llvm.operand instr 0 in
@@ -401,13 +393,16 @@ and transfer_call llctx instr env state =
   | Value.Function f
     when Llvm.type_of f |> Llvm.return_type |> Utils.is_void_type |> not ->
       let lv = eval_lv instr state.State.memory in
-      let v = Value.new_symbol () in
       let args =
         List.init
           (Llvm.num_operands instr - 1)
           (fun i ->
             let arg = Llvm.operand instr i in
             eval arg state.State.memory |> fst)
+      in
+      let v =
+        SymExpr.of_ret (Llvm.value_name f) (List.map Value.to_symexpr args)
+        |> Value.of_symexpr
       in
       let sem_sig = semantic_sig_of_libcall (Some v) args in
       State.add_trace llctx instr sem_sig state
@@ -429,6 +424,20 @@ and transfer_call llctx instr env state =
   | exception Not_found ->
       Llvm.dump_value callee_expr ;
       failwith "not found"
+
+and transfer_binop llctx instr env state =
+  let exp0 = Llvm.operand instr 0 in
+  let exp1 = Llvm.operand instr 1 in
+  let v0, uses0 = eval exp0 state.State.memory in
+  let v1, uses1 = eval exp1 state.State.memory in
+  let res_lv = eval_lv instr state in
+  let res = Value.binary_op (Llvm.instr_opcode instr) v0 v1 in
+  let sem_sig = semantic_sig_of_binop res v0 v1 in
+  State.add_trace llctx instr sem_sig state
+  |> State.add_memory res_lv res
+  |> add_syntactic_du_edge instr env
+  |> State.add_semantic_du_edges (uses0 @ uses1) instr
+  |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and finish_execution llctx env state =
   let target_visited = state.target_visited in

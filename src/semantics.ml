@@ -46,7 +46,7 @@ module Stack = struct
 end
 
 module Symbol = struct
-  type t = string
+  type t = string [@@deriving yojson]
 
   let count = ref 0
 
@@ -58,6 +58,106 @@ module Symbol = struct
   let to_string x = x
 
   let pp fmt x = F.fprintf fmt "%s" x
+end
+
+module SymExpr = struct
+  type t =
+    | Symbol of Symbol.t
+    | Int of Int64.t
+    | Ret of string * t list
+    | Add of t * t
+    | Sub of t * t
+    | Mul of t * t
+    | Div of t * t
+    | Rem of t * t
+    | Shl of t * t
+    | Lshr of t * t
+    | Ashr of t * t
+    | Band of t * t
+    | Bor of t * t
+    | Bxor of t * t
+  [@@deriving show, yojson]
+
+  let new_symbol () = Symbol (Symbol.new_symbol ())
+
+  let of_int i = Int i
+
+  let of_ret f l = Ret (f, l)
+
+  let rec num_of_symbol = function
+    | Symbol _ ->
+        1
+    | Int _ ->
+        0
+    | Ret (_, el) ->
+        List.fold_left (fun sum e -> num_of_symbol e + sum) 0 el
+    | Add (e1, e2)
+    | Sub (e1, e2)
+    | Mul (e1, e2)
+    | Div (e1, e2)
+    | Rem (e1, e2)
+    | Shl (e1, e2)
+    | Lshr (e1, e2)
+    | Ashr (e1, e2)
+    | Band (e1, e2)
+    | Bor (e1, e2)
+    | Bxor (e1, e2) ->
+        num_of_symbol e1 + num_of_symbol e2
+
+  let add se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Add (se1, se2)
+
+  let sub se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Sub (se1, se2)
+
+  let mul se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Mul (se1, se2)
+
+  let div se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Div (se1, se2)
+
+  let rem se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Rem (se1, se2)
+
+  let shl se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Shl (se1, se2)
+
+  let lshr se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Lshr (se1, se2)
+
+  let ashr se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Ashr (se1, se2)
+
+  let band se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Band (se1, se2)
+
+  let bor se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Bor (se1, se2)
+
+  let bxor se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Bxor (se1, se2)
 end
 
 module Location = struct
@@ -105,12 +205,12 @@ end
 module Value = struct
   type t =
     | Function of Llvm.llvalue
-    | Symbol of Symbol.t
+    | SymExpr of SymExpr.t
     | Int of Int64.t
     | Location of Location.t
     | Unknown
 
-  let new_symbol () = Symbol (Symbol.new_symbol ())
+  let new_symbol () = SymExpr (SymExpr.new_symbol ())
 
   let location l = Location l
 
@@ -118,11 +218,185 @@ module Value = struct
 
   let unknown = Unknown
 
+  let of_symexpr s = SymExpr s
+
+  let to_symexpr = function
+    | SymExpr s ->
+        s
+    | Int i ->
+        SymExpr.of_int i
+    | _ ->
+        SymExpr.new_symbol ()
+
+  let add v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.add i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.add se1 se2)
+    | Int i, SymExpr se | SymExpr se, Int i ->
+        SymExpr (SymExpr.add se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let sub v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.add i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.sub se1 se2)
+    | Int i, SymExpr se ->
+        SymExpr (SymExpr.sub (SymExpr.of_int i) se)
+    | SymExpr se, Int i ->
+        SymExpr (SymExpr.sub se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let mul v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.add i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.mul se1 se2)
+    | Int i, SymExpr se | SymExpr se, Int i ->
+        SymExpr (SymExpr.mul se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let div v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.div i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.div se1 se2)
+    | Int i, SymExpr se ->
+        SymExpr (SymExpr.div (SymExpr.of_int i) se)
+    | SymExpr se, Int i ->
+        SymExpr (SymExpr.div se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let rem v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.rem i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.rem se1 se2)
+    | Int i, SymExpr se ->
+        SymExpr (SymExpr.rem (SymExpr.of_int i) se)
+    | SymExpr se, Int i ->
+        SymExpr (SymExpr.rem se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let shl v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.shift_left i1 (Int64.to_int i2))
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.shl se1 se2)
+    | Int i, SymExpr se ->
+        SymExpr (SymExpr.shl (SymExpr.of_int i) se)
+    | SymExpr se, Int i ->
+        SymExpr (SymExpr.shl se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let lshr v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.shift_right_logical i1 (Int64.to_int i2))
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.lshr se1 se2)
+    | Int i, SymExpr se ->
+        SymExpr (SymExpr.lshr (SymExpr.of_int i) se)
+    | SymExpr se, Int i ->
+        SymExpr (SymExpr.lshr se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let ashr v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.shift_right i1 (Int64.to_int i2))
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.ashr se1 se2)
+    | Int i, SymExpr se ->
+        SymExpr (SymExpr.ashr (SymExpr.of_int i) se)
+    | SymExpr se, Int i ->
+        SymExpr (SymExpr.ashr se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let band v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.logand i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.band se1 se2)
+    | Int i, SymExpr se | SymExpr se, Int i ->
+        SymExpr (SymExpr.band se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let bor v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.logor i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.bor se1 se2)
+    | Int i, SymExpr se | SymExpr se, Int i ->
+        SymExpr (SymExpr.bor se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let bxor v1 v2 =
+    match (v1, v2) with
+    | Int i1, Int i2 ->
+        Int (Int64.logxor i1 i2)
+    | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.bxor se1 se2)
+    | Int i, SymExpr se | SymExpr se, Int i ->
+        SymExpr (SymExpr.bxor se (SymExpr.of_int i))
+    | _, _ ->
+        unknown
+
+  let binary_op op v1 v2 =
+    match op with
+    | Llvm.Opcode.Add ->
+        add v1 v2
+    | Sub ->
+        sub v1 v2
+    | Mul ->
+        mul v1 v2
+    | UDiv ->
+        div v1 v2
+    | SDiv ->
+        div v1 v2
+    | URem ->
+        rem v1 v2
+    | SRem ->
+        rem v1 v2
+    | Shl ->
+        shl v1 v2
+    | LShr ->
+        lshr v1 v2
+    | AShr ->
+        ashr v1 v2
+    | And ->
+        band v1 v2
+    | Or ->
+        bor v1 v2
+    | Xor ->
+        bxor v1 v2
+    | _ ->
+        unknown
+
   let to_json = function
     | Function f ->
         `String (Llvm.value_name f)
-    | Symbol s ->
-        `String (Symbol.to_string s)
+    | SymExpr s ->
+        SymExpr.to_yojson s
     | Int i ->
         `String (Int64.to_string i)
     | Location l ->
@@ -133,8 +407,8 @@ module Value = struct
   let pp fmt = function
     | Function l ->
         F.fprintf fmt "Fun(%s)" (Llvm.value_name l)
-    | Symbol s ->
-        Symbol.pp fmt s
+    | SymExpr s ->
+        SymExpr.pp fmt s
     | Int i ->
         F.fprintf fmt "%s" (Int64.to_string i)
     | Location l ->
