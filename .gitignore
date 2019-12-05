@@ -13,7 +13,7 @@ llextractor
 # Output
 data
 *.dot
-extractor-out
+llextractor-out
 
 # Misc
 .*DS_Store

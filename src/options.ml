@@ -4,7 +4,7 @@ let debug = ref false
 let no_filter_duplication = ref false
 
 (* Output Options *)
-let outdir_ = ref "out"
+let outdir_ = ref "llextractor-out"
 
 let outdir () = Utils.get_abs_path !outdir_
 
