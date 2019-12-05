@@ -235,65 +235,10 @@ and transfer llctx instr env state =
   else
     let state = mark_visit_target instr state in
     match Llvm.instr_opcode instr with
-    | Llvm.Opcode.Ret -> (
-      match State.pop_stack state with
-      | Some (callsite, state) ->
-          let lv = eval_lv callsite state.State.memory in
-          let exp0 = Llvm.operand instr 0 in
-          let v, _ = eval exp0 state.State.memory in
-          let sem_sig = sem_sig_of_return (Some v) in
-          State.add_trace llctx instr sem_sig state
-          |> add_syntactic_du_edge instr env
-          |> State.add_memory_def lv v instr
-          |> execute_instr llctx (Llvm.instr_succ callsite) env
-      | None ->
-          let sem_sig =
-            if Llvm.num_operands instr = 0 then sem_sig_of_return None
-            else
-              let exp0 = Llvm.operand instr 0 in
-              let v, _ = eval exp0 state.State.memory in
-              sem_sig_of_return (Some v)
-          in
-          State.add_trace llctx instr sem_sig state
-          |> add_syntactic_du_edge instr env
-          |> execute_instr llctx (Llvm.instr_succ instr) env )
-    | Br -> (
-      match Llvm.get_branch instr with
-      | Some (`Conditional (cond, b1, b2)) ->
-          let v, _ = eval cond state.State.memory in
-          let sem_sig = sem_sig_of_br (Some v) in
-          let state =
-            State.add_trace llctx instr sem_sig state
-            |> add_syntactic_du_edge instr env
-          in
-          let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
-          let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
-          if b1_visited && b2_visited then finish_execution llctx env state
-          else if b1_visited then
-            let state = State.visit_block b2 state in
-            execute_block llctx b2 env state
-          else if b2_visited then
-            let state = State.visit_block b1 state in
-            execute_block llctx b1 env state
-          else
-            let new_state = State.visit_block b2 state in
-            let env = Environment.add_work (b2, new_state) env in
-            let state = State.visit_block b1 state in
-            execute_block llctx b1 env state
-      | Some (`Unconditional b) ->
-          let sem_sig = sem_sig_of_br None in
-          let state =
-            State.add_trace llctx instr sem_sig state
-            |> add_syntactic_du_edge instr env
-          in
-          let visited = BlockSet.mem b state.State.visited_blocks in
-          if visited then finish_execution llctx env state
-          else
-            let state = State.visit_block b state in
-            execute_block llctx b env state
-      | _ ->
-          prerr_endline "warning: unknown branch" ;
-          execute_instr llctx (Llvm.instr_succ instr) env state )
+    | Llvm.Opcode.Ret ->
+        transfer_ret llctx instr env state
+    | Br ->
+        transfer_br llctx instr env state
     | Switch ->
         let sem_sig = `Assoc [] in
         State.add_trace llctx instr sem_sig state
@@ -365,6 +310,67 @@ and transfer llctx instr env state =
         |> add_syntactic_du_edge instr env
         (* Note: Maybe expand *)
         |> execute_instr llctx (Llvm.instr_succ instr) env
+
+and transfer_ret llctx instr env state =
+  match State.pop_stack state with
+  | Some (callsite, state) ->
+      let lv = eval_lv callsite state.State.memory in
+      let exp0 = Llvm.operand instr 0 in
+      let v, _ = eval exp0 state.State.memory in
+      let sem_sig = sem_sig_of_return (Some v) in
+      State.add_trace llctx instr sem_sig state
+      |> add_syntactic_du_edge instr env
+      |> State.add_memory_def lv v instr
+      |> execute_instr llctx (Llvm.instr_succ callsite) env
+  | None ->
+      let sem_sig =
+        if Llvm.num_operands instr = 0 then sem_sig_of_return None
+        else
+          let exp0 = Llvm.operand instr 0 in
+          let v, _ = eval exp0 state.State.memory in
+          sem_sig_of_return (Some v)
+      in
+      State.add_trace llctx instr sem_sig state
+      |> add_syntactic_du_edge instr env
+      |> execute_instr llctx (Llvm.instr_succ instr) env
+
+and transfer_br llctx instr env state =
+  match Llvm.get_branch instr with
+  | Some (`Conditional (cond, b1, b2)) ->
+      let v, _ = eval cond state.State.memory in
+      let sem_sig = sem_sig_of_br (Some v) in
+      let state =
+        State.add_trace llctx instr sem_sig state
+        |> add_syntactic_du_edge instr env
+      in
+      let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
+      let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
+      if b1_visited && b2_visited then finish_execution llctx env state
+      else if b1_visited then
+        let state = State.visit_block b2 state in
+        execute_block llctx b2 env state
+      else if b2_visited then
+        let state = State.visit_block b1 state in
+        execute_block llctx b1 env state
+      else
+        let new_state = State.visit_block b2 state in
+        let env = Environment.add_work (b2, new_state) env in
+        let state = State.visit_block b1 state in
+        execute_block llctx b1 env state
+  | Some (`Unconditional b) ->
+      let sem_sig = sem_sig_of_br None in
+      let state =
+        State.add_trace llctx instr sem_sig state
+        |> add_syntactic_du_edge instr env
+      in
+      let visited = BlockSet.mem b state.State.visited_blocks in
+      if visited then finish_execution llctx env state
+      else
+        let state = State.visit_block b state in
+        execute_block llctx b env state
+  | _ ->
+      prerr_endline "warning: unknown branch" ;
+      execute_instr llctx (Llvm.instr_succ instr) env state
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
