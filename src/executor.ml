@@ -176,40 +176,40 @@ let mark_visit_target instr state =
       state
 
 let semantic_sig_of_binop res v0 v1 =
-  let result_json = Value.to_json res in
-  let v0_json = Value.to_json v0 in
-  let v1_json = Value.to_json v1 in
+  let result_json = Value.to_yojson res in
+  let v0_json = Value.to_yojson v0 in
+  let v1_json = Value.to_yojson v1 in
   `Assoc
     [("result_sem", result_json); ("op0_sem", v0_json); ("op1_sem", v1_json)]
 
 let semantic_sig_of_store v0 v1 =
-  let v0_json = Value.to_json v0 in
-  let v1_json = Value.to_json v1 in
+  let v0_json = Value.to_yojson v0 in
+  let v1_json = Value.to_yojson v1 in
   `Assoc [("op0_sem", v0_json); ("op1_sem", v1_json)]
 
 let semantic_sig_of_unop result op0 =
-  let result_json = Value.to_json result in
-  let op0_json = Value.to_json op0 in
+  let result_json = Value.to_yojson result in
+  let op0_json = Value.to_yojson op0 in
   `Assoc [("result_sem", result_json); ("op0_sem", op0_json)]
 
 let semantic_sig_of_libcall v args =
-  let ret_json = match v with Some s -> Value.to_json s | None -> `Null in
-  let args_json = List.map Value.to_json args in
+  let ret_json = match v with Some s -> Value.to_yojson s | None -> `Null in
+  let args_json = List.map Value.to_yojson args in
   `Assoc [("result_sem", ret_json); ("args_sem", `List args_json)]
 
 let semantic_sig_of_call args =
-  let args_json = List.map Value.to_json args in
+  let args_json = List.map Value.to_yojson args in
   `Assoc [("args_sem", `List args_json)]
 
 let sem_sig_of_return = function
   | Some v ->
-      `Assoc [("op0_sem", Value.to_json v)]
+      `Assoc [("op0_sem", Value.to_yojson v)]
   | None ->
       `Assoc [("op0_sem", `Null)]
 
 let sem_sig_of_br = function
   | Some v ->
-      `Assoc [("cond_sem", Value.to_json v)]
+      `Assoc [("cond_sem", Value.to_yojson v)]
   | None ->
       `Assoc [("cond_sem", `Null)]
 

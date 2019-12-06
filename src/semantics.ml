@@ -179,7 +179,7 @@ module Location = struct
     count := !count + 1 ;
     Address !count
 
-  let to_json = function
+  let to_yojson = function
     | Address a ->
         `String ("&" ^ string_of_int a)
     | Variable l ->
@@ -202,13 +202,20 @@ module Location = struct
         F.fprintf fmt "Unknown"
 end
 
+module Function = struct
+  type t = Llvm.llvalue
+
+  let to_yojson f = `String (Llvm.value_name f)
+end
+
 module Value = struct
   type t =
-    | Function of Llvm.llvalue
+    | Function of Function.t
     | SymExpr of SymExpr.t
     | Int of Int64.t
     | Location of Location.t
     | Unknown
+  [@@deriving to_yojson]
 
   let new_symbol () = SymExpr (SymExpr.new_symbol ())
 
@@ -391,18 +398,6 @@ module Value = struct
         bxor v1 v2
     | _ ->
         unknown
-
-  let to_json = function
-    | Function f ->
-        `String (Llvm.value_name f)
-    | SymExpr s ->
-        SymExpr.to_yojson s
-    | Int i ->
-        `String (Int64.to_string i)
-    | Location l ->
-        Location.to_json l
-    | Unknown ->
-        `String "$unknown"
 
   let pp fmt = function
     | Function l ->
