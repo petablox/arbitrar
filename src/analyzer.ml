@@ -1,38 +1,9 @@
 module Predicate = struct
   type t = Eq | Ne | Ugt | Uge | Ult | Ule | Sgt | Sge | Slt | Sle
 
-  let from_json (json : Yojson.Safe.t) : t =
-    match json with
-    | `String name -> (
-      match name with
-      | "eq" ->
-          Eq
-      | "ne" ->
-          Ne
-      | "ugt" ->
-          Ugt
-      | "uge" ->
-          Uge
-      | "ult" ->
-          Ult
-      | "ule" ->
-          Ule
-      | "sgt" ->
-          Sgt
-      | "sge" ->
-          Sge
-      | "slt" ->
-          Slt
-      | "sle" ->
-          Sle
-      | _ ->
-          raise Utils.InvalidJSON )
-    | _ ->
-        raise Utils.InvalidJSON
-
   let compare = compare
 
-  let to_string (pred : t) : string =
+  let to_string pred =
     match pred with
     | Eq ->
         "eq"
@@ -54,28 +25,70 @@ module Predicate = struct
         "slt"
     | Sle ->
         "sle"
+
+  let of_json json =
+    match Utils.string_from_json json with
+    | "eq" ->
+        Eq
+    | "ne" ->
+        Ne
+    | "ugt" ->
+        Ugt
+    | "uge" ->
+        Uge
+    | "ult" ->
+        Ult
+    | "ule" ->
+        Ule
+    | "sgt" ->
+        Sgt
+    | "sge" ->
+        Sge
+    | "slt" ->
+        Slt
+    | "sle" ->
+        Sle
+    | _ ->
+        raise Utils.InvalidJSON
+
+  let to_json pred = `String (to_string pred)
 end
 
 module Statement = struct
+  type symexpr = Semantics.SymExpr.t
+
+  let symexpr_of_json = Semantics.SymExpr.of_yojson_exn
+
   type t =
-    | Call of {func: string; args: string list; result: string option}
-    | Assume of {pred: Predicate.t; op0: string; op1: string; result: string}
+    | Call of {func: string; args: symexpr list; result: symexpr option}
+    | Assume of {pred: Predicate.t; op0: symexpr; op1: symexpr; result: symexpr}
     | Other
 
   let predicate_from_stmt_json (json : Yojson.Safe.t) : Predicate.t =
-    Predicate.from_json (Utils.get_field json "predicate")
+    Predicate.of_json (Utils.get_field json "predicate")
 
   let icmp_from_json (json : Yojson.Safe.t) : t =
     let pred = predicate_from_stmt_json json in
-    let op0 = Utils.string_from_json_field json "op0_sem" in
-    let op1 = Utils.string_from_json_field json "op1_sem" in
-    let result = Utils.string_from_json_field json "result_sem" in
+    let op0 = symexpr_of_json (Utils.get_field json "op0_sem") in
+    let op1 = symexpr_of_json (Utils.get_field json "op1_sem") in
+    let result = symexpr_of_json (Utils.get_field json "result_sem") in
     Assume {pred; op0; op1; result}
 
   let call_from_json (json : Yojson.Safe.t) : t =
+    Printf.printf "1\n" ;
+    flush stdout ;
     let func = Utils.string_from_json_field json "func" in
-    let args = Utils.string_list_from_json (Utils.get_field json "args") in
-    let result = Utils.string_opt_from_json_field json "result_sem" in
+    Printf.printf "2\n" ;
+    flush stdout ;
+    let args =
+      Utils.list_from_json (Utils.get_field json "args_sem")
+      |> List.map symexpr_of_json
+    in
+    Printf.printf "3\n" ;
+    flush stdout ;
+    let result =
+      Utils.get_field_opt json "result_sem" |> Option.map symexpr_of_json
+    in
     Call {func; args; result}
 
   let from_json (json : Yojson.Safe.t) : t =
@@ -200,7 +213,11 @@ module type CHECKER = sig
 end
 
 module RetValChecker : CHECKER = struct
-  type t = Checked of Predicate.t * string | NoCheck
+  module SymExpr = Semantics.SymExpr
+
+  type symexpr = SymExpr.t
+
+  type t = Checked of Predicate.t * int64 | NoCheck
 
   let name = "retval_checker"
 
@@ -211,13 +228,12 @@ module RetValChecker : CHECKER = struct
   let to_string r : string =
     match r with
     | Checked (pred, value) ->
-        Printf.sprintf "Checked(%s,%s)" (Predicate.to_string pred) value
+        Printf.sprintf "Checked(%s,%s)" (Predicate.to_string pred)
+          (Int64.to_string value)
     | NoCheck ->
         "NoCheck"
 
-  let is_value_variable value : bool = value.[0] = '$' || value.[0] = '&'
-
-  let rec check_helper (dugraph : DUGraph.t) (ret : string)
+  let rec check_helper (dugraph : DUGraph.t) (ret : symexpr)
       (explored : NodeSet.t) (fringe : NodeSet.t) (result : t list) : t list =
     match NodeSet.choose_opt fringe with
     | Some hd ->
@@ -232,13 +248,21 @@ module RetValChecker : CHECKER = struct
           let new_result =
             match hd.stmt with
             | Assume {pred; op0; op1} ->
-                let is_op0_var = is_value_variable op0 in
-                let is_op1_var = is_value_variable op1 in
+                let is_op0_var = SymExpr.is_symbol op0 in
+                let is_op1_var = SymExpr.is_symbol op1 in
                 if is_op0_var && is_op1_var then []
-                else if is_op0_var && String.equal op0 ret then
-                  [Checked (pred, op1)]
-                else if is_op1_var && String.equal op1 ret then
-                  [Checked (pred, op0)]
+                else if is_op0_var && op0 = ret then
+                  match SymExpr.get_int op1 with
+                  | Some v ->
+                      [Checked (pred, v)]
+                  | None ->
+                      []
+                else if is_op1_var && op1 = ret then
+                  match SymExpr.get_int op0 with
+                  | Some v ->
+                      [Checked (pred, v)]
+                  | None ->
+                      []
                 else []
             | _ ->
                 []
@@ -445,7 +469,7 @@ module Bugs = struct
               if TraceIdSet.mem trace_id trace_ids then
                 match trace_json with
                 | `Assoc assocs ->
-                    `Assoc (("is_bug", `Bool true) :: assocs)
+                    `Assoc (("alarm", `Bool true) :: assocs)
                 | _ ->
                     raise Utils.InvalidJSON
               else trace_json)

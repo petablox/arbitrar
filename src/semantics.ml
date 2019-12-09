@@ -76,7 +76,7 @@ module SymExpr = struct
     | Band of t * t
     | Bor of t * t
     | Bxor of t * t
-  [@@deriving show, yojson]
+  [@@deriving show, yojson {exn= true}]
 
   let new_symbol () = Symbol (Symbol.new_symbol ())
 
@@ -103,6 +103,10 @@ module SymExpr = struct
     | Bor (e1, e2)
     | Bxor (e1, e2) ->
         num_of_symbol e1 + num_of_symbol e2
+
+  let is_symbol = function Symbol _ -> true | _ -> false
+
+  let get_int = function Int i -> Some i | _ -> None
 
   let add se1 se2 =
     if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
