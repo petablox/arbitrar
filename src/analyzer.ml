@@ -185,8 +185,9 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   Printf.printf "Running checker [%s]...\n" M.Checker.name ;
   flush stdout ;
   let checker_dir = init_checker_dir analysis_dir M.Checker.name in
+  let filter trace = not (Trace.has_label "undersized" trace) in
   let stats, _ =
-    fold_traces dugraphs_dir slices_json_dir
+    fold_traces_with_filter dugraphs_dir slices_json_dir filter
       (fun (stats, i) (trace : Trace.t) ->
         Printf.printf "%d traces loaded\r" (i + 1) ;
         flush stdout ;
@@ -220,7 +221,7 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
   Printf.fprintf bugs_brief_oc "%s" brief_header ;
   let bugs, _ =
-    fold_traces dugraphs_dir slices_json_dir
+    fold_traces_with_filter dugraphs_dir slices_json_dir filter
       (fun (bugs, last_slice) trace ->
         let result, score = M.eval stats trace in
         let csv_row =
@@ -253,7 +254,7 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   in
   Printf.printf "Labeling bugs in-place...\n" ;
   flush stdout ;
-  IdSet.label dugraphs_dir "label_is_alarm" bugs ;
+  IdSet.label dugraphs_dir "alarm" bugs ;
   close_out results_oc ;
   close_out bugs_oc ;
   close_out bugs_brief_oc

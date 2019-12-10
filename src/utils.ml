@@ -592,3 +592,5 @@ let string_list_from_json json : string list =
       List.map string_from_json ls
   | _ ->
       raise InvalidJSON
+
+let option_map_default f d m = match m with Some a -> f a | None -> d

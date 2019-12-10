@@ -25,6 +25,9 @@ let min_freq = ref 0
 
 let target_function_name = ref ""
 
+(* Filter Options *)
+let no_filter = ref false
+
 (* Executor Options *)
 let continue_extraction = ref false
 
@@ -85,6 +88,9 @@ let extractor_opts_local =
     , Arg.Set continue_extraction
     , "Continue from previously stopped position" ) ]
 
+let filter_opts_local =
+  [("-no-filter", Arg.Set no_filter, "Does not check undersize")]
+
 let analyzer_opts_local =
   [ ( "-thres"
     , Arg.Set_float report_threshold
@@ -99,11 +105,13 @@ let extractor_opts =
   common_opts_local @ slicer_opts_local @ executor_opts_local
   @ extractor_opts_local
 
+let filter_opts = common_opts_local @ filter_opts_local
+
 let analyzer_opts = common_opts_local @ analyzer_opts_local
 
 let all_opts =
   common_opts_local @ slicer_opts_local @ executor_opts_local
-  @ extractor_opts_local @ analyzer_opts_local
+  @ extractor_opts_local @ filter_opts_local @ analyzer_opts_local
 
 let common_opts = common_opts_local
 

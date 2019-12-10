@@ -181,8 +181,9 @@ module UnaOp = struct
     | FpExt
     | PtrToInt
     | IntToPtr
-    | BitCast
-    | GetElementPtr
+
+  (* | BitCast *)
+  (* | GetElementPtr *)
 
   let of_string str =
     match str with
@@ -210,10 +211,10 @@ module UnaOp = struct
         PtrToInt
     | "inttoptr" ->
         IntToPtr
-    | "bitcast" ->
-        BitCast
-    | "getelementptr" ->
-        GetElementPtr
+    (* | "bitcast" ->
+        BitCast *)
+    (* | "getelementptr" ->
+        GetElementPtr *)
     | _ ->
         raise Utils.InvalidJSON
 
@@ -251,10 +252,11 @@ module UnaOp = struct
         "ptrtoint"
     | IntToPtr ->
         "inttoptr"
-    | BitCast ->
-        "bitcast"
-    | GetElementPtr ->
-        "getelementptr"
+
+  (* | BitCast ->
+        "bitcast" *)
+  (* | GetElementPtr ->
+        "getelementptr" *)
 
   let to_json op = `String (to_string op)
 end
@@ -346,20 +348,41 @@ module Statement = struct
     match Utils.get_field_opt json "opcode" with
     | Some opcode_json -> (
       match Utils.string_from_json opcode_json with
-      | "icmp" ->
-          icmp_from_json json
-      | "call" ->
-          call_from_json json
-      | "ret" ->
-          return_from_json json
-      | "store" ->
-          store_from_json json
-      | "load" ->
-          load_from_json json
-      | s when BinOp.is_binary_op s ->
-          binary_from_json json
-      | s when UnaOp.is_unary_op s ->
-          unary_from_json json
+      | "icmp" -> (
+        try icmp_from_json json
+        with _ ->
+          Printf.printf "ICMP ERROR\n" ;
+          raise Utils.NotImplemented )
+      | "call" -> (
+        try call_from_json json
+        with _ ->
+          Printf.printf "CALL ERROR\n" ;
+          raise Utils.NotImplemented )
+      | "ret" -> (
+        try return_from_json json
+        with _ ->
+          Printf.printf "RET ERROR\n" ;
+          raise Utils.NotImplemented )
+      | "store" -> (
+        try store_from_json json
+        with _ ->
+          Printf.printf "STORE ERROR\n" ;
+          raise Utils.NotImplemented )
+      | "load" -> (
+        try load_from_json json
+        with _ ->
+          Printf.printf "LOAD ERROR\n" ;
+          raise Utils.NotImplemented )
+      | s when BinOp.is_binary_op s -> (
+        try binary_from_json json
+        with _ ->
+          Printf.printf "BINARY ERROR\n" ;
+          raise Utils.NotImplemented )
+      | s when UnaOp.is_unary_op s -> (
+        try unary_from_json json
+        with _ ->
+          Printf.printf "UNARY ERROR\n" ;
+          raise Utils.NotImplemented )
       | _ ->
           Other )
     | None ->
@@ -423,9 +446,13 @@ module Trace = struct
     ; entry: string
     ; dugraph: DUGraph.t
     ; target_node: Node.t
-    ; call_edge: CallEdge.t }
+    ; call_edge: CallEdge.t
+    ; labels: string list }
 
   let target_func_name t : string = t.call_edge.callee
+
+  let has_label label trace =
+    List.find_opt (String.equal label) trace.labels |> Option.is_some
 
   let nodes_from_json json : Node.t list =
     let json_list = Utils.list_from_json json in
@@ -458,7 +485,11 @@ module Trace = struct
     let target_id = Utils.int_from_json_field trace_json "target" in
     let target_node = Nodes.find_node_by_id nodes target_id in
     let dugraph = DUGraph.from_vertices_and_edges nodes target_node edges in
-    {slice_id; trace_id; entry; dugraph; target_node; call_edge}
+    let labels =
+      Utils.get_field_opt trace_json "labels"
+      |> Utils.option_map_default Utils.string_list_from_json []
+    in
+    {slice_id; trace_id; entry; dugraph; target_node; call_edge; labels}
 end
 
 let callee_name_from_slice_json slice_json : string =
@@ -495,6 +526,11 @@ let fold_traces dugraphs_dir slices_json_dir f base =
   in
   result
 
+let fold_traces_with_filter dugraphs_dir slices_json_dir filter f base =
+  fold_traces dugraphs_dir slices_json_dir
+    (fun acc trace -> if filter trace then f acc trace else acc)
+    base
+
 module IdSet = struct
   module SliceIdMap = Map.Make (struct
     (* Target function name, Slice id *)
@@ -522,6 +558,23 @@ module IdSet = struct
         Some new_set)
       bugs
 
+  let label_trace_json trace_json label =
+    match trace_json with
+    | `Assoc assocs -> (
+      match List.find_opt (fun (k, _) -> k = "labels") assocs with
+      | Some (_, labels) ->
+          let labels = Utils.string_list_from_json labels in
+          let has_label =
+            List.find_opt (String.equal label) labels |> Option.is_some
+          in
+          let labels = if has_label then labels else label :: labels in
+          let json_labels = `List (List.map (fun s -> `String s) labels) in
+          `Assoc (("labels", json_labels) :: List.remove_assoc "labels" assocs)
+      | None ->
+          `Assoc (("labels", `List [`String label]) :: assocs) )
+    | _ ->
+        raise Utils.InvalidJSON
+
   let label dugraphs_dir label bugs : unit =
     SliceIdMap.iter
       (fun (func_name, slice_id) trace_ids ->
@@ -534,17 +587,7 @@ module IdSet = struct
           List.mapi
             (fun trace_id trace_json ->
               if TraceIdSet.mem trace_id trace_ids then
-                match trace_json with
-                | `Assoc assocs -> (
-                  match List.find_opt (fun (k, _) -> k = label) assocs with
-                  | Some (_, `Bool true) ->
-                      `Assoc assocs
-                  | Some (k, _) ->
-                      `Assoc ((label, `Bool true) :: List.remove_assoc k assocs)
-                  | None ->
-                      `Assoc ((label, `Bool true) :: assocs) )
-                | _ ->
-                    raise Utils.InvalidJSON
+                label_trace_json trace_json label
               else trace_json)
             (Utils.list_from_json dugraph_json)
         in
