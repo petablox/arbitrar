@@ -2,6 +2,8 @@ exception InvalidJSON
 
 exception NotImplemented
 
+exception InvalidArgument
+
 (* System operation *)
 
 module F = Format
@@ -548,6 +550,17 @@ let get_field_opt json field : Yojson.Safe.t option =
     match List.find_opt (fun (key, _) -> key = field) fields with
     | Some (_, field_data) ->
         Some field_data
+    | None ->
+        None )
+  | _ ->
+      raise InvalidJSON
+
+let get_field_not_null json field : Yojson.Safe.t option =
+  match json with
+  | `Assoc fields -> (
+    match List.find_opt (fun (key, _) -> key = field) fields with
+    | Some (_, field_data) -> (
+      match field_data with `Null -> None | _ -> Some field_data )
     | None ->
         None )
   | _ ->
