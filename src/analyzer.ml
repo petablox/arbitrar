@@ -54,14 +54,16 @@ module Predicate = struct
   let to_json pred = `String (to_string pred)
 end
 
-module Statement = struct
-  type symexpr = Semantics.SymExpr.t
+module Value = struct end
 
-  let symexpr_of_json = Semantics.SymExpr.of_yojson_exn
+module Statement = struct
+  type value = Semantics.Value.t
+
+  let value_of_json = Semantics.Value.of_json
 
   type t =
-    | Call of {func: string; args: symexpr list; result: symexpr option}
-    | Assume of {pred: Predicate.t; op0: symexpr; op1: symexpr; result: symexpr}
+    | Call of {func: string; args: value list; result: value option}
+    | Assume of {pred: Predicate.t; op0: value; op1: value; result: value}
     | Other
 
   let predicate_from_stmt_json (json : Yojson.Safe.t) : Predicate.t =
@@ -69,9 +71,9 @@ module Statement = struct
 
   let icmp_from_json (json : Yojson.Safe.t) : t =
     let pred = predicate_from_stmt_json json in
-    let op0 = symexpr_of_json (Utils.get_field json "op0_sem") in
-    let op1 = symexpr_of_json (Utils.get_field json "op1_sem") in
-    let result = symexpr_of_json (Utils.get_field json "result_sem") in
+    let op0 = value_of_json (Utils.get_field json "op0_sem") in
+    let op1 = value_of_json (Utils.get_field json "op1_sem") in
+    let result = value_of_json (Utils.get_field json "result_sem") in
     Assume {pred; op0; op1; result}
 
   let call_from_json (json : Yojson.Safe.t) : t =
@@ -82,12 +84,12 @@ module Statement = struct
     flush stdout ;
     let args =
       Utils.list_from_json (Utils.get_field json "args_sem")
-      |> List.map symexpr_of_json
+      |> List.map value_of_json
     in
     Printf.printf "3\n" ;
     flush stdout ;
     let result =
-      Utils.get_field_opt json "result_sem" |> Option.map symexpr_of_json
+      Utils.get_field_opt json "result_sem" |> Option.map value_of_json
     in
     Call {func; args; result}
 
@@ -427,7 +429,7 @@ let fold_traces dugraphs_dir slices_json_dir f base =
   in
   result
 
-module Bugs = struct
+module IdSet = struct
   module SliceIdMap = Map.Make (struct
     (* Target function name, Slice id *)
     type t = string * int
@@ -441,8 +443,7 @@ module Bugs = struct
 
   let empty = SliceIdMap.empty
 
-  let add (bugs : t) (func_name : string) (slice_id : int) (trace_id : int) : t
-      =
+  let add bugs func_name slice_id trace_id =
     SliceIdMap.update (func_name, slice_id)
       (fun maybe_trace_id_set ->
         let new_set =
@@ -455,7 +456,7 @@ module Bugs = struct
         Some new_set)
       bugs
 
-  let label (dugraphs_dir : string) (bugs : t) : unit =
+  let label dugraphs_dir label bugs : unit =
     SliceIdMap.iter
       (fun (func_name, slice_id) trace_ids ->
         let dugraph_json_dir =
@@ -469,7 +470,7 @@ module Bugs = struct
               if TraceIdSet.mem trace_id trace_ids then
                 match trace_json with
                 | `Assoc assocs ->
-                    `Assoc (("alarm", `Bool true) :: assocs)
+                    `Assoc ((label, `Bool true) :: assocs)
                 | _ ->
                     raise Utils.InvalidJSON
               else trace_json)
@@ -535,7 +536,7 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
           if score > !Options.report_threshold then (
             Printf.fprintf bugs_oc "%s" csv_row ;
             let bugs =
-              Bugs.add bugs trace.call_edge.callee trace.slice_id
+              IdSet.add bugs trace.call_edge.callee trace.slice_id
                 trace.trace_id
             in
             ( if last_slice <> trace.slice_id then
@@ -550,9 +551,9 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
           else bugs
         in
         (bugs, trace.slice_id))
-      (Bugs.empty, -1)
+      (IdSet.empty, -1)
   in
-  if !Options.do_label then Bugs.label dugraphs_dir bugs ;
+  if !Options.do_label then IdSet.label "alarm" dugraphs_dir bugs ;
   close_out results_oc ;
   close_out bugs_oc ;
   close_out bugs_brief_oc
