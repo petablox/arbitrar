@@ -421,10 +421,8 @@ and transfer_call llctx instr env state =
             let arg = Llvm.operand instr i in
             eval arg state.State.memory |> fst)
       in
-      let node = InstrMap.find instr state.State.instrmap in
       let v =
-        SymExpr.of_ret node.id (Llvm.value_name f)
-          (List.map Value.to_symexpr args)
+        SymExpr.new_ret (Llvm.value_name f) (List.map Value.to_symexpr args)
         |> Value.of_symexpr
       in
       let semantic_sig = semantic_sig_of_libcall (Some v) args in

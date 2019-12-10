@@ -82,7 +82,12 @@ module SymExpr = struct
 
   let of_int i = Int i
 
-  let of_ret f id l = Ret (f, id, l)
+  let call_id = ref 0
+
+  let new_ret f l =
+    let ret = Ret (!call_id, f, l) in
+    call_id := !call_id + 1 ;
+    ret
 
   let rec num_of_symbol = function
     | Symbol _ ->
