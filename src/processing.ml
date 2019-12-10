@@ -286,8 +286,14 @@ module IdSet = struct
             (fun trace_id trace_json ->
               if TraceIdSet.mem trace_id trace_ids then
                 match trace_json with
-                | `Assoc assocs ->
-                    `Assoc ((label, `Bool true) :: assocs)
+                | `Assoc assocs -> (
+                  match List.find_opt (fun (k, _) -> k = label) assocs with
+                  | Some (_, `Bool true) ->
+                      `Assoc assocs
+                  | Some (k, _) ->
+                      `Assoc ((label, `Bool true) :: List.remove_assoc k assocs)
+                  | None ->
+                      `Assoc ((label, `Bool true) :: assocs) )
                 | _ ->
                     raise Utils.InvalidJSON
               else trace_json)

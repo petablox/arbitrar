@@ -88,7 +88,7 @@ module type CHECKER_STATS = sig
 
     val eval : t -> Checker.t -> float
 
-    val dump : out_channel -> t -> unit
+    val iter : (Checker.t -> int -> unit) -> t -> unit
   end
 
   type stats
@@ -99,7 +99,7 @@ module type CHECKER_STATS = sig
 
   val eval : stats -> Trace.t -> Checker.t * float
 
-  val dump : string -> stats -> unit
+  val iter : (string -> FunctionStats.t -> unit) -> stats -> unit
 end
 
 module CheckerStats (C : CHECKER) : CHECKER_STATS = struct
@@ -135,11 +135,7 @@ module CheckerStats (C : CHECKER) : CHECKER_STATS = struct
       let count = ResultCountMap.find result stats.map in
       1.0 -. (float_of_int count /. float_of_int stats.total)
 
-    let dump oc stats =
-      ResultCountMap.iter
-        (fun result count ->
-          Printf.fprintf oc "%d,%s\n" count (Checker.to_string result))
-        stats.map
+    let iter f stats = ResultCountMap.iter f stats.map
   end
 
   type stats = FunctionStats.t t
@@ -172,14 +168,7 @@ module CheckerStats (C : CHECKER) : CHECKER_STATS = struct
         if score < snd acc then (result, score) else acc)
       (C.default, 1.0) results
 
-  let dump (dir : string) (stats : stats) =
-    iter
-      (fun (func_name : string) (stats : FunctionStats.t) ->
-        let oc = open_out (Printf.sprintf "%s/%s-stats.csv" dir func_name) in
-        Printf.fprintf oc "Count,Result\n" ;
-        FunctionStats.dump oc stats ;
-        close_out oc)
-      stats
+  let iter = iter
 end
 
 let init_checker_dir (prefix : string) (name : string) : string =
@@ -196,7 +185,6 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   Printf.printf "Running checker [%s]...\n" M.Checker.name ;
   flush stdout ;
   let checker_dir = init_checker_dir analysis_dir M.Checker.name in
-  let func_stats_dir = init_func_stats_dir checker_dir in
   let stats, _ =
     fold_traces dugraphs_dir slices_json_dir
       (fun (stats, i) (trace : Trace.t) ->
@@ -208,8 +196,19 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   in
   Printf.printf "\nDumping statistics...\n" ;
   flush stdout ;
-  M.dump func_stats_dir stats ;
-  (* Run evaluation on each trace, report bug if found minority *)
+  let func_stats_dir = init_func_stats_dir checker_dir in
+  M.iter
+    (fun func_name stats ->
+      let oc =
+        open_out (Printf.sprintf "%s/%s-stats.csv" func_stats_dir func_name)
+      in
+      Printf.fprintf oc "Count,Result\n" ;
+      M.FunctionStats.iter
+        (fun result count ->
+          Printf.fprintf oc "%d,%s\n" count (M.Checker.to_string result))
+        stats ;
+      close_out oc)
+    stats ;
   Printf.printf "Dumping results and bug reports...\n" ;
   flush stdout ;
   let header = "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n" in
@@ -252,7 +251,10 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
         (bugs, trace.slice_id))
       (IdSet.empty, -1)
   in
-  if !Options.do_label then IdSet.label "alarm" dugraphs_dir bugs ;
+  if !Options.do_label then (
+    Printf.printf "Labeling bugs in-place...\n" ;
+    flush stdout ;
+    IdSet.label dugraphs_dir "alarm" bugs ) ;
   close_out results_oc ;
   close_out bugs_oc ;
   close_out bugs_brief_oc
