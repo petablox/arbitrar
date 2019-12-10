@@ -1,4 +1,4 @@
-type task = All | Slice | Extract | Analyze | DumpLL | CallGraph
+type task = All | Slice | Extract | Filter | Analyze | CallGraph
 
 let task = ref All
 
@@ -13,12 +13,12 @@ let parse_arg arg =
     | "extract" ->
         Options.options := Options.extractor_opts ;
         task := Extract
+    | "filter" ->
+        Options.options := Options.common_opts ;
+        task := Filter
     | "analyze" ->
         Options.options := Options.analyzer_opts ;
         task := Analyze
-    | "dump-ll" ->
-        Options.options := Options.common_opts ;
-        task := DumpLL
     | "call-graph" ->
         Options.options := Options.common_opts ;
         task := CallGraph
@@ -27,14 +27,8 @@ let parse_arg arg =
   else input_file := Utils.get_abs_path arg
 
 let usage =
-  "llexetractor [all | slice | extract | analyze | dump-ll | call-graph] \
+  "llexetractor [all | slice | extract | filter | analyze | call-graph] \
    [OPTIONS] [FILE]"
-
-let dump input_file =
-  let llctx = Llvm.create_context () in
-  let llmem = Llvm.MemoryBuffer.of_file input_file in
-  let llm = Llvm_bitreader.parse_bitcode llctx llmem in
-  Llvm.dump_module llm
 
 let call_graph input_file =
   let llctx = Llvm.create_context () in
@@ -46,19 +40,19 @@ let call_graph input_file =
 
 let main () =
   Arg.parse_dynamic Options.options parse_arg usage ;
+  let outdir = Options.outdir () in
   match !task with
-  | DumpLL ->
-      dump !input_file
   | CallGraph ->
       call_graph !input_file
   | Slice ->
       Slicer.main !input_file
   | Extract ->
       Extractor.main !input_file
+  | Filter ->
+      Filter.main !input_file
   | Analyze ->
       Analyzer.main !input_file
   | All ->
-      Extractor.main !input_file ;
-      Analyzer.main (Options.outdir ())
+      Extractor.main !input_file ; Filter.main outdir ; Analyzer.main outdir
 
 let _ = main ()

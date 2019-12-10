@@ -251,10 +251,9 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
         (bugs, trace.slice_id))
       (IdSet.empty, -1)
   in
-  if !Options.do_label then (
-    Printf.printf "Labeling bugs in-place...\n" ;
-    flush stdout ;
-    IdSet.label dugraphs_dir "alarm" bugs ) ;
+  Printf.printf "Labeling bugs in-place...\n" ;
+  flush stdout ;
+  IdSet.label dugraphs_dir "label_is_alarm" bugs ;
   close_out results_oc ;
   close_out bugs_oc ;
   close_out bugs_brief_oc

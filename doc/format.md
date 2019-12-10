@@ -1,4 +1,5 @@
 # Statement
+
 - Opcode "return"
   - op0: null (void return) or string
 - Opcode "br"
@@ -9,7 +10,7 @@
   - op0: string
   - op1: string
   - result: string
-- Opcode: "alloca", "load", "trunc", "zext", "sext", "fptoui", "fptosi", "uitofp", "sitofp", "fptrunc", "fpext", "ptrtoin", "inttoptr", "bitcast", "getelementptr"
+- Opcode: "alloca", "load", "trunc", "zext", "sext", "fptoui", "fptosi", "uitofp", "sitofp", "fptrunc", "fpext", "ptrtoint", "inttoptr", "bitcast", "getelementptr"
   - op0: string
   - result: string
 - Opcode: "icmp"

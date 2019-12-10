@@ -26,8 +26,8 @@ module Predicate = struct
     | Sle ->
         "sle"
 
-  let of_json json =
-    match Utils.string_from_json json with
+  let of_string str =
+    match str with
     | "eq" ->
         Eq
     | "ne" ->
@@ -51,12 +51,215 @@ module Predicate = struct
     | _ ->
         raise Utils.InvalidJSON
 
+  let of_json json = Utils.string_from_json json |> of_string
+
   let to_json pred = `String (to_string pred)
 end
 
-module SymExpr = struct
-  include Semantics.SymExpr
+module BinOp = struct
+  type t =
+    | Add
+    | FAdd
+    | Sub
+    | FSub
+    | Mul
+    | FMul
+    | UDiv
+    | SDiv
+    | FDiv
+    | URem
+    | SRem
+    | FRem
+    | Shl
+    | LShr
+    | AShr
+    | And
+    | Or
+    | Xor
+
+  let of_string str =
+    match str with
+    | "add" ->
+        Add
+    | "fadd" ->
+        FAdd
+    | "sub" ->
+        Sub
+    | "fsub" ->
+        FSub
+    | "mul" ->
+        Mul
+    | "fmul" ->
+        FMul
+    | "udiv" ->
+        UDiv
+    | "sdiv" ->
+        SDiv
+    | "fdiv" ->
+        FDiv
+    | "urem" ->
+        URem
+    | "srem" ->
+        SRem
+    | "frem" ->
+        FRem
+    | "shl" ->
+        Shl
+    | "lshr" ->
+        LShr
+    | "ashr" ->
+        AShr
+    | "and" ->
+        And
+    | "or" ->
+        Or
+    | "xor" ->
+        Xor
+    | _ ->
+        raise Utils.InvalidJSON
+
+  let is_binary_op str =
+    try
+      let _ = of_string str in
+      true
+    with _ -> false
+
+  let of_json json = Utils.string_from_json json |> of_string
+
+  let to_string = function
+    | Add ->
+        "add"
+    | FAdd ->
+        "fadd"
+    | Sub ->
+        "sub"
+    | FSub ->
+        "fsub"
+    | Mul ->
+        "mul"
+    | FMul ->
+        "fmul"
+    | UDiv ->
+        "udiv"
+    | SDiv ->
+        "sdiv"
+    | FDiv ->
+        "fdiv"
+    | URem ->
+        "urem"
+    | SRem ->
+        "srem"
+    | FRem ->
+        "frem"
+    | Shl ->
+        "shl"
+    | LShr ->
+        "lshr"
+    | AShr ->
+        "ashr"
+    | And ->
+        "and"
+    | Or ->
+        "or"
+    | Xor ->
+        "xor"
+
+  let to_json op = `String (to_string op)
 end
+
+module UnaOp = struct
+  type t =
+    | Alloca
+    | Trunc
+    | Zext
+    | Sext
+    | FpToUI
+    | FpToSI
+    | UIToFp
+    | SITOFp
+    | FpTrunc
+    | FpExt
+    | PtrToInt
+    | IntToPtr
+    | BitCast
+    | GetElementPtr
+
+  let of_string str =
+    match str with
+    | "alloca" ->
+        Alloca
+    | "trunc" ->
+        Trunc
+    | "zext" ->
+        Zext
+    | "sext" ->
+        Sext
+    | "fptoui" ->
+        FpToUI
+    | "fptosi" ->
+        FpToSI
+    | "uitofp" ->
+        UIToFp
+    | "sitofp" ->
+        SITOFp
+    | "fptrunc" ->
+        FpTrunc
+    | "fpext" ->
+        FpExt
+    | "ptrtoint" ->
+        PtrToInt
+    | "inttoptr" ->
+        IntToPtr
+    | "bitcast" ->
+        BitCast
+    | "getelementptr" ->
+        GetElementPtr
+    | _ ->
+        raise Utils.InvalidJSON
+
+  let is_unary_op str =
+    try
+      let _ = of_string str in
+      true
+    with _ -> false
+
+  let of_json json = Utils.string_from_json json |> of_string
+
+  let to_string op =
+    match op with
+    | Alloca ->
+        "alloca"
+    | Trunc ->
+        "trunc"
+    | Zext ->
+        "zext"
+    | Sext ->
+        "sect"
+    | FpToUI ->
+        "fptoui"
+    | FpToSI ->
+        "fptosi"
+    | UIToFp ->
+        "uitofp"
+    | SITOFp ->
+        "sitofp"
+    | FpTrunc ->
+        "fptrunc"
+    | FpExt ->
+        "fpext"
+    | PtrToInt ->
+        "ptrtoint"
+    | IntToPtr ->
+        "inttoptr"
+    | BitCast ->
+        "bitcast"
+    | GetElementPtr ->
+        "getelementptr"
+
+  let to_json op = `String (to_string op)
+end
+
+module SymExpr = Semantics.SymExpr
 
 module Value = struct
   type t =
@@ -82,19 +285,24 @@ module Statement = struct
   type t =
     | Call of {func: string; args: Value.t list; result: Value.t option}
     | Assume of {pred: Predicate.t; op0: Value.t; op1: Value.t; result: Value.t}
+    | Return of Value.t option
+    | Store of {value: Value.t; loc: Value.t}
+    | Load of {loc: Value.t; result: Value.t}
+    | Binary of {op: BinOp.t; op0: Value.t; op1: Value.t; result: Value.t}
+    | Unary of {op: UnaOp.t; op0: Value.t; result: Value.t}
     | Other
 
-  let predicate_from_stmt_json (json : Yojson.Safe.t) : Predicate.t =
+  let predicate_from_stmt_json json : Predicate.t =
     Predicate.of_json (Utils.get_field json "predicate")
 
-  let icmp_from_json (json : Yojson.Safe.t) : t =
+  let icmp_from_json json : t =
     let pred = predicate_from_stmt_json json in
     let op0 = Value.of_json (Utils.get_field json "op0_sem") in
     let op1 = Value.of_json (Utils.get_field json "op1_sem") in
     let result = Value.of_json (Utils.get_field json "result_sem") in
     Assume {pred; op0; op1; result}
 
-  let call_from_json (json : Yojson.Safe.t) : t =
+  let call_from_json json : t =
     let func = Utils.string_from_json_field json "func" in
     let args =
       Utils.list_from_json (Utils.get_field json "args_sem")
@@ -105,7 +313,36 @@ module Statement = struct
     in
     Call {func; args; result}
 
-  let from_json (json : Yojson.Safe.t) : t =
+  let return_from_json json : t =
+    let op0 =
+      Utils.get_field_not_null json "op0_sem" |> Option.map Value.of_json
+    in
+    Return op0
+
+  let store_from_json json : t =
+    let value = Value.of_json (Utils.get_field json "op0_sem") in
+    let loc = Value.of_json (Utils.get_field json "op1_sem") in
+    Store {value; loc}
+
+  let load_from_json json : t =
+    let loc = Value.of_json (Utils.get_field json "op0_sem") in
+    let result = Value.of_json (Utils.get_field json "result_sem") in
+    Load {loc; result}
+
+  let binary_from_json json : t =
+    let op = BinOp.of_json (Utils.get_field json "opcode") in
+    let op0 = Value.of_json (Utils.get_field json "op0_sem") in
+    let op1 = Value.of_json (Utils.get_field json "op1_sem") in
+    let result = Value.of_json (Utils.get_field json "result_sem") in
+    Binary {op; op0; op1; result}
+
+  let unary_from_json json : t =
+    let op = UnaOp.of_json (Utils.get_field json "opcode") in
+    let op0 = Value.of_json (Utils.get_field json "op0_sem") in
+    let result = Value.of_json (Utils.get_field json "result_sem") in
+    Unary {op; op0; result}
+
+  let from_json json : t =
     match Utils.get_field_opt json "opcode" with
     | Some opcode_json -> (
       match Utils.string_from_json opcode_json with
@@ -113,6 +350,16 @@ module Statement = struct
           icmp_from_json json
       | "call" ->
           call_from_json json
+      | "ret" ->
+          return_from_json json
+      | "store" ->
+          store_from_json json
+      | "load" ->
+          load_from_json json
+      | s when BinOp.is_binary_op s ->
+          binary_from_json json
+      | s when UnaOp.is_unary_op s ->
+          unary_from_json json
       | _ ->
           Other )
     | None ->
@@ -177,6 +424,8 @@ module Trace = struct
     ; dugraph: DUGraph.t
     ; target_node: Node.t
     ; call_edge: CallEdge.t }
+
+  let target_func_name t : string = t.call_edge.callee
 
   let nodes_from_json json : Node.t list =
     let json_list = Utils.list_from_json json in
