@@ -43,7 +43,7 @@ let setup_loc_channel outdir =
 let setup_ll_module input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
-  let llm = Llvm_bitreader.parse_bitcode llctx llmem in
+  let llm = Llvm_irreader.parse_ir llctx llmem in
   (llctx, llm)
 
 let slice lc outdir llctx llm : Slicer.Slices.t =

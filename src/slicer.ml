@@ -422,6 +422,6 @@ let slice llctx llm depth : Slices.t =
 let main input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
-  let llm = Llvm_bitreader.parse_bitcode llctx llmem in
+  let llm = Llvm_irreader.parse_ir llctx llmem in
   let slices = slice llctx llm !Options.slice_depth in
   Slices.dump stdout llm slices
