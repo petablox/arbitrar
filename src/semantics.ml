@@ -64,7 +64,7 @@ module SymExpr = struct
   type t =
     | Symbol of Symbol.t
     | Int of Int64.t
-    | Ret of string * t list
+    | Ret of int * string * t list
     | Add of t * t
     | Sub of t * t
     | Mul of t * t
@@ -82,14 +82,14 @@ module SymExpr = struct
 
   let of_int i = Int i
 
-  let of_ret f l = Ret (f, l)
+  let of_ret f id l = Ret (f, id, l)
 
   let rec num_of_symbol = function
     | Symbol _ ->
         1
     | Int _ ->
         0
-    | Ret (_, el) ->
+    | Ret (_, _, el) ->
         List.fold_left (fun sum e -> num_of_symbol e + sum) 0 el
     | Add (e1, e2)
     | Sub (e1, e2)
