@@ -285,7 +285,7 @@ module Value = struct
 
   let rem v1 v2 =
     match (v1, v2) with
-    | Int i1, Int i2 ->
+    | Int i1, Int i2 when i2 <> Int64.zero ->
         Int (Int64.rem i1 i2)
     | SymExpr se1, SymExpr se2 ->
         SymExpr (SymExpr.rem se1 se2)
