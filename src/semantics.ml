@@ -48,6 +48,8 @@ end
 module Symbol = struct
   type t = string [@@deriving yojson]
 
+  let compare = compare
+
   let count = ref 0
 
   let new_symbol () =
@@ -59,6 +61,8 @@ module Symbol = struct
 
   let pp fmt x = F.fprintf fmt "%s" x
 end
+
+module SymbolSet = Set.Make (Symbol)
 
 module SymExpr = struct
   type t =
@@ -88,6 +92,30 @@ module SymExpr = struct
     let ret = Ret (!call_id, f, l) in
     call_id := !call_id + 1 ;
     ret
+
+  let get_used_symbols e =
+    let rec helper res e =
+      match e with
+      | Symbol s ->
+          SymbolSet.add s res
+      | Ret (_, el) ->
+          List.fold_left helper res el
+      | Add (e1, e2)
+      | Sub (e1, e2)
+      | Mul (e1, e2)
+      | Div (e1, e2)
+      | Rem (e1, e2)
+      | Shl (e1, e2)
+      | Lshr (e1, e2)
+      | Ashr (e1, e2)
+      | Band (e1, e2)
+      | Bor (e1, e2)
+      | Bxor (e1, e2) ->
+          helper (helper res e1) e2
+      | _ ->
+          res
+    in
+    helper SymbolSet.empty e
 
   let rec num_of_symbol = function
     | Symbol _ ->

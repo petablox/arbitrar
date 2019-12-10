@@ -13,7 +13,7 @@ all:
 examples: $(EXAMPLE_BC_FILES)
 
 examples/%.bc: examples/%.c
-	$(WLLVM) "$<"
+	$(WLLVM) -c "$<"
 	$(RM) "./a.out" ".$(*F).o"
 	$(MV) ".$(*F).o.bc" "examples/$(*F).bc"
 

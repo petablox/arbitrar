@@ -32,10 +32,10 @@ let init_in_stmt (arg : Value.t) (stmt : Statement.t) : bool =
 let rec arg_initialized dugraph explored fringe arg =
   match NodeSet.choose_opt fringe with
   | Some hd ->
-      if NodeSet.mem hd explored then false
+      let rst = NodeSet.remove hd fringe in
+      if NodeSet.mem hd explored then arg_initialized dugraph explored rst arg
       else if init_in_stmt arg hd.stmt then true
       else
-        let rst = NodeSet.remove hd fringe in
         let explored = NodeSet.add hd explored in
         let predecessors = NodeSet.of_list (DUGraph.pred dugraph hd) in
         let fringe = NodeSet.union predecessors rst in

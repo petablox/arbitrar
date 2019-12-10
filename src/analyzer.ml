@@ -48,9 +48,9 @@ module RetValChecker : CHECKER = struct
                 let is_op0_const = Value.is_const op0 in
                 let is_op1_const = Value.is_const op1 in
                 if is_op0_const && is_op0_const then []
-                else if is_op0_const && op1 = ret then
+                else if is_op0_const && Value.sem_equal op1 ret then
                   [Checked (pred, Value.get_const op0)]
-                else if is_op1_const && op0 = ret then
+                else if is_op1_const && Value.sem_equal op0 ret then
                   [Checked (pred, Value.get_const op1)]
                 else []
             | _ ->
@@ -72,6 +72,55 @@ module RetValChecker : CHECKER = struct
           match results with [] -> [NoCheck] | _ -> results )
       | None ->
           [] )
+    | _ ->
+        []
+end
+
+module ArgRelChecker : CHECKER = struct
+  type t = Relation of int * int | NoRelation
+
+  let name = "argrel_checker"
+
+  let default = NoRelation
+
+  let compare = compare
+
+  let to_string r : string =
+    match r with
+    | Relation (i, j) ->
+        Printf.sprintf "Relation(%d,%d)" i j
+    | NoRelation ->
+        "NoRelation"
+
+  let intersect v1 v2 =
+    match (v1, v2) with
+    | Value.SymExpr e1, Value.SymExpr e2 ->
+        let s1 = SymExpr.get_used_symbols e1 in
+        let s2 = SymExpr.get_used_symbols e2 in
+        let itsct = SymbolSet.inter s1 s2 in
+        SymbolSet.cardinal itsct > 0
+    | _ ->
+        false
+
+  let combinations (ls : 'a list) : (int * 'a * int * 'a) list =
+    List.mapi
+      (fun i1 e1 ->
+        List.mapi
+          (fun i2 e2 -> if i1 <> i2 then Some (i1, e1, i2, e2) else None)
+          ls)
+      ls
+    |> List.flatten
+    |> List.filter_map (fun x -> x)
+
+  let check (trace : Trace.t) : t list =
+    let target_stmt = trace.target_node.stmt in
+    match target_stmt with
+    | Call {args} ->
+        let cart = combinations args in
+        List.filter_map
+          (fun (i1, e1, i2, e2) ->
+            if intersect e1 e2 then Some (Relation (i1, i2)) else None)
+          cart
     | _ ->
         []
 end
@@ -264,9 +313,10 @@ let init_analysis_dir (prefix : string) : string =
   Utils.mkdir analysis_dir ; analysis_dir
 
 module RetValCheckerStats = CheckerStats (RetValChecker)
+module ArgRelCheckerStats = CheckerStats (ArgRelChecker)
 
 let checker_stats_modules : (module CHECKER_STATS) list =
-  [(module RetValCheckerStats)]
+  [(module RetValCheckerStats); (module ArgRelCheckerStats)]
 
 let main (input_directory : string) =
   Printf.printf "Analyzing %s...\n" input_directory ;

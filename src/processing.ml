@@ -261,6 +261,7 @@ module UnaOp = struct
   let to_json op = `String (to_string op)
 end
 
+module SymbolSet = Semantics.SymbolSet
 module SymExpr = Semantics.SymExpr
 
 module Value = struct
@@ -272,11 +273,10 @@ module Value = struct
     | Unknown
   [@@deriving yojson {exn= true}]
 
-  let of_json json =
-    try of_yojson_exn json
-    with _ ->
-      Printf.printf "Error Parsing JSON:\n%s\n" (Yojson.Safe.to_string json) ;
-      raise Utils.InvalidJSON
+  let sem_equal v1 v2 =
+    match (v1, v2) with Unknown, Unknown -> false | _, _ -> v1 = v2
+
+  let of_json = of_yojson_exn
 
   let is_const = function Int _ -> true | _ -> false
 

@@ -594,3 +594,5 @@ let string_list_from_json json : string list =
       raise InvalidJSON
 
 let option_map_default f d m = match m with Some a -> f a | None -> d
+
+let string_of_bool b = if b then "true" else "false"
