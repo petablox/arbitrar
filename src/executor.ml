@@ -201,17 +201,21 @@ let semantic_sig_of_call args =
   let args_json = List.map Value.to_yojson args in
   `Assoc [("args_sem", `List args_json)]
 
-let sem_sig_of_return = function
+let semantic_sig_of_return = function
   | Some v ->
       `Assoc [("op0_sem", Value.to_yojson v)]
   | None ->
       `Assoc [("op0_sem", `Null)]
 
-let sem_sig_of_br = function
+let semantic_sig_of_br = function
   | Some v ->
       `Assoc [("cond_sem", Value.to_yojson v)]
   | None ->
       `Assoc [("cond_sem", `Null)]
+
+let semantic_sig_of_phi ret =
+  let ret_json = Value.to_yojson ret in
+  `Assoc [("return_sem", ret_json)]
 
 let rec execute_function llctx f env state =
   let entry = Llvm.entry_block f in
@@ -240,8 +244,8 @@ and transfer llctx instr env state =
     | Br ->
         transfer_br llctx instr env state
     | Switch ->
-        let sem_sig = `Assoc [] in
-        State.add_trace llctx instr sem_sig state
+        let semantic_sig = `Assoc [] in
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | Call ->
@@ -249,8 +253,8 @@ and transfer llctx instr env state =
     | Alloca ->
         let var = Location.variable instr in
         let addr = Location.new_address () |> Value.location in
-        let sem_sig = semantic_sig_of_unop addr Value.unknown in
-        State.add_trace llctx instr sem_sig state
+        let semantic_sig = semantic_sig_of_unop addr Value.unknown in
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def var addr instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -262,8 +266,8 @@ and transfer llctx instr env state =
         let lv =
           match v1 with Value.Location l -> l | _ -> Location.Unknown
         in
-        let sem_sig = semantic_sig_of_store v0 v1 in
-        State.add_trace llctx instr sem_sig state
+        let semantic_sig = semantic_sig_of_store v0 v1 in
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
         |> State.add_semantic_du_edges (uses0 @ uses1) instr
@@ -277,12 +281,14 @@ and transfer llctx instr env state =
         in
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        let sem_sig = semantic_sig_of_unop v1 v0 in
-        State.add_trace llctx instr sem_sig state
+        let semantic_sig = semantic_sig_of_unop v1 v0 in
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
         |> State.add_semantic_du_edges [lv1] instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
+    | PHI ->
+        transfer_phi llctx instr env state
     | x when Utils.is_binary_op x ->
         transfer_binop llctx instr env state
     | x when Utils.is_unary_op x ->
@@ -290,15 +296,15 @@ and transfer llctx instr env state =
         let exp0 = Llvm.operand instr 0 in
         let v0, uses0 = eval exp0 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        let sem_sig = semantic_sig_of_unop v0 v0 in
-        State.add_trace llctx instr sem_sig state
+        let semantic_sig = semantic_sig_of_unop v0 v0 in
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory lv v0
         |> State.add_semantic_du_edges uses0 instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | x ->
-        let sem_sig = `Assoc [] in
-        State.add_trace llctx instr sem_sig state
+        let semantic_sig = `Assoc [] in
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         (* Note: Maybe expand *)
         |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -309,30 +315,31 @@ and transfer_ret llctx instr env state =
       let lv = eval_lv callsite state.State.memory in
       let exp0 = Llvm.operand instr 0 in
       let v, _ = eval exp0 state.State.memory in
-      let sem_sig = sem_sig_of_return (Some v) in
-      State.add_trace llctx instr sem_sig state
+      let semantic_sig = semantic_sig_of_return (Some v) in
+      State.add_trace llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env
       |> State.add_memory_def lv v instr
       |> execute_instr llctx (Llvm.instr_succ callsite) env
   | None ->
-      let sem_sig =
-        if Llvm.num_operands instr = 0 then sem_sig_of_return None
+      let semantic_sig =
+        if Llvm.num_operands instr = 0 then semantic_sig_of_return None
         else
           let exp0 = Llvm.operand instr 0 in
           let v, _ = eval exp0 state.State.memory in
-          sem_sig_of_return (Some v)
+          semantic_sig_of_return (Some v)
       in
-      State.add_trace llctx instr sem_sig state
+      State.add_trace llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and transfer_br llctx instr env state =
+  let state = {state with State.prev_blk= Some (Llvm.instr_parent instr)} in
   match Llvm.get_branch instr with
   | Some (`Conditional (cond, b1, b2)) ->
       let v, _ = eval cond state.State.memory in
-      let sem_sig = sem_sig_of_br (Some v) in
+      let semantic_sig = semantic_sig_of_br (Some v) in
       let state =
-        State.add_trace llctx instr sem_sig state
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
       let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
@@ -350,9 +357,9 @@ and transfer_br llctx instr env state =
         let state = State.visit_block b1 state in
         execute_block llctx b1 env state
   | Some (`Unconditional b) ->
-      let sem_sig = sem_sig_of_br None in
+      let semantic_sig = semantic_sig_of_br None in
       let state =
-        State.add_trace llctx instr sem_sig state
+        State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
       let visited = BlockSet.mem b state.State.visited_blocks in
@@ -363,6 +370,20 @@ and transfer_br llctx instr env state =
   | _ ->
       prerr_endline "warning: unknown branch" ;
       execute_instr llctx (Llvm.instr_succ instr) env state
+
+and transfer_phi llctx instr env state =
+  let prev_blk = Option.get state.State.prev_blk in
+  let incoming =
+    Llvm.incoming instr |> List.find (fun (v, blk) -> prev_blk == blk) |> fst
+  in
+  let v, uses = eval incoming state.State.memory in
+  let lv = eval_lv instr state.State.memory in
+  let semantic_sig = semantic_sig_of_phi v in
+  State.add_trace llctx instr semantic_sig state
+  |> add_syntactic_du_edge instr env
+  |> State.add_memory lv v
+  |> State.add_semantic_du_edges uses instr
+  |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and transfer_call llctx instr env state =
   let callee_expr = Llvm.operand instr (Llvm.num_operands instr - 1) in
@@ -384,9 +405,9 @@ and transfer_call llctx instr env state =
             (state, args @ [v], uses @ ul, count + 1))
           (state, [], [], 0) f
       in
-      let sem_sig = semantic_sig_of_call args in
+      let semantic_sig = semantic_sig_of_call args in
       State.visit_func callee_expr state
-      |> State.add_trace llctx instr sem_sig
+      |> State.add_trace llctx instr semantic_sig
       |> State.add_semantic_du_edges uses instr
       |> State.push_stack instr
       |> execute_function llctx f env
@@ -404,8 +425,8 @@ and transfer_call llctx instr env state =
         SymExpr.of_ret (Llvm.value_name f) (List.map Value.to_symexpr args)
         |> Value.of_symexpr
       in
-      let sem_sig = semantic_sig_of_libcall (Some v) args in
-      State.add_trace llctx instr sem_sig state
+      let semantic_sig = semantic_sig_of_libcall (Some v) args in
+      State.add_trace llctx instr semantic_sig state
       |> State.add_memory lv v
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -417,8 +438,8 @@ and transfer_call llctx instr env state =
             let arg = Llvm.operand instr i in
             eval arg state.State.memory |> fst)
       in
-      let sem_sig = semantic_sig_of_libcall None args in
-      State.add_trace llctx instr sem_sig state
+      let semantic_sig = semantic_sig_of_libcall None args in
+      State.add_trace llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | exception Not_found ->
@@ -432,8 +453,8 @@ and transfer_binop llctx instr env state =
   let v1, uses1 = eval exp1 state.State.memory in
   let res_lv = eval_lv instr state in
   let res = Value.binary_op (Llvm.instr_opcode instr) v0 v1 in
-  let sem_sig = semantic_sig_of_binop res v0 v1 in
-  State.add_trace llctx instr sem_sig state
+  let semantic_sig = semantic_sig_of_binop res v0 v1 in
+  State.add_trace llctx instr semantic_sig state
   |> State.add_memory res_lv res
   |> add_syntactic_du_edge instr env
   |> State.add_semantic_du_edges (uses0 @ uses1) instr

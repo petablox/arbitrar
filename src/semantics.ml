@@ -589,7 +589,8 @@ module State = struct
     ; dugraph: DUGraph.t
     ; instrmap: Node.t InstrMap.t
     ; target: Llvm.llvalue option
-    ; target_visited: bool }
+    ; target_visited: bool
+    ; prev_blk: Llvm.llbasicblock option }
 
   let empty =
     { stack= Stack.empty
@@ -601,7 +602,8 @@ module State = struct
     ; dugraph= DUGraph.empty
     ; instrmap= InstrMap.empty
     ; target= None
-    ; target_visited= false }
+    ; target_visited= false
+    ; prev_blk= None }
 
   let instr_count = ref (-1)
 
