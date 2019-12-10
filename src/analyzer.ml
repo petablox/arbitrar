@@ -280,25 +280,22 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
             (M.Checker.to_string result)
         in
         Printf.fprintf results_oc "%s" csv_row ;
-        let bugs =
-          if score > !Options.report_threshold then (
-            Printf.fprintf bugs_oc "%s" csv_row ;
-            let bugs =
-              IdSet.add bugs trace.call_edge.callee trace.slice_id
-                trace.trace_id
+        if score > !Options.report_threshold then (
+          Printf.fprintf bugs_oc "%s" csv_row ;
+          let bugs =
+            IdSet.add bugs trace.call_edge.callee trace.slice_id trace.trace_id
+          in
+          if last_slice <> trace.slice_id then (
+            let brief_csv_row =
+              Printf.sprintf "%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
+                trace.entry trace.call_edge.callee trace.call_edge.location
+                score
+                (M.Checker.to_string result)
             in
-            ( if last_slice <> trace.slice_id then
-              let brief_csv_row =
-                Printf.sprintf "%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
-                  trace.entry trace.call_edge.callee trace.call_edge.location
-                  score
-                  (M.Checker.to_string result)
-              in
-              Printf.fprintf bugs_brief_oc "%s" brief_csv_row ) ;
-            bugs )
-          else bugs
-        in
-        (bugs, trace.slice_id))
+            Printf.fprintf bugs_brief_oc "%s" brief_csv_row ;
+            (bugs, trace.slice_id) )
+          else (bugs, last_slice) )
+        else (bugs, last_slice))
       (IdSet.empty, -1)
   in
   Printf.printf "Labeling bugs in-place...\n" ;

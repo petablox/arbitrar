@@ -14,7 +14,7 @@ examples: $(EXAMPLE_BC_FILES)
 
 examples/%.bc: examples/%.c
 	$(WLLVM) -c "$<"
-	$(RM) "./a.out" ".$(*F).o"
+	$(RM) "./a.out" ".$(*F).o" "$(*F).o"
 	$(MV) ".$(*F).o.bc" "examples/$(*F).bc"
 
 format:
