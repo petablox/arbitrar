@@ -272,7 +272,7 @@ module Value = struct
 
   let div v1 v2 =
     match (v1, v2) with
-    | Int i1, Int i2 ->
+    | Int i1, Int i2 when i2 <> Int64.zero ->
         Int (Int64.div i1 i2)
     | SymExpr se1, SymExpr se2 ->
         SymExpr (SymExpr.div se1 se2)
