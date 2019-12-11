@@ -17,7 +17,7 @@ end
 module RetValChecker : CHECKER = struct
   type t = Checked of Predicate.t * int64 | NoCheck
 
-  let name = "retval_checker"
+  let name = "retval-checker"
 
   let default = NoCheck
 
@@ -79,7 +79,7 @@ end
 module ArgRelChecker : CHECKER = struct
   type t = Relation of int * int | NoRelation
 
-  let name = "argrel_checker"
+  let name = "argrel-checker"
 
   let default = NoRelation
 
@@ -92,13 +92,22 @@ module ArgRelChecker : CHECKER = struct
     | NoRelation ->
         "NoRelation"
 
+  let has_intersect_symbols e1 e2 =
+    let s1 = SymExpr.get_used_symbols e1 in
+    let s2 = SymExpr.get_used_symbols e2 in
+    let itsct = SymbolSet.inter s1 s2 in
+    SymbolSet.cardinal itsct > 0
+
+  let has_intersect_rets e1 e2 =
+    let s1 = SymExpr.get_used_ret_ids e1 in
+    let s2 = SymExpr.get_used_ret_ids e2 in
+    let itsct = RetIdSet.inter s1 s2 in
+    RetIdSet.cardinal itsct > 0
+
   let intersect v1 v2 =
     match (v1, v2) with
     | Value.SymExpr e1, Value.SymExpr e2 ->
-        let s1 = SymExpr.get_used_symbols e1 in
-        let s2 = SymExpr.get_used_symbols e2 in
-        let itsct = SymbolSet.inter s1 s2 in
-        SymbolSet.cardinal itsct > 0
+        has_intersect_rets e1 e2 || has_intersect_symbols e1 e2
     | _ ->
         false
 
@@ -300,7 +309,8 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   in
   Printf.printf "Labeling bugs in-place...\n" ;
   flush stdout ;
-  IdSet.label dugraphs_dir "alarm" bugs ;
+  let label = M.Checker.name ^ "-alarm" in
+  IdSet.label dugraphs_dir label bugs ;
   close_out results_oc ;
   close_out bugs_oc ;
   close_out bugs_brief_oc

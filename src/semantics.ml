@@ -63,6 +63,7 @@ module Symbol = struct
 end
 
 module SymbolSet = Set.Make (Symbol)
+module RetIdSet = Set.Make (Int)
 
 module SymExpr = struct
   type t =
@@ -116,6 +117,28 @@ module SymExpr = struct
           res
     in
     helper SymbolSet.empty e
+
+  let get_used_ret_ids e =
+    let rec helper res e =
+      match e with
+      | Ret (id, _, el) ->
+          List.fold_left helper (RetIdSet.add id res) el
+      | Add (e1, e2)
+      | Sub (e1, e2)
+      | Mul (e1, e2)
+      | Div (e1, e2)
+      | Rem (e1, e2)
+      | Shl (e1, e2)
+      | Lshr (e1, e2)
+      | Ashr (e1, e2)
+      | Band (e1, e2)
+      | Bor (e1, e2)
+      | Bxor (e1, e2) ->
+          helper (helper res e1) e2
+      | _ ->
+          res
+    in
+    helper RetIdSet.empty e
 
   let rec num_of_symbol = function
     | Symbol _ ->

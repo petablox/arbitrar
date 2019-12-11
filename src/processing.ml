@@ -168,6 +168,7 @@ module BinOp = struct
 end
 
 module SymbolSet = Semantics.SymbolSet
+module RetIdSet = Semantics.RetIdSet
 module SymExpr = Semantics.SymExpr
 
 module Value = struct
@@ -462,8 +463,9 @@ module IdSet = struct
         let trace_json_list =
           List.mapi
             (fun trace_id trace_json ->
-              if TraceIdSet.mem trace_id trace_ids then
-                label_trace_json trace_json label
+              if TraceIdSet.mem trace_id trace_ids then (
+                Printf.printf "Marking slice %d, trace %d\n" slice_id trace_id ;
+                label_trace_json trace_json label )
               else trace_json)
             (Utils.list_from_json dugraph_json)
         in

@@ -4,24 +4,26 @@ open Processing
 let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
   match stmt with
   | Call {args} ->
-      List.find_opt (Value.sem_equal ret) args |> Option.is_some
+      List.find_opt (( = ) ret) args |> Option.is_some
   | Assume {op0; op1} ->
-      Value.sem_equal op0 ret || Value.sem_equal op1 ret
+      op0 = ret || op1 = ret
   | Binary {op0; op1} ->
-      Value.sem_equal op0 ret || Value.sem_equal op1 ret
+      op0 = ret || op1 = ret
+  | Store {loc; value} ->
+      loc = ret || value = ret
   | _ ->
       false
 
 let initialized_in_stmt (arg : Value.t) (stmt : Statement.t) : bool =
   match stmt with
   | Call {result= Some res} ->
-      Value.sem_equal arg res
+      arg = res
   | Assume {result} ->
-      Value.sem_equal arg result
+      arg = result
   | Load {result} ->
-      Value.sem_equal arg result
+      arg = result
   | Binary {result} ->
-      Value.sem_equal arg result
+      arg = result
   | _ ->
       false
 
