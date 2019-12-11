@@ -167,100 +167,6 @@ module BinOp = struct
   let to_json op = `String (to_string op)
 end
 
-module UnaOp = struct
-  type t =
-    | Alloca
-    | Trunc
-    | Zext
-    | Sext
-    | FpToUI
-    | FpToSI
-    | UIToFp
-    | SITOFp
-    | FpTrunc
-    | FpExt
-    | PtrToInt
-    | IntToPtr
-
-  (* | BitCast *)
-  (* | GetElementPtr *)
-
-  let of_string str =
-    match str with
-    | "alloca" ->
-        Alloca
-    | "trunc" ->
-        Trunc
-    | "zext" ->
-        Zext
-    | "sext" ->
-        Sext
-    | "fptoui" ->
-        FpToUI
-    | "fptosi" ->
-        FpToSI
-    | "uitofp" ->
-        UIToFp
-    | "sitofp" ->
-        SITOFp
-    | "fptrunc" ->
-        FpTrunc
-    | "fpext" ->
-        FpExt
-    | "ptrtoint" ->
-        PtrToInt
-    | "inttoptr" ->
-        IntToPtr
-    (* | "bitcast" ->
-        BitCast *)
-    (* | "getelementptr" ->
-        GetElementPtr *)
-    | _ ->
-        raise Utils.InvalidJSON
-
-  let is_unary_op str =
-    try
-      let _ = of_string str in
-      true
-    with _ -> false
-
-  let of_json json = Utils.string_from_json json |> of_string
-
-  let to_string op =
-    match op with
-    | Alloca ->
-        "alloca"
-    | Trunc ->
-        "trunc"
-    | Zext ->
-        "zext"
-    | Sext ->
-        "sect"
-    | FpToUI ->
-        "fptoui"
-    | FpToSI ->
-        "fptosi"
-    | UIToFp ->
-        "uitofp"
-    | SITOFp ->
-        "sitofp"
-    | FpTrunc ->
-        "fptrunc"
-    | FpExt ->
-        "fpext"
-    | PtrToInt ->
-        "ptrtoint"
-    | IntToPtr ->
-        "inttoptr"
-
-  (* | BitCast ->
-        "bitcast" *)
-  (* | GetElementPtr ->
-        "getelementptr" *)
-
-  let to_json op = `String (to_string op)
-end
-
 module SymbolSet = Semantics.SymbolSet
 module SymExpr = Semantics.SymExpr
 
@@ -291,7 +197,6 @@ module Statement = struct
     | Store of {value: Value.t; loc: Value.t}
     | Load of {loc: Value.t; result: Value.t}
     | Binary of {op: BinOp.t; op0: Value.t; op1: Value.t; result: Value.t}
-    | Unary of {op: UnaOp.t; op0: Value.t; result: Value.t}
     | Other
 
   let predicate_from_stmt_json json : Predicate.t =
@@ -338,51 +243,22 @@ module Statement = struct
     let result = Value.of_json (Utils.get_field json "result_sem") in
     Binary {op; op0; op1; result}
 
-  let unary_from_json json : t =
-    let op = UnaOp.of_json (Utils.get_field json "opcode") in
-    let op0 = Value.of_json (Utils.get_field json "op0_sem") in
-    let result = Value.of_json (Utils.get_field json "result_sem") in
-    Unary {op; op0; result}
-
   let from_json json : t =
     match Utils.get_field_opt json "opcode" with
     | Some opcode_json -> (
       match Utils.string_from_json opcode_json with
-      | "icmp" -> (
-        try icmp_from_json json
-        with _ ->
-          Printf.printf "ICMP ERROR\n" ;
-          raise Utils.NotImplemented )
-      | "call" -> (
-        try call_from_json json
-        with _ ->
-          Printf.printf "CALL ERROR\n" ;
-          raise Utils.NotImplemented )
-      | "ret" -> (
-        try return_from_json json
-        with _ ->
-          Printf.printf "RET ERROR\n" ;
-          raise Utils.NotImplemented )
-      | "store" -> (
-        try store_from_json json
-        with _ ->
-          Printf.printf "STORE ERROR\n" ;
-          raise Utils.NotImplemented )
-      | "load" -> (
-        try load_from_json json
-        with _ ->
-          Printf.printf "LOAD ERROR\n" ;
-          raise Utils.NotImplemented )
-      | s when BinOp.is_binary_op s -> (
-        try binary_from_json json
-        with _ ->
-          Printf.printf "BINARY ERROR\n" ;
-          raise Utils.NotImplemented )
-      | s when UnaOp.is_unary_op s -> (
-        try unary_from_json json
-        with _ ->
-          Printf.printf "UNARY ERROR\n" ;
-          raise Utils.NotImplemented )
+      | "icmp" ->
+          icmp_from_json json
+      | "call" ->
+          call_from_json json
+      | "ret" ->
+          return_from_json json
+      | "store" ->
+          store_from_json json
+      | "load" ->
+          load_from_json json
+      | s when BinOp.is_binary_op s ->
+          binary_from_json json
       | _ ->
           Other )
     | None ->

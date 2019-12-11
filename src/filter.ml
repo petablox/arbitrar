@@ -4,28 +4,24 @@ open Processing
 let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
   match stmt with
   | Call {args} ->
-      List.find_opt (( = ) ret) args |> Option.is_some
+      List.find_opt (Value.sem_equal ret) args |> Option.is_some
   | Assume {op0; op1} ->
-      op0 = ret || op1 = ret
+      Value.sem_equal op0 ret || Value.sem_equal op1 ret
   | Binary {op0; op1} ->
-      op0 = ret || op1 = ret
-  | Unary {op0} ->
-      op0 = ret
+      Value.sem_equal op0 ret || Value.sem_equal op1 ret
   | _ ->
       false
 
-let init_in_stmt (arg : Value.t) (stmt : Statement.t) : bool =
+let initialized_in_stmt (arg : Value.t) (stmt : Statement.t) : bool =
   match stmt with
   | Call {result= Some res} ->
-      arg = res
+      Value.sem_equal arg res
   | Assume {result} ->
-      arg = result
+      Value.sem_equal arg result
   | Load {result} ->
-      arg = result
+      Value.sem_equal arg result
   | Binary {result} ->
-      arg = result
-  | Unary {result} ->
-      arg = result
+      Value.sem_equal arg result
   | _ ->
       false
 
@@ -34,7 +30,7 @@ let rec arg_initialized dugraph explored fringe arg =
   | Some hd ->
       let rst = NodeSet.remove hd fringe in
       if NodeSet.mem hd explored then arg_initialized dugraph explored rst arg
-      else if init_in_stmt arg hd.stmt then true
+      else if initialized_in_stmt arg hd.stmt then true
       else
         let explored = NodeSet.add hd explored in
         let predecessors = NodeSet.of_list (DUGraph.pred dugraph hd) in
@@ -78,14 +74,14 @@ let result_used (trace : Trace.t) : bool =
   | Call {result} -> (
     match result with
     | Some ret ->
-        result_used_helper ret trace.dugraph NodeSet.empty
-          (NodeSet.singleton trace.target_node)
+        let sgt_target = NodeSet.singleton trace.target_node in
+        result_used_helper ret trace.dugraph NodeSet.empty sgt_target
     | None ->
         false )
   | _ ->
       false
 
-let filter (trace : Trace.t) : bool =
+let has_context (trace : Trace.t) : bool =
   args_initialized trace || result_used trace
 
 let do_filter_and_label input_directory =
@@ -98,7 +94,7 @@ let do_filter_and_label input_directory =
   let bugs =
     fold_traces dugraphs_dir slices_json_dir
       (fun acc trace ->
-        let keep = filter trace in
+        let keep = has_context trace in
         if not keep then
           IdSet.add acc
             (Trace.target_func_name trace)
@@ -108,7 +104,7 @@ let do_filter_and_label input_directory =
   in
   Printf.printf "Labeling filter result...\n" ;
   flush stdout ;
-  IdSet.label dugraphs_dir "undersized" bugs
+  IdSet.label dugraphs_dir "no-context" bugs
 
 let main input_directory : unit =
   if not !Options.no_filter then do_filter_and_label input_directory

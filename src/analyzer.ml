@@ -234,7 +234,7 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
   Printf.printf "Running checker [%s]...\n" M.Checker.name ;
   flush stdout ;
   let checker_dir = init_checker_dir analysis_dir M.Checker.name in
-  let filter trace = not (Trace.has_label "undersized" trace) in
+  let filter trace = not (Trace.has_label "no-context" trace) in
   let stats, _ =
     fold_traces_with_filter dugraphs_dir slices_json_dir filter
       (fun (stats, i) (trace : Trace.t) ->
