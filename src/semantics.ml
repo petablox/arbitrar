@@ -98,7 +98,7 @@ module SymExpr = struct
       match e with
       | Symbol s ->
           SymbolSet.add s res
-      | Ret (_, el) ->
+      | Ret (_, _, el) ->
           List.fold_left helper res el
       | Add (e1, e2)
       | Sub (e1, e2)
