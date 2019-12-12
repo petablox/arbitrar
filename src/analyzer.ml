@@ -262,16 +262,15 @@ let needs_run_checker checker_name : bool =
   if String.equal !Options.checker "all" then true
   else String.equal checker_name !Options.checker
 
-let run_one_checker dugraphs_dir slices_json_dir analysis_dir
-    checker_stats_module =
-  let module M = (val checker_stats_module : CHECKER_STATS) in
+let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
+  let module M = (val cs_mod : CHECKER_STATS) in
   if needs_run_checker M.Checker.name then (
     Printf.printf "Running checker [%s]...\n" M.Checker.name ;
     flush stdout ;
-    let checker_dir = init_checker_dir analysis_dir M.Checker.name in
+    let checker_dir = init_checker_dir ana_dir M.Checker.name in
     let filter trace = not (Trace.has_label "no-context" trace) in
     let stats, _ =
-      fold_traces_with_filter dugraphs_dir slices_json_dir filter
+      fold_traces_with_filter dug_dir slcs_dir filter
         (fun (stats, i) (trace : Trace.t) ->
           Printf.printf "%d traces loaded\r" (i + 1) ;
           flush stdout ;
@@ -305,7 +304,7 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
     let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
     Printf.fprintf bugs_brief_oc "%s" brief_header ;
     let bugs, _ =
-      fold_traces_with_filter dugraphs_dir slices_json_dir filter
+      fold_traces_with_filter dug_dir slcs_dir filter
         (fun (bugs, last_slice) trace ->
           let result, score = M.eval stats trace in
           let csv_row =
@@ -337,7 +336,7 @@ let run_one_checker dugraphs_dir slices_json_dir analysis_dir
     Printf.printf "Labeling bugs in-place...\n" ;
     flush stdout ;
     let label = M.Checker.name ^ "-alarm" in
-    IdSet.label dugraphs_dir label bugs ;
+    IdSet.label dug_dir label bugs ;
     close_out results_oc ;
     close_out bugs_oc ;
     close_out bugs_brief_oc )
