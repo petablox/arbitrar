@@ -266,7 +266,7 @@ and transfer llctx instr env state =
         let lv =
           match v1 with Value.Location l -> l | _ -> Location.new_address ()
         in
-        let semantic_sig = semantic_sig_of_store v0 v1 in
+        let semantic_sig = semantic_sig_of_store v0 (Value.location lv) in
         State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
@@ -281,7 +281,7 @@ and transfer llctx instr env state =
         in
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        let semantic_sig = semantic_sig_of_unop v1 v0 in
+        let semantic_sig = semantic_sig_of_unop v1 (Value.location lv1) in
         State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
