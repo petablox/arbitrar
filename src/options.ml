@@ -50,6 +50,8 @@ let output_trace = ref false
 (* Analyzer Options *)
 let report_threshold = ref 0.9
 
+let checker = ref "all"
+
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
   ; ("-verbose", Arg.Set_int verbose, "Verbose")
@@ -95,7 +97,9 @@ let analyzer_opts_local =
   [ ( "-thres"
     , Arg.Set_float report_threshold
     , "Score threshold for reporting bugs" )
-  ; ("-fn", Arg.Set_string target_function_name, "Target function name") ]
+  ; ( "-checker"
+    , Arg.Set_string checker
+    , "The checker to run. e.g. argrel, retval" ) ]
 
 let slicer_opts = common_opts_local @ slicer_opts_local
 

@@ -17,7 +17,7 @@ end
 module RetValChecker : CHECKER = struct
   type t = Checked of Predicate.t * int64 | NoCheck
 
-  let name = "retval-checker"
+  let name = "retval"
 
   let default = NoCheck
 
@@ -77,9 +77,25 @@ module RetValChecker : CHECKER = struct
 end
 
 module ArgRelChecker : CHECKER = struct
+  (**
+   * When there's a relation, the `int` means the index of the argument.
+   * e.g.
+   *
+   *   [sum(a, b, c)]
+   *
+   * When there's a relation between `a` and `c`, we have a relation
+   *
+   *   Relation (0, 2)
+   *
+   * Otherwise there's no relation. When a function only takes in a single
+   * argument, it's trivial that the arguments has no relation.
+   *
+   * There is a relation between two arguments when the two arguments
+   * has some symbols or function call results in common.
+   *)
   type t = Relation of int * int | NoRelation
 
-  let name = "argrel-checker"
+  let name = "argrel"
 
   let default = NoRelation
 
@@ -124,12 +140,15 @@ module ArgRelChecker : CHECKER = struct
   let check (trace : Trace.t) : t list =
     let target_stmt = trace.target_node.stmt in
     match target_stmt with
-    | Call {args} ->
+    | Call {args} -> (
         let cart = combinations args in
-        List.filter_map
-          (fun (i1, e1, i2, e2) ->
-            if intersect e1 e2 then Some (Relation (i1, i2)) else None)
-          cart
+        let results =
+          List.filter_map
+            (fun (i1, e1, i2, e2) ->
+              if intersect e1 e2 then Some (Relation (i1, i2)) else None)
+            cart
+        in
+        match results with [] -> [NoRelation] | _ -> results )
     | _ ->
         []
 end
@@ -190,8 +209,10 @@ module CheckerStats (C : CHECKER) : CHECKER_STATS = struct
       {map; total}
 
     let eval stats result =
-      let count = ResultCountMap.find result stats.map in
-      1.0 -. (float_of_int count /. float_of_int stats.total)
+      if stats.total = 0 then 0.0
+      else
+        let count = ResultCountMap.find result stats.map in
+        1.0 -. (float_of_int count /. float_of_int stats.total)
 
     let iter f stats = ResultCountMap.iter f stats.map
   end
@@ -237,83 +258,89 @@ let init_func_stats_dir (prefix : string) : string =
   let dir = prefix ^ "/functions" in
   Utils.mkdir dir ; dir
 
+let needs_run_checker checker_name : bool =
+  if String.equal !Options.checker "all" then true
+  else String.equal checker_name !Options.checker
+
 let run_one_checker dugraphs_dir slices_json_dir analysis_dir
     checker_stats_module =
   let module M = (val checker_stats_module : CHECKER_STATS) in
-  Printf.printf "Running checker [%s]...\n" M.Checker.name ;
-  flush stdout ;
-  let checker_dir = init_checker_dir analysis_dir M.Checker.name in
-  let filter trace = not (Trace.has_label "no-context" trace) in
-  let stats, _ =
-    fold_traces_with_filter dugraphs_dir slices_json_dir filter
-      (fun (stats, i) (trace : Trace.t) ->
-        Printf.printf "%d traces loaded\r" (i + 1) ;
-        flush stdout ;
-        let new_stats = M.add_trace stats trace in
-        (new_stats, i + 1))
-      (M.empty, 0)
-  in
-  Printf.printf "\nDumping statistics...\n" ;
-  flush stdout ;
-  let func_stats_dir = init_func_stats_dir checker_dir in
-  M.iter
-    (fun func_name stats ->
-      let oc =
-        open_out (Printf.sprintf "%s/%s-stats.csv" func_stats_dir func_name)
-      in
-      Printf.fprintf oc "Count,Result\n" ;
-      M.FunctionStats.iter
-        (fun result count ->
-          Printf.fprintf oc "%d,%s\n" count (M.Checker.to_string result))
-        stats ;
-      close_out oc)
-    stats ;
-  Printf.printf "Dumping results and bug reports...\n" ;
-  flush stdout ;
-  let header = "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n" in
-  let brief_header = "Slice Id,Entry,Function,Location,Score,Result\n" in
-  let results_oc = open_out (checker_dir ^ "/results.csv") in
-  Printf.fprintf results_oc "%s" header ;
-  let bugs_oc = open_out (checker_dir ^ "/bugs.csv") in
-  Printf.fprintf bugs_oc "%s" header ;
-  let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
-  Printf.fprintf bugs_brief_oc "%s" brief_header ;
-  let bugs, _ =
-    fold_traces_with_filter dugraphs_dir slices_json_dir filter
-      (fun (bugs, last_slice) trace ->
-        let result, score = M.eval stats trace in
-        let csv_row =
-          Printf.sprintf "%d,%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
-            trace.trace_id trace.entry trace.call_edge.callee
-            trace.call_edge.location score
-            (M.Checker.to_string result)
+  if needs_run_checker M.Checker.name then (
+    Printf.printf "Running checker [%s]...\n" M.Checker.name ;
+    flush stdout ;
+    let checker_dir = init_checker_dir analysis_dir M.Checker.name in
+    let filter trace = not (Trace.has_label "no-context" trace) in
+    let stats, _ =
+      fold_traces_with_filter dugraphs_dir slices_json_dir filter
+        (fun (stats, i) (trace : Trace.t) ->
+          Printf.printf "%d traces loaded\r" (i + 1) ;
+          flush stdout ;
+          let new_stats = M.add_trace stats trace in
+          (new_stats, i + 1))
+        (M.empty, 0)
+    in
+    Printf.printf "\nDumping statistics...\n" ;
+    flush stdout ;
+    let func_stats_dir = init_func_stats_dir checker_dir in
+    M.iter
+      (fun func_name stats ->
+        let oc =
+          open_out (Printf.sprintf "%s/%s-stats.csv" func_stats_dir func_name)
         in
-        Printf.fprintf results_oc "%s" csv_row ;
-        if score > !Options.report_threshold then (
-          Printf.fprintf bugs_oc "%s" csv_row ;
-          let bugs =
-            IdSet.add bugs trace.call_edge.callee trace.slice_id trace.trace_id
+        Printf.fprintf oc "Count,Result\n" ;
+        M.FunctionStats.iter
+          (fun result count ->
+            Printf.fprintf oc "%d,%s\n" count (M.Checker.to_string result))
+          stats ;
+        close_out oc)
+      stats ;
+    Printf.printf "Dumping results and bug reports...\n" ;
+    flush stdout ;
+    let header = "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n" in
+    let brief_header = "Slice Id,Entry,Function,Location,Score,Result\n" in
+    let results_oc = open_out (checker_dir ^ "/results.csv") in
+    Printf.fprintf results_oc "%s" header ;
+    let bugs_oc = open_out (checker_dir ^ "/bugs.csv") in
+    Printf.fprintf bugs_oc "%s" header ;
+    let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
+    Printf.fprintf bugs_brief_oc "%s" brief_header ;
+    let bugs, _ =
+      fold_traces_with_filter dugraphs_dir slices_json_dir filter
+        (fun (bugs, last_slice) trace ->
+          let result, score = M.eval stats trace in
+          let csv_row =
+            Printf.sprintf "%d,%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
+              trace.trace_id trace.entry trace.call_edge.callee
+              trace.call_edge.location score
+              (M.Checker.to_string result)
           in
-          if last_slice <> trace.slice_id then (
-            let brief_csv_row =
-              Printf.sprintf "%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
-                trace.entry trace.call_edge.callee trace.call_edge.location
-                score
-                (M.Checker.to_string result)
+          Printf.fprintf results_oc "%s" csv_row ;
+          if score > !Options.report_threshold then (
+            Printf.fprintf bugs_oc "%s" csv_row ;
+            let bugs =
+              IdSet.add bugs trace.call_edge.callee trace.slice_id
+                trace.trace_id
             in
-            Printf.fprintf bugs_brief_oc "%s" brief_csv_row ;
-            (bugs, trace.slice_id) )
-          else (bugs, last_slice) )
-        else (bugs, last_slice))
-      (IdSet.empty, -1)
-  in
-  Printf.printf "Labeling bugs in-place...\n" ;
-  flush stdout ;
-  let label = M.Checker.name ^ "-alarm" in
-  IdSet.label dugraphs_dir label bugs ;
-  close_out results_oc ;
-  close_out bugs_oc ;
-  close_out bugs_brief_oc
+            if last_slice <> trace.slice_id then (
+              let brief_csv_row =
+                Printf.sprintf "%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
+                  trace.entry trace.call_edge.callee trace.call_edge.location
+                  score
+                  (M.Checker.to_string result)
+              in
+              Printf.fprintf bugs_brief_oc "%s" brief_csv_row ;
+              (bugs, trace.slice_id) )
+            else (bugs, last_slice) )
+          else (bugs, last_slice))
+        (IdSet.empty, -1)
+    in
+    Printf.printf "Labeling bugs in-place...\n" ;
+    flush stdout ;
+    let label = M.Checker.name ^ "-alarm" in
+    IdSet.label dugraphs_dir label bugs ;
+    close_out results_oc ;
+    close_out bugs_oc ;
+    close_out bugs_brief_oc )
 
 let init_analysis_dir (prefix : string) : string =
   let analysis_dir = prefix ^ "/analysis" in
