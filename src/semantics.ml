@@ -221,11 +221,14 @@ module Location = struct
     | Address of int
     | Variable of Llvm.llvalue
     | Symbol of Symbol.t
+    | Gep of t
     | Unknown
 
   let compare = compare
 
   let variable v = Variable v
+
+  let gep_of l = Gep l
 
   let unknown = Unknown
 
@@ -237,17 +240,7 @@ module Location = struct
 
   let new_symbol () = Symbol (Symbol.new_symbol ())
 
-  let to_yojson = function
-    | Address a ->
-        `String ("&" ^ string_of_int a)
-    | Variable l ->
-        `String (Utils.string_of_exp l)
-    | Symbol s ->
-        `String (Symbol.to_string s)
-    | Unknown ->
-        `String "$unknown"
-
-  let pp fmt = function
+  let rec pp fmt = function
     | Address a ->
         F.fprintf fmt "&%d" a
     | Variable v ->
@@ -256,10 +249,24 @@ module Location = struct
         else F.fprintf fmt "%s" name
     | Symbol s ->
         Symbol.pp fmt s
+    | Gep l ->
+        F.fprintf fmt "Gep(%a)" pp l
     | Unknown ->
         F.fprintf fmt "Unknown"
 
   let to_string x = pp F.str_formatter x ; F.flush_str_formatter ()
+
+  let to_yojson = function
+    | Address a ->
+        `String ("&" ^ string_of_int a)
+    | Variable l ->
+        `String (Utils.string_of_exp l)
+    | Symbol s ->
+        `String (Symbol.to_string s)
+    | Gep l ->
+        `String (to_string l)
+    | Unknown ->
+        `String "$unknown"
 end
 
 module Function = struct
