@@ -176,8 +176,8 @@ let string_of_exp exp =
       Llvm.value_name exp
   | UndefValue ->
       "undef"
-  | Instruction i when is_assignment i ->
-      string_of_lhs exp
+  | Instruction i when is_assignment i -> (
+    try string_of_lhs exp with _ -> string_of_instr exp )
   | Instruction _ ->
       string_of_instr exp
 

@@ -213,6 +213,11 @@ let semantic_sig_of_br = function
   | None ->
       `Assoc [("cond_sem", `Null)]
 
+let semantic_sig_of_gep result op0 =
+  let result_json = Value.to_yojson result in
+  let op0_json = Value.to_yojson op0 in
+  `Assoc [("result_sem", result_json); ("op0_sem", op0_json)]
+
 let semantic_sig_of_phi ret =
   let ret_json = Value.to_yojson ret in
   `Assoc [("return_sem", ret_json)]
@@ -263,8 +268,16 @@ and transfer llctx instr env state =
         let exp1 = Llvm.operand instr 1 in
         let v0, uses0 = eval exp0 state.State.memory in
         let v1, uses1 = eval exp1 state.State.memory in
-        let lv =
-          match v1 with Value.Location l -> l | _ -> Location.new_address ()
+        let lv, state =
+          match v1 with
+          | Value.Location l ->
+              (l, state)
+          | _ ->
+              let l = Location.new_symbol () in
+              ( l
+              , State.add_memory
+                  (eval_lv exp1 state.State.memory)
+                  (Value.location l) state )
         in
         let semantic_sig = semantic_sig_of_store v0 (Value.location lv) in
         State.add_trace llctx instr semantic_sig state
@@ -276,8 +289,13 @@ and transfer llctx instr env state =
         let exp0 = Llvm.operand instr 0 in
         let lv0 = eval_lv exp0 state.State.memory in
         let v0 = Memory.find lv0 state.State.memory in
-        let lv1 =
-          match v0 with Value.Location l -> l | _ -> Location.new_address ()
+        let lv1, state =
+          match v0 with
+          | Value.Location l ->
+              (l, state)
+          | _ ->
+              let l = Location.new_symbol () in
+              (l, State.add_memory lv0 (Value.location l) state)
         in
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
@@ -297,6 +315,16 @@ and transfer llctx instr env state =
         let v0, uses0 = eval exp0 state.State.memory in
         let lv = eval_lv instr state.State.memory in
         let semantic_sig = semantic_sig_of_unop v0 v0 in
+        State.add_trace llctx instr semantic_sig state
+        |> add_syntactic_du_edge instr env
+        |> State.add_memory lv v0
+        |> State.add_semantic_du_edges uses0 instr
+        |> execute_instr llctx (Llvm.instr_succ instr) env
+    | GetElementPtr ->
+        let exp0 = Llvm.operand instr 0 in
+        let v0, uses0 = eval exp0 state.State.memory in
+        let lv = eval_lv instr state.State.memory in
+        let semantic_sig = semantic_sig_of_gep v0 v0 in
         State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory lv v0

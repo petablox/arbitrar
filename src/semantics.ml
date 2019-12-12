@@ -235,6 +235,8 @@ module Location = struct
     count := !count + 1 ;
     Address !count
 
+  let new_symbol () = Symbol (Symbol.new_symbol ())
+
   let to_yojson = function
     | Address a ->
         `String ("&" ^ string_of_int a)
@@ -256,6 +258,8 @@ module Location = struct
         Symbol.pp fmt s
     | Unknown ->
         F.fprintf fmt "Unknown"
+
+  let to_string x = pp F.str_formatter x ; F.flush_str_formatter ()
 end
 
 module Function = struct
