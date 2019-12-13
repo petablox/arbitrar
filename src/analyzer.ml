@@ -31,16 +31,16 @@ module RetValChecker : CHECKER = struct
     | NoCheck ->
         "NoCheck"
 
-  let rec check_helper dugraph ret explored fringe result =
+  let rec check_helper cfgraph ret explored fringe result =
     match NodeSet.choose_opt fringe with
     | Some hd ->
         let rst = NodeSet.remove hd fringe in
         if NodeSet.mem hd explored then
-          check_helper dugraph ret explored rst result
+          check_helper cfgraph ret explored rst result
         else
           let new_explored = NodeSet.add hd explored in
           let new_fringe =
-            NodeSet.union (NodeSet.of_list (DUGraph.succ dugraph hd)) rst
+            NodeSet.union (NodeSet.of_list (NodeGraph.succ cfgraph hd)) rst
           in
           let new_result =
             match hd.stmt with
@@ -56,7 +56,7 @@ module RetValChecker : CHECKER = struct
             | _ ->
                 []
           in
-          check_helper dugraph ret new_explored new_fringe (new_result @ result)
+          check_helper cfgraph ret new_explored new_fringe (new_result @ result)
     | None ->
         result
 
@@ -67,7 +67,7 @@ module RetValChecker : CHECKER = struct
       | Some ret -> (
           let targets = NodeSet.singleton trace.target_node in
           let results =
-            check_helper trace.dugraph ret NodeSet.empty targets []
+            check_helper trace.cfgraph ret NodeSet.empty targets []
           in
           match results with [] -> [NoCheck] | _ -> results )
       | None ->

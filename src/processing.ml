@@ -171,12 +171,22 @@ module SymbolSet = Semantics.SymbolSet
 module RetIdSet = Semantics.RetIdSet
 module SymExpr = Semantics.SymExpr
 
+module Location = struct
+  type t =
+    | Address of string
+    | Variable of string
+    | SymExpr of SymExpr.t
+    | Gep of t
+    | Unknown
+  [@@deriving yojson {exn= true}]
+end
+
 module Value = struct
   type t =
     | Function of string
     | SymExpr of SymExpr.t
     | Int of Int64.t
-    | Location of string
+    | Location of Location.t
     | Unknown
   [@@deriving yojson {exn= true}]
 
@@ -298,7 +308,7 @@ end
 
 module NodeSet = Set.Make (Node)
 
-module DUGraph = struct
+module NodeGraph = struct
   include Graph.Persistent.Digraph.ConcreteBidirectional (Node)
 
   type edge = int * int
@@ -329,7 +339,8 @@ module Trace = struct
     { slice_id: int
     ; trace_id: int
     ; entry: string
-    ; dugraph: DUGraph.t
+    ; dugraph: NodeGraph.t
+    ; cfgraph: NodeGraph.t
     ; target_node: Node.t
     ; call_edge: CallEdge.t
     ; labels: string list }
@@ -343,14 +354,14 @@ module Trace = struct
     let json_list = Utils.list_from_json json in
     List.map Node.from_json json_list
 
-  let edge_from_json json : DUGraph.edge =
+  let edge_from_json json : NodeGraph.edge =
     match json with
     | `List [j1; j2] ->
         (Utils.int_from_json j1, Utils.int_from_json j2)
     | _ ->
         raise Utils.InvalidJSON
 
-  let edges_from_json json : DUGraph.edge list =
+  let edges_from_json json : NodeGraph.edge list =
     let json_list = Utils.list_from_json json in
     List.map edge_from_json json_list
 
@@ -366,15 +377,28 @@ module Trace = struct
       CallEdge.from_json (Utils.get_field slice_json "call_edge")
     in
     let nodes = nodes_from_json (Utils.get_field trace_json "vertex") in
-    let edges = edges_from_json (Utils.get_field trace_json "du_edge") in
+    let du_edges = edges_from_json (Utils.get_field trace_json "du_edge") in
+    let cf_edges = edges_from_json (Utils.get_field trace_json "cf_edge") in
     let target_id = Utils.int_from_json_field trace_json "target" in
     let target_node = Nodes.find_node_by_id nodes target_id in
-    let dugraph = DUGraph.from_vertices_and_edges nodes target_node edges in
+    let dugraph =
+      NodeGraph.from_vertices_and_edges nodes target_node du_edges
+    in
+    let cfgraph =
+      NodeGraph.from_vertices_and_edges nodes target_node cf_edges
+    in
     let labels =
       Utils.get_field_opt trace_json "labels"
       |> Utils.option_map_default Utils.string_list_from_json []
     in
-    {slice_id; trace_id; entry; dugraph; target_node; call_edge; labels}
+    { slice_id
+    ; trace_id
+    ; entry
+    ; dugraph
+    ; cfgraph
+    ; target_node
+    ; call_edge
+    ; labels }
 end
 
 let callee_name_from_slice_json slice_json : string =

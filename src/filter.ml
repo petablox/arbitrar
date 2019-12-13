@@ -1,5 +1,14 @@
 open Processing
 
+let rec used_in_location (ret : Value.t) (loc : Location.t) : bool =
+  match loc with
+  | Location.SymExpr e ->
+      ret = Value.SymExpr e
+  | Location.Gep l ->
+      used_in_location ret l
+  | _ ->
+      false
+
 (* Assuming store/load/ret does not count as "use" *)
 let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
   match stmt with
@@ -10,7 +19,14 @@ let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
   | Binary {op0; op1} ->
       op0 = ret || op1 = ret
   | Store {loc; value} ->
-      loc = ret || value = ret
+      let used_in_loc =
+        match loc with
+        | Location loc ->
+            used_in_location ret loc
+        | _ ->
+            loc = ret
+      in
+      used_in_loc || value = ret
   | GetElementPtr {op0} ->
       op0 = ret
   | _ ->
@@ -37,7 +53,7 @@ let rec arg_initialized dugraph explored fringe arg =
       else if initialized_in_stmt arg hd.stmt then true
       else
         let explored = NodeSet.add hd explored in
-        let predecessors = NodeSet.of_list (DUGraph.pred dugraph hd) in
+        let predecessors = NodeSet.of_list (NodeGraph.pred dugraph hd) in
         let fringe = NodeSet.union predecessors rst in
         arg_initialized dugraph explored fringe arg
   | None ->
@@ -67,7 +83,7 @@ let rec result_used_helper ret dugraph explored fringe =
       else
         let rst = NodeSet.remove hd fringe in
         let explored = NodeSet.add hd explored in
-        let successors = NodeSet.of_list (DUGraph.succ dugraph hd) in
+        let successors = NodeSet.of_list (NodeGraph.succ dugraph hd) in
         let fringe = NodeSet.union successors rst in
         result_used_helper ret dugraph explored fringe
   | None ->

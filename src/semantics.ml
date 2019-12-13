@@ -235,7 +235,7 @@ module Location = struct
     | SymExpr of SymExpr.t
     | Gep of t
     | Unknown
-  [@@deriving to_yojson {exn= true}]
+  [@@deriving to_yojson]
 
   let compare = compare
 
