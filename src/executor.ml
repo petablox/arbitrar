@@ -268,18 +268,21 @@ and transfer llctx instr env state =
         let exp1 = Llvm.operand instr 1 in
         let v0, uses0 = eval exp0 state.State.memory in
         let v1, uses1 = eval exp1 state.State.memory in
-        let lv, state =
+        let lv, v1, state =
           match v1 with
           | Value.Location l ->
-              (l, state)
+              (l, v1, state)
+          | Value.SymExpr s ->
+              (Location.symexpr s, v1, state)
           | _ ->
               let l = Location.new_symbol () in
               ( l
+              , Value.location l
               , State.add_memory
                   (eval_lv exp1 state.State.memory)
                   (Value.location l) state )
         in
-        let semantic_sig = semantic_sig_of_store v0 (Value.location lv) in
+        let semantic_sig = semantic_sig_of_store v0 v1 in
         State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
@@ -328,6 +331,8 @@ and transfer llctx instr env state =
           match v0 with
           | Value.Location l ->
               (Location.gep_of l |> Value.location, state)
+          | Value.SymExpr s ->
+              (Location.symexpr s |> Location.gep_of |> Value.location, state)
           | _ ->
               let l = Location.new_symbol () in
               ( Value.location l
