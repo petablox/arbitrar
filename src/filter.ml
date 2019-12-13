@@ -11,6 +11,8 @@ let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
       op0 = ret || op1 = ret
   | Store {loc; value} ->
       loc = ret || value = ret
+  | GetElementPtr {op0} ->
+      op0 = ret
   | _ ->
       false
 
@@ -93,7 +95,7 @@ let do_filter_and_label input_directory =
   let slices_json_dir = input_directory ^ "/slices.json" in
   Printf.printf "Loading traces...\n" ;
   flush stdout ;
-  let bugs =
+  let no_contexts =
     fold_traces dugraphs_dir slices_json_dir
       (fun acc trace ->
         let keep = has_context trace in
@@ -106,7 +108,7 @@ let do_filter_and_label input_directory =
   in
   Printf.printf "Labeling filter result...\n" ;
   flush stdout ;
-  IdSet.label dugraphs_dir "no-context" bugs
+  IdSet.label dugraphs_dir "no-context" no_contexts
 
 let main input_directory : unit =
   if not !Options.no_filter then do_filter_and_label input_directory

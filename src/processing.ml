@@ -197,6 +197,7 @@ module Statement = struct
     | Return of Value.t option
     | Store of {value: Value.t; loc: Value.t}
     | Load of {loc: Value.t; result: Value.t}
+    | GetElementPtr of {op0: Value.t; result: Value.t}
     | Binary of {op: BinOp.t; op0: Value.t; op1: Value.t; result: Value.t}
     | Other
 
@@ -237,6 +238,11 @@ module Statement = struct
     let result = Value.of_json (Utils.get_field json "result_sem") in
     Load {loc; result}
 
+  let getelementptr_from_json json : t =
+    let op0 = Value.of_json (Utils.get_field json "op0_sem") in
+    let result = Value.of_json (Utils.get_field json "result_sem") in
+    GetElementPtr {op0; result}
+
   let binary_from_json json : t =
     let op = BinOp.of_json (Utils.get_field json "opcode") in
     let op0 = Value.of_json (Utils.get_field json "op0_sem") in
@@ -258,6 +264,8 @@ module Statement = struct
           store_from_json json
       | "load" ->
           load_from_json json
+      | "getelementptr" ->
+          getelementptr_from_json json
       | s when BinOp.is_binary_op s ->
           binary_from_json json
       | _ ->
