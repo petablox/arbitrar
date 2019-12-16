@@ -374,8 +374,9 @@ let need_find_slices_for_edge llm callee : bool =
   | "" ->
       true
   | n ->
+      let r = Str.regexp n in
       let callee_name = Llvm.value_name callee in
-      String.equal callee_name n
+      Str.string_match r callee_name 0
 
 let slice llctx llm depth : Slices.t =
   let call_graph = CallGraph.from_llm llm in
