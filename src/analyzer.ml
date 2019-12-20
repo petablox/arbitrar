@@ -269,14 +269,14 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
     flush stdout ;
     let checker_dir = init_checker_dir ana_dir M.Checker.name in
     let filter trace = not (Trace.has_label "no-context" trace) in
-    let stats, _ =
+    let stats =
       fold_traces_with_filter dug_dir slcs_dir filter
-        (fun (stats, i) (trace : Trace.t) ->
-          Printf.printf "%d traces loaded\r" (i + 1) ;
+        (fun (stats : M.stats) (trace : Trace.t) ->
+          Printf.printf "%d slices loaded (trace_id: %d)\r" trace.slice_id
+            trace.trace_id ;
           flush stdout ;
-          let new_stats = M.add_trace stats trace in
-          (new_stats, i + 1))
-        (M.empty, 0)
+          M.add_trace stats trace)
+        M.empty
     in
     Printf.printf "\nDumping statistics...\n" ;
     flush stdout ;
@@ -306,6 +306,8 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
     let bugs, _ =
       fold_traces_with_filter dug_dir slcs_dir filter
         (fun (bugs, last_slice) trace ->
+          Printf.printf "%d slices loaded (trace_id: %d)\r" trace.slice_id
+            trace.trace_id ;
           let result, score = M.eval stats trace in
           let csv_row =
             Printf.sprintf "%d,%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
