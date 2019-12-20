@@ -8,9 +8,10 @@ let run_one_slice lc outdir llctx llm initial_state idx
   let entry = slice.entry in
   let target = poi.instr in
   let initial_state = State.set_target target initial_state in
+  let env = Executor.Environment.empty () in
   let env =
     Executor.execute_function llctx entry
-      {Executor.Environment.empty with boundaries; initial_state}
+      { env  with boundaries; initial_state}
       initial_state
   in
   if !Options.verbose > 0 then

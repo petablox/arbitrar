@@ -1,19 +1,17 @@
 open Semantics
 
 module Worklist = struct
-  type t = (Llvm.llbasicblock * State.t) list
+  type t = (Llvm.llbasicblock * State.t) Queue.t
 
-  and instr_iterator = (Llvm.llbasicblock, Llvm.llvalue) Llvm.llpos
+  let empty () = Queue.create ()
 
-  let empty = []
+  let push x s = Queue.push x s; s
 
-  let push x s = s @ [x]
+  let pop s = let x = Queue.pop s in (x, s)
 
-  let pop = function x :: s -> (x, s) | [] -> failwith "empty worklist"
+  let is_empty = Queue.is_empty
 
-  let is_empty s = s = []
-
-  let length = List.length
+  let length = Queue.length
 end
 
 module Traces = struct
@@ -82,10 +80,10 @@ module Environment = struct
     ; dugraphs: DUGraph.t list
     ; boundaries: Llvm.llvalue list }
 
-  let empty =
+  let empty () =
     { metadata= Metadata.empty
     ; initial_state= State.empty
-    ; worklist= Worklist.empty
+    ; worklist= Worklist.empty ()
     ; traces= Traces.empty
     ; dugraphs= []
     ; boundaries= [] }
