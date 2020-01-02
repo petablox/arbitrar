@@ -47,6 +47,8 @@ let output_dot = ref false
 
 let output_trace = ref false
 
+let no_reduction = ref false
+
 (* Analyzer Options *)
 let report_threshold = ref 0.9
 
@@ -83,7 +85,8 @@ let executor_opts_local =
   ; ("-output-trace", Arg.Set output_trace, "Output trace files")
   ; ( "-include-instr"
     , Arg.Set include_instr
-    , "Include instruction in dugraph JSON" ) ]
+    , "Include instruction in dugraph JSON" )
+  ; ("-no-reduction", Arg.Set no_reduction, "Do not reduce graphs") ]
 
 let extractor_opts_local =
   [ ( "-continue"

@@ -5,9 +5,11 @@ module Worklist = struct
 
   let empty () = Queue.create ()
 
-  let push x s = Queue.push x s; s
+  let push x s = Queue.push x s ; s
 
-  let pop s = let x = Queue.pop s in (x, s)
+  let pop s =
+    let x = Queue.pop s in
+    (x, s)
 
   let is_empty = Queue.is_empty
 
@@ -166,13 +168,6 @@ let add_syntactic_du_edge instr env state =
   in
   loop 0 state
 
-let mark_visit_target instr state =
-  match state.State.target with
-  | Some t when t = instr ->
-      State.visit_target state
-  | _ ->
-      state
-
 let semantic_sig_of_binop res v0 v1 =
   let result_json = Value.to_yojson res in
   let v0_json = Value.to_yojson v0 in
@@ -220,6 +215,43 @@ let semantic_sig_of_phi ret =
   let ret_json = Value.to_yojson ret in
   `Assoc [("return_sem", ret_json)]
 
+let rec find_viable_control_succ v orig newg =
+  let succ_controls_old = DUGraph.succ_control orig v in
+  if List.length succ_controls_old = 1 then
+    let candidate = List.hd succ_controls_old in
+    if DUGraph.mem_vertex newg candidate then Some candidate
+    else find_viable_control_succ candidate orig newg
+  else None
+
+let reduce_dugraph target orig =
+  let du_projection = DUGraph.du_project orig in
+  let du_checker = Path.create du_projection in
+  (* filter out du-unrechable nodes *)
+  let newg =
+    DUGraph.fold_vertex
+      (fun v g ->
+        if
+          Path.check_path du_checker v target
+          || Path.check_path du_checker target v
+        then g
+        else DUGraph.remove_vertex g v)
+      orig orig
+  in
+  (* restore cf edges *)
+  DUGraph.fold_vertex
+    (fun v g ->
+      let succ_controls_old = DUGraph.succ_control orig v in
+      let succ_controls_new = DUGraph.succ_control g v in
+      if List.length succ_controls_old = 1 && List.length succ_controls_new = 0
+      then
+        match find_viable_control_succ v orig g with
+        | Some succ ->
+            DUGraph.add_edge_e g (v, DUGraph.Edge.Control, succ)
+        | None ->
+            g
+      else g)
+    newg newg
+
 let rec execute_function llctx f env state =
   let entry = Llvm.entry_block f in
   execute_block llctx entry env state
@@ -240,7 +272,6 @@ and transfer llctx instr env state =
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state
   else
-    let state = mark_visit_target instr state in
     match Llvm.instr_opcode instr with
     | Llvm.Opcode.Ret ->
         transfer_ret llctx instr env state
@@ -503,13 +534,18 @@ and transfer_binop llctx instr env state =
   |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and finish_execution llctx env state =
-  let target_visited = state.target_visited in
+  let target_visited = state.target_node <> None in
   let env =
     if target_visited then
       if Environment.should_include state.dugraph env then
+        let target_node = Option.get state.target_node in
+        let dug =
+          if !Options.no_reduction then state.dugraph
+          else reduce_dugraph target_node state.dugraph
+        in
         let env =
           Environment.add_trace state.State.trace env
-          |> Environment.add_dugraph state.dugraph
+          |> Environment.add_dugraph dug
         in
         {env with metadata= Metadata.incr_explored env.metadata}
       else {env with metadata= Metadata.incr_duplicated env.metadata}

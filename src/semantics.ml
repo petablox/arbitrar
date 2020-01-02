@@ -590,6 +590,34 @@ module DUGraph = struct
 
   include Graph.Persistent.Digraph.ConcreteBidirectionalLabeled (Node) (Edge)
 
+  let pred_control g v =
+    let preds = pred_e g v in
+    List.filter (fun e -> E.label e = Edge.Control) preds |> List.map E.src
+
+  let succ_control g v =
+    let succs = succ_e g v in
+    List.filter (fun e -> E.label e = Edge.Control) succs |> List.map E.dst
+
+  let du_project g =
+    fold_edges_e
+      (fun e newg ->
+        match E.label e with
+        | Edge.Data ->
+            newg
+        | Edge.Control ->
+            remove_edge_e newg e)
+      g g
+
+  let cf_project g =
+    fold_edges_e
+      (fun e newg ->
+        match E.label e with
+        | Edge.Control ->
+            newg
+        | Edge.Data ->
+            remove_edge_e newg e)
+      g g
+
   let graph_attributes g = []
 
   let edge_attributes e =
@@ -658,8 +686,8 @@ module State = struct
     ; reachingdef: Llvm.llvalue ReachingDef.t
     ; dugraph: DUGraph.t
     ; instrmap: Node.t InstrMap.t
-    ; target: Llvm.llvalue option
-    ; target_visited: bool
+    ; target_instr: Llvm.llvalue option
+    ; target_node: Node.t option
     ; prev_blk: Llvm.llbasicblock option }
 
   let empty =
@@ -671,8 +699,8 @@ module State = struct
     ; reachingdef= ReachingDef.empty
     ; dugraph= DUGraph.empty
     ; instrmap= InstrMap.empty
-    ; target= None
-    ; target_visited= false
+    ; target_instr= None
+    ; target_node= None
     ; prev_blk= None }
 
   let instr_count = ref (-1)
@@ -690,12 +718,13 @@ module State = struct
     | None ->
         None
 
-  let is_target node s =
-    match s.target with Some t -> t = node | None -> false
+  let is_target_instr instr s =
+    match s.target_instr with Some t -> t = instr | None -> false
 
   let add_trace llctx instr semantic_sig s =
     let new_id = new_instr_count () in
-    let node = Node.make llctx instr new_id (is_target instr s) semantic_sig in
+    let is_tgt = is_target_instr instr s in
+    let node = Node.make llctx instr new_id is_tgt semantic_sig in
     let instrmap = InstrMap.add instr node s.instrmap in
     let dugraph =
       if !Options.no_control_flow || Trace.is_empty s.trace then s.dugraph
@@ -703,7 +732,8 @@ module State = struct
         let src = Trace.last s.trace in
         DUGraph.add_edge_e s.dugraph (src, DUGraph.Edge.Control, node)
     in
-    {s with trace= Trace.append node s.trace; instrmap; dugraph}
+    let target_node = if is_tgt then Some node else s.target_node in
+    {s with trace= Trace.append node s.trace; target_node; instrmap; dugraph}
 
   let add_memory x v s = {s with memory= Memory.add x v s.memory}
 
@@ -741,7 +771,5 @@ module State = struct
     in
     {s with dugraph}
 
-  let set_target t s = {s with target= Some t}
-
-  let visit_target s = {s with target_visited= true}
+  let set_target_instr t s = {s with target_instr= Some t}
 end
