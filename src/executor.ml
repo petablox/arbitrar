@@ -31,11 +31,26 @@ module Traces = struct
 end
 
 module Metadata = struct
-  type t = {num_explored: int; num_target_unvisited: int; num_duplicated: int}
+  type t =
+    { num_explored: int
+    ; num_target_unvisited: int
+    ; num_duplicated: int
+    ; num_graph_nodes: int
+    ; num_graph_edges: int }
 
-  let empty = {num_explored= 0; num_target_unvisited= 0; num_duplicated= 0}
+  let empty =
+    { num_explored= 0
+    ; num_target_unvisited= 0
+    ; num_duplicated= 0
+    ; num_graph_nodes= 0
+    ; num_graph_edges= 0 }
 
   let incr_explored meta = {meta with num_explored= meta.num_explored + 1}
+
+  let incr_graph g meta =
+    { meta with
+      num_graph_nodes= DUGraph.nb_vertex g + meta.num_graph_nodes
+    ; num_graph_edges= DUGraph.nb_edges g + meta.num_graph_edges }
 
   let incr_duplicated meta =
     { meta with
@@ -50,7 +65,9 @@ module Metadata = struct
   let merge m1 m2 =
     { num_explored= m1.num_explored + m2.num_explored
     ; num_target_unvisited= m1.num_target_unvisited + m2.num_target_unvisited
-    ; num_duplicated= m1.num_duplicated + m2.num_duplicated }
+    ; num_duplicated= m1.num_duplicated + m2.num_duplicated
+    ; num_graph_nodes= m1.num_graph_nodes + m2.num_graph_nodes
+    ; num_graph_edges= m1.num_graph_edges + m2.num_graph_edges }
 
   let to_json meta =
     `Assoc
@@ -67,7 +84,9 @@ module Metadata = struct
     Printf.fprintf oc "# Viable Traces: %d\n" viable ;
     Printf.fprintf oc "# Target-Unvisited Traces: %d\n"
       meta.num_target_unvisited ;
-    Printf.fprintf oc "# Duplicated Traces: %d\n" meta.num_duplicated
+    Printf.fprintf oc "# Duplicated Traces: %d\n" meta.num_duplicated ;
+    Printf.fprintf oc "# Avg # nodes: %d\n" (meta.num_graph_nodes / viable) ;
+    Printf.fprintf oc "# Avg # edges: %d\n" (meta.num_graph_edges / viable)
 end
 
 module GraphViz = Graph.Graphviz.Dot (DUGraph)
@@ -547,7 +566,9 @@ and finish_execution llctx env state =
           Environment.add_trace state.State.trace env
           |> Environment.add_dugraph dug
         in
-        {env with metadata= Metadata.incr_explored env.metadata}
+        { env with
+          metadata=
+            Metadata.incr_explored env.metadata |> Metadata.incr_graph dug }
       else {env with metadata= Metadata.incr_duplicated env.metadata}
     else {env with metadata= Metadata.incr_target_unvisited env.metadata}
   in
