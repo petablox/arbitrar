@@ -25,6 +25,8 @@ let min_freq = ref 0
 
 let target_function_name = ref ""
 
+let exclude = ref ""
+
 (* Filter Options *)
 let no_filter = ref false
 
@@ -66,7 +68,8 @@ let slicer_opts_local =
   ; ( "-min-freq"
     , Arg.Set_int min_freq
     , "Target function requires minimum amount of slices" )
-  ; ("-fn", Arg.Set_string target_function_name, "Target function name") ]
+  ; ("-fn", Arg.Set_string target_function_name, "Target function regex")
+  ; ("-exclude", Arg.Set_string exclude, "Exclude function regex") ]
 
 let executor_opts_local =
   [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")

@@ -369,14 +369,27 @@ let rec find_callees depth cg poi_callee fringe callees =
       LlvalueSet.union callees direct_callees
       |> find_callees (depth - 1) cg poi_callee direct_callees
 
-let need_find_slices_for_edge llm callee : bool =
+let is_excluding_function_name callee_name : bool =
+  match !Options.exclude with
+  | "" ->
+      true
+  | n ->
+      let r = Str.regexp n in
+      Str.string_match r callee_name 0
+
+let is_including_function_name callee_name : bool =
   match !Options.target_function_name with
   | "" ->
       true
   | n ->
       let r = Str.regexp n in
-      let callee_name = Llvm.value_name callee in
       Str.string_match r callee_name 0
+
+let need_find_slices_for_edge llm callee : bool =
+  let callee_name = Llvm.value_name callee in
+  let exc = is_excluding_function_name callee_name in
+  let inc = is_including_function_name callee_name in
+  inc && not exc
 
 let slice llctx llm depth : Slices.t =
   let call_graph = CallGraph.from_llm llm in
