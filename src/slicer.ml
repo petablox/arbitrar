@@ -375,7 +375,7 @@ let is_matching reg_str str : bool =
       true
   | n ->
       let r = Str.regexp n in
-      Str.string_match r callee_name 0
+      Str.string_match r str 0
 
 let is_excluding_func = is_matching !Options.exclude_func
 
