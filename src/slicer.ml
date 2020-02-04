@@ -369,32 +369,30 @@ let rec find_callees depth cg poi_callee fringe callees =
       LlvalueSet.union callees direct_callees
       |> find_callees (depth - 1) cg poi_callee direct_callees
 
-let is_matching reg_str default str : bool =
-  match reg_str with
-  | "" ->
-      default
-  | n ->
-      let reg = Str.regexp n in
-      Str.string_match reg str 0
-
-let is_including_func = is_matching !Options.include_func true
-
-let is_excluding_func = is_matching !Options.exclude_func false
-
-let need_find_slices_for_edge llm callee : bool =
-  let callee_name = Llvm.value_name callee in
-  let inc = is_including_func callee_name in
-  let exc = is_excluding_func callee_name in
-  inc && not exc
+let gen_filter inc exc : string -> bool =
+  let is_including =
+    if String.equal inc "" then fun _ -> true
+    else
+      let inc_reg = Str.regexp inc in
+      fun str -> Str.string_match inc_reg str 0
+  in
+  let is_excluding =
+    if String.equal exc "" then fun _ -> false
+    else
+      let exc_reg = Str.regexp exc in
+      fun str -> Str.string_match exc_reg str 0
+  in
+  fun str -> is_including str && not (is_excluding str)
 
 let slice llctx llm depth : Slices.t =
+  let filter = gen_filter !Options.include_func !Options.exclude_func in
   let call_graph = CallGraph.from_llm llm in
   dump_call_graph call_graph ;
   let func_counter, edge_entries =
     CallGraph.fold_edges_instr_set
       (fun edge (func_counter, edge_entries) ->
         let caller, _, callee = edge in
-        if need_find_slices_for_edge llm callee then
+        if filter (Llvm.value_name callee) then
           let singleton_caller = LlvalueSet.singleton caller in
           let entries =
             find_entries depth call_graph singleton_caller LlvalueSet.empty
