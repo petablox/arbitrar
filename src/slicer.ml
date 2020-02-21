@@ -157,6 +157,8 @@ module CallGraph = struct
 
   let default_vertex_attributes g = []
 
+  let num_edges cg = G.nb_edges cg.graph
+
   let from_llm llm =
     Llvm.fold_left_functions
       (fun graph func ->
@@ -201,40 +203,48 @@ module TypeKind = struct
 
   let list_from_array arr = Array.fold_right (fun a ls -> a :: ls) arr []
 
-  let rec from_lltype ty =
-    match Llvm.classify_type ty with
-    | Llvm.TypeKind.Void ->
-        Void
-    | Llvm.TypeKind.Half ->
-        Half
-    | Llvm.TypeKind.Float ->
-        Float
-    | Llvm.TypeKind.Double ->
-        Double
-    | Llvm.TypeKind.Integer ->
-        Integer
-    | Llvm.TypeKind.Function ->
-        let ll_ret = Llvm.return_type ty in
-        let ll_args = list_from_array (Llvm.param_types ty) in
-        Function (from_lltype ll_ret, List.map from_lltype ll_args)
-    | Llvm.TypeKind.Struct ->
-        let ll_elems = list_from_array (Llvm.struct_element_types ty) in
-        Struct (List.map from_lltype ll_elems)
-    | Llvm.TypeKind.Array ->
-        let elem = Llvm.element_type ty in
-        let length = Llvm.array_length ty in
-        Array (from_lltype elem, length)
-    | Llvm.TypeKind.Pointer ->
-        let elem = Llvm.element_type ty in
-        Pointer (from_lltype elem)
-    | Llvm.TypeKind.Vector ->
-        let elem = Llvm.element_type ty in
-        let size = Llvm.vector_size ty in
-        Vector (from_lltype elem, size)
-    | _ ->
-        Other
+  let from_lltype ty =
+    let rec from_lltype_helper depth ty =
+      if depth > 3 then Other
+      else
+        let recur = from_lltype_helper (depth + 1) in
+        match Llvm.classify_type ty with
+        | Llvm.TypeKind.Void ->
+            Void
+        | Llvm.TypeKind.Half ->
+            Half
+        | Llvm.TypeKind.Float ->
+            Float
+        | Llvm.TypeKind.Double ->
+            Double
+        | Llvm.TypeKind.Integer ->
+            Integer
+        | Llvm.TypeKind.Function ->
+            let ll_ret = Llvm.return_type ty in
+            let ll_args = list_from_array (Llvm.param_types ty) in
+            Function (recur ll_ret, List.map recur ll_args)
+        | Llvm.TypeKind.Struct ->
+            let ll_elems = list_from_array (Llvm.struct_element_types ty) in
+            Struct (List.map recur ll_elems)
+        | Llvm.TypeKind.Array ->
+            let elem = Llvm.element_type ty in
+            let length = Llvm.array_length ty in
+            Array (recur elem, length)
+        | Llvm.TypeKind.Pointer ->
+            let elem = Llvm.element_type ty in
+            Pointer (recur elem)
+        | Llvm.TypeKind.Vector ->
+            let elem = Llvm.element_type ty in
+            let size = Llvm.vector_size ty in
+            Vector (recur elem, size)
+        | _ ->
+            Other
+    in
+    from_lltype_helper 0 ty
 
   let to_json = to_yojson
+
+  let from_json = of_yojson_exn
 end
 
 module FunctionType = struct
@@ -252,6 +262,8 @@ module FunctionType = struct
         raise Utils.InvalidFunctionType
 
   let to_json = to_yojson
+
+  let from_json = of_yojson_exn
 end
 
 module Slice = struct
@@ -312,10 +324,21 @@ end
 module Slices = struct
   type t = Slice.t list
 
-  let to_json llm slices = `List (List.map (Slice.to_json llm) slices)
+  let to_json llm slices =
+    `List
+      (List.mapi
+         (fun i slice ->
+           Printf.printf "Converting slice #%d to json...\r" i ;
+           flush stdout ;
+           Slice.to_json llm slice)
+         slices)
 
   let dump_json ?(prefix = "") llm slices =
+    Printf.printf "Dumping slices into json...\n" ;
+    flush stdout ;
     let json = to_json llm slices in
+    Printf.printf "ehhhh...\n" ;
+    flush stdout ;
     let oc = open_out (prefix ^ "/slices.json") in
     Options.json_to_channel oc json ;
     close_out oc
@@ -464,9 +487,11 @@ let slice llctx llm depth : Slices.t =
   let filter = gen_filter !Options.include_func !Options.exclude_func in
   let call_graph = CallGraph.from_llm llm in
   dump_call_graph call_graph ;
-  let func_counter, edge_entries =
+  let _, func_counter, edge_entries =
     CallGraph.fold_edges_instr_set
-      (fun edge (func_counter, edge_entries) ->
+      (fun edge (i, func_counter, edge_entries) ->
+        Printf.printf "Slicing edge #%d...\r" i ;
+        flush stdout ;
         let caller, _, callee = edge in
         if filter (Llvm.value_name callee) then
           let singleton_caller = LlvalueSet.singleton caller in
@@ -478,30 +503,39 @@ let slice llctx llm depth : Slices.t =
             FunctionCounter.add func_counter callee num_entries
           in
           let edge_entries = EdgeEntriesMap.add edge_entries edge entries in
-          (func_counter, edge_entries)
-        else (func_counter, edge_entries))
+          (i + 1, func_counter, edge_entries)
+        else (i + 1, func_counter, edge_entries))
       call_graph
-      (FunctionCounter.empty, EdgeEntriesMap.empty)
+      (0, FunctionCounter.empty, EdgeEntriesMap.empty)
   in
-  EdgeEntriesMap.fold
-    (fun edge entries slices ->
-      let caller, instr, callee = edge in
-      let count = FunctionCounter.get func_counter callee in
-      if count >= !Options.min_freq then
-        LlvalueSet.fold
-          (fun entry acc ->
-            let entry_set = LlvalueSet.singleton entry in
-            let callees =
-              find_callees (2 * depth) call_graph callee entry_set entry_set
-            in
-            let location = Utils.string_of_location llctx instr in
-            let slice =
-              Slice.create callees entry caller instr callee location
-            in
-            slice :: acc)
-          entries slices
-      else slices)
-    edge_entries []
+  Printf.printf "\nDone creating edge entries map\n" ;
+  flush stdout ;
+  let num_slices, slices =
+    EdgeEntriesMap.fold
+      (fun edge entries (num_slices, slices) ->
+        let caller, instr, callee = edge in
+        let count = FunctionCounter.get func_counter callee in
+        if count >= !Options.min_freq then
+          LlvalueSet.fold
+            (fun entry (num_slices, acc) ->
+              Printf.printf "Processing slice #%d...\r" num_slices ;
+              flush stdout ;
+              let entry_set = LlvalueSet.singleton entry in
+              let callees =
+                find_callees (2 * depth) call_graph callee entry_set entry_set
+              in
+              let location = Utils.string_of_location llctx instr in
+              let slice =
+                Slice.create callees entry caller instr callee location
+              in
+              (num_slices + 1, slice :: acc))
+            entries (num_slices, slices)
+        else (num_slices, slices))
+      edge_entries (0, [])
+  in
+  Printf.printf "\nSlicer done creating %d slices\n" num_slices ;
+  flush stdout ;
+  slices
 
 let main input_file =
   let llctx = Llvm.create_context () in
