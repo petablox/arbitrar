@@ -522,7 +522,13 @@ let slice llctx llm depth : Slices.t =
               flush stdout ;
               let entry_set = LlvalueSet.singleton entry in
               let callees =
-                find_callees (2 * depth) call_graph callee entry_set entry_set
+                let all_callees =
+                  find_callees (2 * depth) call_graph callee entry_set
+                    entry_set
+                in
+                LlvalueSet.filter
+                  (fun callee -> filter (Llvm.value_name callee))
+                  all_callees
               in
               let location = Utils.string_of_location llctx instr in
               let slice =
