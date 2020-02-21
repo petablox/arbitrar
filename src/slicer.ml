@@ -337,7 +337,6 @@ module Slices = struct
     Printf.printf "Dumping slices into json...\n" ;
     flush stdout ;
     let json = to_json llm slices in
-    Printf.printf "ehhhh...\n" ;
     flush stdout ;
     let oc = open_out (prefix ^ "/slices.json") in
     Options.json_to_channel oc json ;
@@ -468,22 +467,25 @@ let rec find_callees depth cg poi_callee fringe callees =
       LlvalueSet.union callees direct_callees
       |> find_callees (depth - 1) cg poi_callee direct_callees
 
+let gen_inc_filter inc : string -> bool =
+  if String.equal inc "" then fun _ -> true
+  else
+    let inc_reg = Str.regexp inc in
+    fun str -> Str.string_match inc_reg str 0
+
+let gen_exc_filter exc : string -> bool =
+  if String.equal exc "" then fun _ -> false
+  else
+    let exc_reg = Str.regexp exc in
+    fun str -> Str.string_match exc_reg str 0
+
 let gen_filter inc exc : string -> bool =
-  let is_including =
-    if String.equal inc "" then fun _ -> true
-    else
-      let inc_reg = Str.regexp inc in
-      fun str -> Str.string_match inc_reg str 0
-  in
-  let is_excluding =
-    if String.equal exc "" then fun _ -> false
-    else
-      let exc_reg = Str.regexp exc in
-      fun str -> Str.string_match exc_reg str 0
-  in
+  let is_including = gen_inc_filter inc in
+  let is_excluding = gen_exc_filter exc in
   fun str -> is_including str && not (is_excluding str)
 
 let slice llctx llm depth : Slices.t =
+  let is_excluding = gen_exc_filter !Options.exclude_func in
   let filter = gen_filter !Options.include_func !Options.exclude_func in
   let call_graph = CallGraph.from_llm llm in
   dump_call_graph call_graph ;
@@ -527,7 +529,7 @@ let slice llctx llm depth : Slices.t =
                     entry_set
                 in
                 LlvalueSet.filter
-                  (fun callee -> filter (Llvm.value_name callee))
+                  (fun callee -> not (is_excluding (Llvm.value_name callee)))
                   all_callees
               in
               let location = Utils.string_of_location llctx instr in
