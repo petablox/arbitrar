@@ -1,4 +1,4 @@
-type task = All | Slice | Extract | Filter | Analyze | CallGraph
+type task = All | Slice | Occurence | Extract | Filter | Analyze | CallGraph
 
 let task = ref All
 
@@ -10,6 +10,8 @@ let parse_arg arg =
     | "slice" ->
         Options.options := Options.slicer_opts ;
         task := Slice
+    | "occurence" ->
+        task := Occurence
     | "extract" ->
         Options.options := Options.extractor_opts ;
         task := Extract
@@ -27,8 +29,8 @@ let parse_arg arg =
   else input_file := Utils.get_abs_path arg
 
 let usage =
-  "llexetractor [all | slice | extract | filter | analyze | call-graph] \
-   [OPTIONS] [FILE]"
+  "llexetractor [all | slice | occurence | extract | filter | analyze | \
+   call-graph] [OPTIONS] [FILE]"
 
 let call_graph input_file =
   let llctx = Llvm.create_context () in
@@ -44,6 +46,8 @@ let main () =
   match !task with
   | CallGraph ->
       call_graph !input_file
+  | Occurence ->
+      Slicer.occurence !input_file
   | Slice ->
       Slicer.main !input_file
   | Extract ->

@@ -391,6 +391,8 @@ module FunctionCounter = struct
       ctr
 
   let get ctr func = FunctionMap.find func ctr
+
+  let fold = FunctionMap.fold
 end
 
 module EdgeEntriesMap = struct
@@ -544,6 +546,42 @@ let slice llctx llm depth : Slices.t =
   Printf.printf "\nSlicer done creating %d slices\n" num_slices ;
   flush stdout ;
   slices
+
+let occurence input_file =
+  let llctx = Llvm.create_context () in
+  let llmem = Llvm.MemoryBuffer.of_file input_file in
+  let llm = Llvm_irreader.parse_ir llctx llmem in
+  let call_graph = CallGraph.from_llm llm in
+  let func_counter =
+    CallGraph.fold_edges_instr_set
+      (fun edge func_counter ->
+        let caller, _, callee = edge in
+        let singleton_caller = LlvalueSet.singleton caller in
+        let entries =
+          find_entries 1 call_graph singleton_caller LlvalueSet.empty
+        in
+        let num_entries = LlvalueSet.cardinal entries in
+        let func_counter =
+          FunctionCounter.add func_counter callee num_entries
+        in
+        func_counter)
+      call_graph FunctionCounter.empty
+  in
+  let func_count_list =
+    FunctionCounter.fold
+      (fun func count ls -> (Llvm.value_name func, count) :: ls)
+      func_counter []
+  in
+  let sorted_func_count_list =
+    List.sort (fun (_, c1) (_, c2) -> c2 - c1) func_count_list
+  in
+  let outdir = Options.outdir () in
+  let file = outdir ^ "/occurence.csv" in
+  let oc = open_out file in
+  Printf.fprintf oc "Function,Occurence\n" ;
+  List.iter
+    (fun (func_name, count) -> Printf.fprintf oc "%s,%d\n" func_name count)
+    sorted_func_count_list
 
 let main input_file =
   let llctx = Llvm.create_context () in
