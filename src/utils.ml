@@ -4,6 +4,8 @@ exception NotImplemented
 
 exception InvalidArgument
 
+exception InvalidFunctionType
+
 (* System operation *)
 
 module F = Format

@@ -184,48 +184,74 @@ end
 
 module GraphViz = Graph.Graphviz.Dot (CallGraph)
 
-module FunctionType = struct
-  type t = {ret: Llvm.lltype; args: Llvm.lltype list}
+module TypeKind = struct
+  type t =
+    | Void
+    | Half
+    | Float
+    | Double
+    | Integer
+    | Function of t * t list
+    | Struct of t list
+    | Array of t * int
+    | Pointer of t
+    | Vector of t * int
+    | Other
+  [@@deriving yojson {exn= true}]
 
-  let from_llvalue f =
-    (* `Llvm.type_of f` is a pointer to the function type *)
-    (* `element_type` can get the function type out of pointer *)
-    let f_type = Llvm.element_type (Llvm.type_of f) in
-    let ret = Llvm.return_type f_type in
-    let args = Llvm.param_types f_type in
-    let args = Array.fold_right (fun a ls -> a :: ls) args [] in
-    {ret; args}
+  let list_from_array arr = Array.fold_right (fun a ls -> a :: ls) arr []
 
-  let string_of_type ty =
+  let rec from_lltype ty =
     match Llvm.classify_type ty with
     | Llvm.TypeKind.Void ->
-        "void"
+        Void
     | Llvm.TypeKind.Half ->
-        "half"
+        Half
     | Llvm.TypeKind.Float ->
-        "float"
+        Float
     | Llvm.TypeKind.Double ->
-        "double"
+        Double
     | Llvm.TypeKind.Integer ->
-        "integer"
+        Integer
     | Llvm.TypeKind.Function ->
-        "function"
+        let ll_ret = Llvm.return_type ty in
+        let ll_args = list_from_array (Llvm.param_types ty) in
+        Function (from_lltype ll_ret, List.map from_lltype ll_args)
     | Llvm.TypeKind.Struct ->
-        "struct"
+        let ll_elems = list_from_array (Llvm.struct_element_types ty) in
+        Struct (List.map from_lltype ll_elems)
     | Llvm.TypeKind.Array ->
-        "array"
+        let elem = Llvm.element_type ty in
+        let length = Llvm.array_length ty in
+        Array (from_lltype elem, length)
     | Llvm.TypeKind.Pointer ->
-        "pointer"
+        let elem = Llvm.element_type ty in
+        Pointer (from_lltype elem)
     | Llvm.TypeKind.Vector ->
-        "vector"
+        let elem = Llvm.element_type ty in
+        let size = Llvm.vector_size ty in
+        Vector (from_lltype elem, size)
     | _ ->
-        "other"
+        Other
 
-  let to_json {ret; args} =
-    `Assoc
-      [ ("ret", `String (string_of_type ret))
-      ; ("args", `List (List.map (fun ty -> `String (string_of_type ty)) args))
-      ]
+  let to_json = to_yojson
+end
+
+module FunctionType = struct
+  type t = TypeKind.t * TypeKind.t list [@@deriving yojson {exn= true}]
+
+  let from_llvalue f : t =
+    (* `Llvm.type_of f` is a pointer to the function type *)
+    (* `element_type` can get the function type out of pointer *)
+    let f_lltype = Llvm.element_type (Llvm.type_of f) in
+    let f_type = TypeKind.from_lltype f_lltype in
+    match f_type with
+    | TypeKind.Function (ret, args) ->
+        (ret, args)
+    | _ ->
+        raise Utils.InvalidFunctionType
+
+  let to_json = to_yojson
 end
 
 module Slice = struct
