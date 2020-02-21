@@ -119,14 +119,18 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
     let filter (func, trace) =
       (not (Trace.has_label "no-context" trace)) && M.Checker.filter func
     in
-    let stats =
+    let stats, checked_traces =
       fold_traces_with_filter dug_dir slcs_dir filter
-        (fun (stats : M.stats) (_, trace) ->
+        (fun ((stats, idset) : M.stats * IdSet.t) ((func_name, _), trace) ->
           Printf.printf "%d slices loaded (trace_id: %d)\r" trace.slice_id
             trace.trace_id ;
           flush stdout ;
-          M.add_trace stats trace)
-        M.empty
+          let new_stats = M.add_trace stats trace in
+          let new_idset =
+            IdSet.add idset func_name trace.slice_id trace.trace_id
+          in
+          (new_stats, new_idset))
+        (M.empty, IdSet.empty)
     in
     Printf.printf "\nDumping statistics...\n" ;
     flush stdout ;
@@ -143,7 +147,7 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
           stats ;
         close_out oc)
       stats ;
-    Printf.printf "Dumping results and bug reports...\n" ;
+    Printf.printf "\nDumping results and bug reports...\n" ;
     flush stdout ;
     let header = "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n" in
     let brief_header = "Slice Id,Entry,Function,Location,Score,Result\n" in
@@ -158,6 +162,7 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
         (fun (bugs, last_slice) (_, trace) ->
           Printf.printf "%d slices loaded (trace_id: %d)\r" trace.slice_id
             trace.trace_id ;
+          flush stdout ;
           let result, score = M.eval stats trace in
           let csv_row =
             Printf.sprintf "%d,%d,%s,%s,%s,%f,\"%s\"\n" trace.slice_id
@@ -185,10 +190,12 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
           else (bugs, last_slice))
         (IdSet.empty, -1)
     in
-    Printf.printf "Labeling bugs in-place...\n" ;
+    Printf.printf "\nLabeling bugs in-place...\n" ;
     flush stdout ;
-    let label = M.Checker.name ^ "-alarm" in
-    IdSet.label dug_dir label bugs ;
+    let alarm_label = M.Checker.name ^ "-alarm" in
+    IdSet.label dug_dir alarm_label bugs ;
+    let checked_label = M.Checker.name ^ "-checked" in
+    IdSet.label dug_dir checked_label checked_traces ;
     close_out results_oc ;
     close_out bugs_oc ;
     close_out bugs_brief_oc )
