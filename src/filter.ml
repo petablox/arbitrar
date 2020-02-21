@@ -113,7 +113,7 @@ let do_filter_and_label input_directory =
   flush stdout ;
   let no_contexts =
     fold_traces dugraphs_dir slices_json_dir
-      (fun acc trace ->
+      (fun acc (_, trace) ->
         let keep = has_context trace in
         if not keep then
           IdSet.add acc

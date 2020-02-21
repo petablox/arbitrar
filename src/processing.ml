@@ -170,6 +170,12 @@ end
 module SymbolSet = Semantics.SymbolSet
 module RetIdSet = Semantics.RetIdSet
 module SymExpr = Semantics.SymExpr
+module TypeKind = Slicer.TypeKind
+module FunctionType = Slicer.FunctionType
+
+module Function = struct
+  type t = string * FunctionType.t
+end
 
 module Location = struct
   type t =
@@ -405,6 +411,10 @@ let callee_name_from_slice_json slice_json : string =
   let call_edge = Utils.get_field slice_json "call_edge" in
   Utils.string_from_json_field call_edge "callee"
 
+let func_type_from_slice_json slice_json : FunctionType.t =
+  let func_type_json = Utils.get_field slice_json "target_type" in
+  FunctionType.of_yojson_exn func_type_json
+
 let fold_traces dugraphs_dir slices_json_dir f base =
   let slices_json = Yojson.Safe.from_file slices_json_dir in
   let slice_json_list = Utils.list_from_json slices_json in
@@ -412,6 +422,8 @@ let fold_traces dugraphs_dir slices_json_dir f base =
     List.fold_left
       (fun (acc, slice_id) slice_json ->
         let target_func_name = callee_name_from_slice_json slice_json in
+        let func_type = func_type_from_slice_json slice_json in
+        let func = (target_func_name, func_type) in
         let dugraph_json_dir =
           Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir target_func_name
             slice_id
@@ -425,7 +437,7 @@ let fold_traces dugraphs_dir slices_json_dir f base =
                 let trace =
                   Trace.from_json slice_id slice_json trace_id trace_json
                 in
-                let next_acc = f acc trace in
+                let next_acc = f acc (func, trace) in
                 (next_acc, trace_id + 1))
               (acc, 0) trace_json_list
           in
@@ -437,7 +449,7 @@ let fold_traces dugraphs_dir slices_json_dir f base =
 
 let fold_traces_with_filter dugraphs_dir slices_json_dir filter f base =
   fold_traces dugraphs_dir slices_json_dir
-    (fun acc trace -> if filter trace then f acc trace else acc)
+    (fun acc info -> if filter info then f acc info else acc)
     base
 
 module IdSet = struct

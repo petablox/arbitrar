@@ -11,10 +11,12 @@ module type CHECKER = sig
 
   val to_string : t -> string
 
+  val filter : Function.t -> bool
+
   val check : Trace.t -> t list
 end
 
-module CheckResult = struct
+module IcmpResult = struct
   type t = Checked of Predicate.t * int64 | NoCheck
 
   let to_string r : string =
@@ -27,9 +29,9 @@ module CheckResult = struct
 end
 
 module RetValChecker : CHECKER = struct
-  open CheckResult
+  open IcmpResult
 
-  type t = CheckResult.t
+  type t = IcmpResult.t
 
   let name = "retval"
 
@@ -37,7 +39,10 @@ module RetValChecker : CHECKER = struct
 
   let compare = compare
 
-  let to_string = CheckResult.to_string
+  let to_string = IcmpResult.to_string
+
+  let filter (_, (ret_ty, _)) =
+    match ret_ty with TypeKind.Pointer _ -> true | _ -> false
 
   let rec check_helper cfgraph ret explored fringe result =
     match NodeSet.choose_opt fringe with
@@ -115,6 +120,8 @@ module ArgRelChecker : CHECKER = struct
         Printf.sprintf "Relation(%d,%d)" i j
     | NoRelation ->
         "NoRelation"
+
+  let filter _ = true
 
   let has_intersect_symbols e1 e2 =
     let s1 = SymExpr.get_used_symbols e1 in
