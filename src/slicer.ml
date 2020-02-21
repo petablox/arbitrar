@@ -30,7 +30,7 @@ module CallEdge = struct
     | _ ->
         raise Utils.InvalidJSON
 
-  let from_json llm json =
+  let from_json llm json : t =
     (*
     let caller = get_function_of_field llm "caller" json in
     let callee = get_function_of_field llm "callee" json in
@@ -184,14 +184,62 @@ end
 
 module GraphViz = Graph.Graphviz.Dot (CallGraph)
 
+module FunctionType = struct
+  type t = {ret: Llvm.lltype; args: Llvm.lltype list}
+
+  let from_llvalue f =
+    (* `Llvm.type_of f` is a pointer to the function type *)
+    (* `element_type` can get the function type out of pointer *)
+    let f_type = Llvm.element_type (Llvm.type_of f) in
+    let ret = Llvm.return_type f_type in
+    let args = Llvm.param_types f_type in
+    let args = Array.fold_right (fun a ls -> a :: ls) args [] in
+    {ret; args}
+
+  let string_of_type ty =
+    match Llvm.classify_type ty with
+    | Llvm.TypeKind.Void ->
+        "void"
+    | Llvm.TypeKind.Half ->
+        "half"
+    | Llvm.TypeKind.Float ->
+        "float"
+    | Llvm.TypeKind.Double ->
+        "double"
+    | Llvm.TypeKind.Integer ->
+        "integer"
+    | Llvm.TypeKind.Function ->
+        "function"
+    | Llvm.TypeKind.Struct ->
+        "struct"
+    | Llvm.TypeKind.Array ->
+        "array"
+    | Llvm.TypeKind.Pointer ->
+        "pointer"
+    | Llvm.TypeKind.Vector ->
+        "vector"
+    | _ ->
+        "other"
+
+  let to_json {ret; args} =
+    `Assoc
+      [ ("ret", `String (string_of_type ret))
+      ; ("args", `List (List.map (fun ty -> `String (string_of_type ty)) args))
+      ]
+end
+
 module Slice = struct
   type t =
-    {functions: Llvm.llvalue list; entry: Llvm.llvalue; call_edge: CallEdge.t}
+    { functions: Llvm.llvalue list
+    ; entry: Llvm.llvalue
+    ; call_edge: CallEdge.t
+    ; target_type: FunctionType.t }
 
   let create function_set entry caller instr callee location =
     let call_edge = {CallEdge.caller; instr; callee; location} in
     let functions = LlvalueSet.elements function_set in
-    {functions; entry; call_edge}
+    let target_type = FunctionType.from_llvalue callee in
+    {functions; entry; call_edge; target_type}
 
   let to_json llm slice =
     `Assoc
@@ -200,6 +248,7 @@ module Slice = struct
             (List.map (fun f -> `String (Llvm.value_name f)) slice.functions)
         )
       ; ("entry", `String (Llvm.value_name slice.entry))
+      ; ("target_type", FunctionType.to_json slice.target_type)
       ; ("call_edge", CallEdge.to_json llm slice.call_edge) ]
 
   let get_functions_from_json llm json =
@@ -230,7 +279,8 @@ module Slice = struct
     let entry = get_entry_from_json llm json in
     let functions = get_functions_from_json llm json in
     let call_edge = get_call_edge_from_json llm json in
-    {functions; entry; call_edge}
+    let target_type = FunctionType.from_llvalue call_edge.callee in
+    {functions; entry; call_edge; target_type}
 end
 
 module Slices = struct
