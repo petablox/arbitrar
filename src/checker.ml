@@ -13,11 +13,16 @@ module type CHECKER = sig
 
   val filter : Function.t -> bool
 
-  val check : Trace.t -> t list
+  val check : Function.t -> Trace.t -> t list
 end
 
 module IcmpResult = struct
   type t = Checked of Predicate.t * int64 | NoCheck
+
+  let normalize_predicate (pred : Predicate.t) =
+    match pred with Predicate.Ne -> Predicate.Eq | _ -> pred
+
+  let checked pred i = Checked (normalize_predicate pred, i)
 
   let to_string r : string =
     match r with
@@ -62,9 +67,9 @@ module RetValChecker : CHECKER = struct
                 let is_op1_const = Value.is_const op1 in
                 if is_op0_const && is_op0_const then []
                 else if is_op0_const && Value.sem_equal op1 ret then
-                  [Checked (pred, Value.get_const op0)]
+                  [checked pred (Value.get_const op0)]
                 else if is_op1_const && Value.sem_equal op0 ret then
-                  [Checked (pred, Value.get_const op1)]
+                  [checked pred (Value.get_const op1)]
                 else []
             | _ ->
                 []
@@ -73,7 +78,7 @@ module RetValChecker : CHECKER = struct
     | None ->
         result
 
-  let check (trace : Trace.t) : t list =
+  let check _ (trace : Trace.t) : t list =
     match trace.target_node.stmt with
     | Call {result} -> (
       match result with
@@ -152,7 +157,7 @@ module ArgRelChecker : CHECKER = struct
     |> List.flatten
     |> List.filter_map (fun x -> x)
 
-  let check (trace : Trace.t) : t list =
+  let check _ (trace : Trace.t) : t list =
     let target_stmt = trace.target_node.stmt in
     match target_stmt with
     | Call {args} -> (
@@ -168,10 +173,56 @@ module ArgRelChecker : CHECKER = struct
         []
 end
 
-(* module ArgValChecker : CHECKER = struct
-
+module type ARG_INDEX = sig
+  val index : int
 end
 
-module CausalityChecker : CHECKER = struct
+module ArgValChecker (A : ARG_INDEX) : CHECKER = struct
+  open IcmpResult
+
+  type t = IcmpResult.t
+
+  let name = Printf.sprintf "argval-%d" A.index
+
+  let default = NoCheck
+
+  let compare = compare
+
+  let to_string = IcmpResult.to_string
+
+  let filter (_, (_, arg_types)) =
+    if List.length arg_types > A.index then
+      match List.nth arg_types A.index with
+      | TypeKind.Pointer _ ->
+          true
+      | _ ->
+          false
+    else false
+
+  let check _ (_trace : Trace.t) : t list = []
+end
+
+module Arg0 : ARG_INDEX = struct
+  let index = 0
+end
+
+module Arg1 : ARG_INDEX = struct
+  let index = 1
+end
+
+module Arg2 : ARG_INDEX = struct
+  let index = 2
+end
+
+module Arg3 : ARG_INDEX = struct
+  let index = 3
+end
+
+module Arg0ValChecker = ArgValChecker (Arg0)
+module Arg1ValChecker = ArgValChecker (Arg0)
+module Arg2ValChecker = ArgValChecker (Arg0)
+module Arg3ValChecker = ArgValChecker (Arg0)
+
+(* module CausalityChecker : CHECKER = struct
 
 end *)
