@@ -241,27 +241,68 @@ module ArgValChecker (A : ARG_INDEX) : CHECKER = struct
         []
 end
 
-module Arg0 : ARG_INDEX = struct
-  let index = 0
+module Arg0ValChecker = ArgValChecker ((
+  struct
+    let index = 0
+  end :
+    ARG_INDEX ))
+
+module Arg1ValChecker = ArgValChecker ((
+  struct
+    let index = 1
+  end :
+    ARG_INDEX ))
+
+module Arg2ValChecker = ArgValChecker ((
+  struct
+    let index = 2
+  end :
+    ARG_INDEX ))
+
+module Arg3ValChecker = ArgValChecker ((
+  struct
+    let index = 3
+  end :
+    ARG_INDEX ))
+
+module CausalityChecker : CHECKER = struct
+  type t = Causing of string | None
+
+  let name = Printf.sprintf "causality"
+
+  let default = None
+
+  let compare = compare
+
+  let to_string r =
+    match r with
+    | Causing func_name ->
+        Printf.sprintf "Causing(%s)" func_name
+    | None ->
+        "None"
+
+  let filter _ = true
+
+  let rec check_helper cfgraph explored fringe result =
+    match NodeSet.choose_opt fringe with
+    | Some hd ->
+        let rst = NodeSet.remove hd fringe in
+        if NodeSet.mem hd explored then
+          check_helper cfgraph explored rst result
+        else
+          let new_explored = NodeSet.add hd explored in
+          let new_fringe =
+            NodeSet.union (NodeSet.of_list (NodeGraph.succ cfgraph hd)) rst
+          in
+          let new_result =
+            match hd.stmt with Call {func} -> [Causing func] | _ -> []
+          in
+          check_helper cfgraph new_explored new_fringe (new_result @ result)
+    | None ->
+        result
+
+  let check _ (trace : Trace.t) : t list =
+    let targets = NodeSet.singleton trace.target_node in
+    let results = check_helper trace.cfgraph NodeSet.empty targets [] in
+    match results with [] -> [None] | _ -> results
 end
-
-module Arg1 : ARG_INDEX = struct
-  let index = 1
-end
-
-module Arg2 : ARG_INDEX = struct
-  let index = 2
-end
-
-module Arg3 : ARG_INDEX = struct
-  let index = 3
-end
-
-module Arg0ValChecker = ArgValChecker (Arg0)
-module Arg1ValChecker = ArgValChecker (Arg1)
-module Arg2ValChecker = ArgValChecker (Arg2)
-module Arg3ValChecker = ArgValChecker (Arg3)
-
-(* module CausalityChecker : CHECKER = struct
-
-end *)
