@@ -15,7 +15,7 @@ examples: $(EXAMPLE_BC_FILES)
 examples/%.bc: examples/%.c
 	$(WLLVM) -g -c "$<"
 	$(RM) "./a.out" ".$(*F).o" "$(*F).o"
-	$(MV) ".$(*F).o.bc" "examples/$(*F).bc"
+	$(MV) ".$(*F).o.bc" "$@"
 
 format:
 	ls src/*.ml | xargs -I '{}' ocamlformat '{}' --output '{}'
