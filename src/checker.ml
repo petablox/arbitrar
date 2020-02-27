@@ -302,7 +302,7 @@ module CausalityChecker : CHECKER = struct
         result
 
   let check _ (trace : Trace.t) : t list =
-    let targets = NodeSet.singleton trace.target_node in
-    let results = check_helper trace.cfgraph NodeSet.empty targets [] in
+    let fringe = NodeSet.of_list (NodeGraph.succ trace.cfgraph trace.target_node) in
+    let results = check_helper trace.cfgraph NodeSet.empty fringe [] in
     match results with [] -> [None] | _ -> results
 end

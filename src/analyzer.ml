@@ -124,7 +124,7 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
       fold_traces_with_filter dug_dir slcs_dir filter
         (fun ((stats, idset) : M.stats * IdSet.t)
              ((func_name, func_type), trace) ->
-          Printf.printf "%d slices loaded (trace_id: %d)\r" trace.slice_id
+          Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
             trace.trace_id ;
           flush stdout ;
           let new_stats = M.add_trace stats (func_name, func_type) trace in
@@ -162,7 +162,7 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
     let bugs, _ =
       fold_traces_with_filter dug_dir slcs_dir filter
         (fun (bugs, last_slice) (func, trace) ->
-          Printf.printf "%d slices loaded (trace_id: %d)\r" trace.slice_id
+          Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
             trace.trace_id ;
           flush stdout ;
           let result, score = M.eval stats func trace in
@@ -212,6 +212,7 @@ module Arg0ValCheckerStats = CheckerStats (Arg0ValChecker)
 module Arg1ValCheckerStats = CheckerStats (Arg1ValChecker)
 module Arg2ValCheckerStats = CheckerStats (Arg2ValChecker)
 module Arg3ValCheckerStats = CheckerStats (Arg3ValChecker)
+module CausalityCheckerStats = CheckerStats (CausalityChecker)
 
 let checker_stats_modules : (module CHECKER_STATS) list =
   [ (module RetValCheckerStats)
@@ -219,7 +220,8 @@ let checker_stats_modules : (module CHECKER_STATS) list =
   ; (module Arg0ValCheckerStats)
   ; (module Arg1ValCheckerStats)
   ; (module Arg2ValCheckerStats)
-  ; (module Arg3ValCheckerStats) ]
+  ; (module Arg3ValCheckerStats)
+  ; (module CausalityCheckerStats) ]
 
 let main (input_directory : string) =
   Printf.printf "Analyzing %s...\n" input_directory ;
