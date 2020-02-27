@@ -283,26 +283,33 @@ module CausalityChecker : CHECKER = struct
 
   let filter _ = true
 
-  let rec check_helper cfgraph explored fringe result =
+  let rec check_helper dugraph explored fringe result =
     match NodeSet.choose_opt fringe with
     | Some hd ->
         let rst = NodeSet.remove hd fringe in
         if NodeSet.mem hd explored then
-          check_helper cfgraph explored rst result
+          check_helper dugraph explored rst result
         else
           let new_explored = NodeSet.add hd explored in
           let new_fringe =
-            NodeSet.union (NodeSet.of_list (NodeGraph.succ cfgraph hd)) rst
+            NodeSet.union (NodeSet.of_list (NodeGraph.succ dugraph hd)) rst
           in
           let new_result =
-            match hd.stmt with Call {func} -> [Causing func] | _ -> []
+            match hd.stmt with
+            | Call {func} -> Causing func :: result
+            | _ -> result
           in
-          check_helper cfgraph new_explored new_fringe (new_result @ result)
+          check_helper dugraph new_explored new_fringe new_result
     | None ->
         result
 
+  let dedup xs =
+    let uniq_cons x xs = if List.mem x xs then xs else x :: xs in
+    List.fold_right uniq_cons xs []
+
   let check _ (trace : Trace.t) : t list =
-    let fringe = NodeSet.of_list (NodeGraph.succ trace.cfgraph trace.target_node) in
-    let results = check_helper trace.cfgraph NodeSet.empty fringe [] in
+    let explored = NodeSet.singleton trace.target_node in
+    let fringe = NodeSet.of_list (NodeGraph.succ trace.dugraph trace.target_node) in
+    let results = check_helper trace.dugraph explored fringe [] in
     match results with [] -> [None] | _ -> results
 end
