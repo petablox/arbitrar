@@ -246,7 +246,7 @@ let reduce_dugraph target orig =
   let du_projection = DUGraph.du_project orig in
   let du_checker = Path.create du_projection in
   (* filter out du-unrechable nodes *)
-  let newg =
+  let directly_connected_g =
     DUGraph.fold_vertex
       (fun v g ->
         if
@@ -255,6 +255,34 @@ let reduce_dugraph target orig =
         then g
         else DUGraph.remove_vertex g v)
       orig orig
+  in
+  (* add back nodes that are reachable from any current node *)
+  let forward_connected_g =
+    DUGraph.fold_vertex
+      (fun v g ->
+        let is_forward_connected =
+          DUGraph.fold_vertex
+            (fun v_p connected ->
+              if connected then true else Path.check_path du_checker v_p v)
+            g false
+        in
+        if is_forward_connected then DUGraph.add_vertex g v else g)
+      orig directly_connected_g
+  in
+  (* restore du edges *)
+  let du_restored_g =
+    DUGraph.fold_edges_e
+      (fun edge g ->
+        match DUGraph.E.label edge with
+        | DUGraph.Edge.Data ->
+            let src = DUGraph.E.src edge in
+            let dst = DUGraph.E.src edge in
+            if DUGraph.mem_vertex g src && DUGraph.mem_vertex g dst then
+              DUGraph.add_edge_e g edge
+            else g
+        | _ ->
+            g)
+      orig forward_connected_g
   in
   (* restore cf edges *)
   DUGraph.fold_vertex
@@ -269,7 +297,7 @@ let reduce_dugraph target orig =
         | None ->
             g
       else g)
-    newg newg
+    du_restored_g du_restored_g
 
 let rec execute_function llctx f env state =
   let entry = Llvm.entry_block f in
@@ -632,6 +660,6 @@ let dump_dots ?(prefix = "") env =
 
 let dump_dugraphs ?(prefix = "") env =
   let json = List.map DUGraph.to_json env.Environment.dugraphs in
-  let oc = open_out (prefix ^ "dugraph.json") in
+  let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc (`List json) ;
   close_out oc

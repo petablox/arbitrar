@@ -111,10 +111,10 @@ let needs_run_checker checker_name : bool =
   if String.equal !Options.checker "all" then true
   else String.equal checker_name !Options.checker
 
-let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
+let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
   let module M = (val cs_mod : CHECKER_STATS) in
   if needs_run_checker M.Checker.name then (
-    Printf.printf "Running checker [%s]...\n" M.Checker.name ;
+    Printf.printf "Running checker #%d: %s...\n" i M.Checker.name ;
     flush stdout ;
     let checker_dir = init_checker_dir ana_dir M.Checker.name in
     let filter (func, trace) =
@@ -149,7 +149,7 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
           stats ;
         close_out oc)
       stats ;
-    Printf.printf "\nDumping results and bug reports...\n" ;
+    Printf.printf "Dumping results and bug reports...\n" ;
     flush stdout ;
     let header = "Slice Id,Trace Id,Entry,Function,Location,Score,Result\n" in
     let brief_header = "Slice Id,Entry,Function,Location,Score,Result\n" in
@@ -227,6 +227,6 @@ let main (input_directory : string) =
   let analysis_dir = init_analysis_dir input_directory in
   let dugraphs_dir = input_directory ^ "/dugraphs" in
   let slices_json_dir = input_directory ^ "/slices.json" in
-  List.iter
+  List.iteri
     (run_one_checker dugraphs_dir slices_json_dir analysis_dir)
     checker_stats_modules

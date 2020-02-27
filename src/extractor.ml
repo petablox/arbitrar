@@ -21,7 +21,7 @@ let run_one_slice lc outdir llctx llm initial_state idx
   let target_name =
     Llvm.operand target (Llvm.num_operands target - 1) |> Llvm.value_name
   in
-  let file_prefix = target_name ^ "-" ^ string_of_int idx ^ "-" in
+  let file_prefix = target_name ^ "-" ^ string_of_int idx in
   let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
   let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
   let dots_prefix = outdir ^ "/dots/" ^ file_prefix in

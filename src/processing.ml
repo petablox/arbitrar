@@ -425,8 +425,7 @@ let fold_traces dugraphs_dir slices_json_dir f base =
         let func_type = func_type_from_slice_json slice_json in
         let func = (target_func_name, func_type) in
         let dugraph_json_dir =
-          Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir target_func_name
-            slice_id
+          Printf.sprintf "%s/%s-%d.json" dugraphs_dir target_func_name slice_id
         in
         try
           let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
@@ -500,8 +499,7 @@ module IdSet = struct
     SliceIdMap.iter
       (fun (func_name, slice_id) trace_ids ->
         let dugraph_json_dir =
-          Printf.sprintf "%s/%s-%d-dugraph.json" dugraphs_dir func_name
-            slice_id
+          Printf.sprintf "%s/%s-%d.json" dugraphs_dir func_name slice_id
         in
         let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
         let trace_json_list =
