@@ -143,7 +143,7 @@ let run_one_checker dug_dir slcs_dir ana_dir cs_mod =
         Printf.fprintf oc "Count,Result\n" ;
         M.FunctionStats.iter
           (fun result count ->
-            Printf.fprintf oc "%d,%s\n" count (M.Checker.to_string result))
+            Printf.fprintf oc "%d,\"%s\"\n" count (M.Checker.to_string result))
           stats ;
         close_out oc)
       stats ;

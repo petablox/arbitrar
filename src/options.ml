@@ -72,7 +72,9 @@ let slicer_opts_local =
   ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex") ]
 
 let executor_opts_local =
-  [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces")
+  [ ( "-max-traces"
+    , Arg.Set_int max_traces
+    , "Maximum number of traces per slice" )
   ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace")
   ; ("-max-trials", Arg.Set_int max_trials, "Maximum number of trials")
   ; ( "-no-filter-duplication"

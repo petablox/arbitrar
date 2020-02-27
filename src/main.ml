@@ -57,9 +57,6 @@ let main () =
   | Analyze ->
       Analyzer.main !input_file
   | All ->
-      Slicer.occurence !input_file ;
-      Extractor.main !input_file ;
-      Filter.main outdir ;
-      Analyzer.main outdir
+      Extractor.main !input_file ; Filter.main outdir ; Analyzer.main outdir
 
 let _ = main ()
