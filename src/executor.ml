@@ -647,14 +647,14 @@ let print_report oc env =
 
 let dump_traces ?(prefix = "") env =
   let json = Traces.to_json env.Environment.traces in
-  let oc = open_out (prefix ^ "traces.json") in
+  let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc json ;
   close_out oc
 
 let dump_dots ?(prefix = "") env =
   List.iteri
     (fun idx g ->
-      let oc = open_out (prefix ^ string_of_int idx ^ "-" ^ "dugraph.dot") in
+      let oc = open_out (prefix ^ "-" ^ string_of_int idx ^ ".dot") in
       GraphViz.output_graph oc g ; close_out oc)
     env.Environment.dugraphs
 
