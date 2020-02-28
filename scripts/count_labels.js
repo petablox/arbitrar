@@ -9,8 +9,9 @@ let count = 0;
 for (var i = 0; i < slices.length; i++) {
   const slice = slices[i];
   const callee = slice.call_edge.callee;
-  const slice_file_name = `${callee}-${i}-dugraph.json`;
-  const traces = require(dugraphs_dir + slice_file_name);
+  const slice_file_name = `${callee}-${i}.json`;
+  const slice_file = dugraphs_dir + slice_file_name;
+  const traces = require(slice_file);
   for (const trace of traces) {
     if (trace["labels"]) {
       const labels = trace.labels;
@@ -20,7 +21,7 @@ for (var i = 0; i < slices.length; i++) {
       }
     }
   }
-  delete traces;
+  delete require.cache[slice_file];
 }
 
 console.log(`\nLabel ${label} appeared ${count} times`);
