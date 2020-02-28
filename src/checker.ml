@@ -394,7 +394,7 @@ module FOpenChecker : CHECKER = struct
 
   let to_string r = match r with Ok -> "Ok" | _ -> "Alarm"
 
-  let regex = Str.regexp "fopen"
+  let regex = Str.regexp ".*fopen.*"
 
   let filter (func_name, _) = Str.string_match regex func_name 0
 
