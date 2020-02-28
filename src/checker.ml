@@ -408,19 +408,26 @@ module FOpenChecker : CHECKER = struct
     | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then) -> NotZero
     | _ -> Other
 
-  let check _ (trace : Trace.t) : t list =
+  let retval_checked trace : bool =
     let retval_checks = IcmpBranchChecker.check_retval trace in
-    let retval_checked = List.length retval_checks > 0 in
-    if retval_checked then
-      let causings = Causality.check trace in
-      let is_causing_fputs = List.mem (Causality.Causing "fputs") causings in
-      let is_causing_fclose = List.mem (Causality.Causing "fclose") causings in
-      match is_zero (List.nth retval_checks 0) with
+    List.length retval_checks > 0
+
+  let retval_checked_is_zero trace =
+    let retval_checks = IcmpBranchChecker.check_retval trace in
+    is_zero (List.nth retval_checks 0)
+
+  let is_causing trace f : bool =
+    let causings = Causality.check trace in
+    List.mem (Causality.Causing f) causings
+
+  let check _ (trace : Trace.t) : t list =
+    if retval_checked trace then
+      match retval_checked_is_zero trace with
       | IsZero ->
-          if is_causing_fclose || is_causing_fputs then [Alarm]
+          if is_causing trace "fclose" || is_causing trace "fputs" then [Alarm]
           else [Ok]
       | NotZero ->
-          if is_causing_fclose then [Ok]
+          if is_causing trace "fclose" then [Ok]
           else [Alarm]
       | Other -> [Alarm]
     else [Alarm]
