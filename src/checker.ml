@@ -398,6 +398,16 @@ module FOpenChecker : CHECKER = struct
 
   let filter (func_name, _) = Str.string_match regex func_name 0
 
+  type zero_check = IsZero | NotZero | Other
+
+  let is_zero retval_check =
+    match retval_check with
+    | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Then)
+    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Else) -> IsZero
+    | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Else)
+    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then) -> NotZero
+    | _ -> Other
+
   let check _ (trace : Trace.t) : t list =
     let retval_checks = IcmpBranchChecker.check_retval trace in
     let retval_checked = List.length retval_checks > 0 in
@@ -405,15 +415,13 @@ module FOpenChecker : CHECKER = struct
       let causings = Causality.check trace in
       let is_causing_fputs = List.mem (Causality.Causing "fputs") causings in
       let is_causing_fclose = List.mem (Causality.Causing "fclose") causings in
-      match List.nth retval_checks 0 with
-      | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Then)
-      | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Else) ->
+      match is_zero (List.nth retval_checks 0) with
+      | IsZero ->
           if is_causing_fclose || is_causing_fputs then [Alarm]
           else [Ok]
-      | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Else)
-      | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then) ->
+      | NotZero ->
           if is_causing_fclose then [Ok]
           else [Alarm]
-      | _ -> [Alarm]
+      | Other -> [Alarm]
     else [Alarm]
 end
