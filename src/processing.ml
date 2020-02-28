@@ -206,10 +206,16 @@ module Value = struct
   let get_const = function Int i -> i | _ -> raise Utils.InvalidArgument
 end
 
+module Branch = struct
+  type t = Then | Else
+end
+
 module Statement = struct
   type t =
     | Call of {func: string; args: Value.t list; result: Value.t option}
     | Assume of {pred: Predicate.t; op0: Value.t; op1: Value.t; result: Value.t}
+    | ConditionalBranch of {br: Branch.t}
+    | UnconditionalBranch
     | Return of Value.t option
     | Store of {value: Value.t; loc: Value.t}
     | Load of {loc: Value.t; result: Value.t}
@@ -259,6 +265,14 @@ module Statement = struct
     let result = Value.of_json (Utils.get_field json "result_sem") in
     GetElementPtr {op0; result}
 
+  let br_from_json json : t =
+    let maybe_then_br = Utils.get_field_opt json "then_br" in
+    match maybe_then_br with
+    | Some (`Bool true) -> ConditionalBranch {br= Branch.Then}
+    | Some (`Bool false) -> ConditionalBranch {br= Branch.Else}
+    | Some _ -> raise Utils.InvalidJSON
+    | None -> UnconditionalBranch
+
   let binary_from_json json : t =
     let op = BinOp.of_json (Utils.get_field json "opcode") in
     let op0 = Value.of_json (Utils.get_field json "op0_sem") in
@@ -282,6 +296,8 @@ module Statement = struct
           load_from_json json
       | "getelementptr" ->
           getelementptr_from_json json
+      | "br" ->
+          br_from_json json
       | s when BinOp.is_binary_op s ->
           binary_from_json json
       | _ ->

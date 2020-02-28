@@ -583,6 +583,9 @@ let int_from_json_field json field : int = int_from_json (get_field json field)
 let list_from_json json : Yojson.Safe.t list =
   match json with `List ls -> ls | _ -> raise InvalidJSON
 
+let bool_from_json json : bool =
+  match json with `Bool b -> b | _ -> raise InvalidJSON
+
 let string_from_json_field json field : string =
   string_from_json (get_field json field)
 

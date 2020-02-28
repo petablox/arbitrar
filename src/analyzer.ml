@@ -213,6 +213,7 @@ module Arg1ValCheckerStats = CheckerStats (Arg1ValChecker)
 module Arg2ValCheckerStats = CheckerStats (Arg2ValChecker)
 module Arg3ValCheckerStats = CheckerStats (Arg3ValChecker)
 module CausalityCheckerStats = CheckerStats (CausalityChecker)
+module FOpenCheckerStats = CheckerStats (FOpenChecker)
 
 let checker_stats_modules : (module CHECKER_STATS) list =
   [ (module RetValCheckerStats)
@@ -221,7 +222,8 @@ let checker_stats_modules : (module CHECKER_STATS) list =
   ; (module Arg1ValCheckerStats)
   ; (module Arg2ValCheckerStats)
   ; (module Arg3ValCheckerStats)
-  ; (module CausalityCheckerStats) ]
+  ; (module CausalityCheckerStats)
+  ; (module FOpenCheckerStats) ]
 
 let main (input_directory : string) =
   Printf.printf "Analyzing %s...\n" input_directory ;
