@@ -220,8 +220,10 @@ let semantic_sig_of_return = function
       `Assoc [("op0_sem", `Null)]
 
 let semantic_sig_of_br = function
-  | Some v ->
-      `Assoc [("cond_sem", Value.to_yojson v)]
+  | Some (v, br) ->
+      `Assoc
+        [ ("cond_sem", Value.to_yojson v)
+        ; ("then_br", `Bool br) ]
   | None ->
       `Assoc [("cond_sem", `Null)]
 
@@ -457,8 +459,8 @@ and transfer_br llctx instr env state =
   match Llvm.get_branch instr with
   | Some (`Conditional (cond, b1, b2)) ->
       let v, _ = eval cond state.State.memory in
-      let semantic_sig = semantic_sig_of_br (Some v) in
-      let state =
+      let get_state br =
+        let semantic_sig = semantic_sig_of_br (Some (v, br)) in
         State.add_trace llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
@@ -466,15 +468,15 @@ and transfer_br llctx instr env state =
       let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
       if b1_visited && b2_visited then finish_execution llctx env state
       else if b1_visited then
-        let state = State.visit_block b2 state in
+        let state = State.visit_block b2 (get_state false) in
         execute_block llctx b2 env state
       else if b2_visited then
-        let state = State.visit_block b1 state in
+        let state = State.visit_block b1 (get_state true) in
         execute_block llctx b1 env state
       else
-        let new_state = State.visit_block b2 state in
-        let env = Environment.add_work (b2, new_state) env in
-        let state = State.visit_block b1 state in
+        let b2_state = State.visit_block b2 (get_state false) in
+        let env = Environment.add_work (b2, b2_state) env in
+        let state = State.visit_block b1 (get_state true) in
         execute_block llctx b1 env state
   | Some (`Unconditional b) ->
       let semantic_sig = semantic_sig_of_br None in
