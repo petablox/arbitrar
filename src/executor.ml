@@ -221,9 +221,7 @@ let semantic_sig_of_return = function
 
 let semantic_sig_of_br = function
   | Some (v, br) ->
-      `Assoc
-        [ ("cond_sem", Value.to_yojson v)
-        ; ("then_br", `Bool br) ]
+      `Assoc [("cond_sem", Value.to_yojson v); ("then_br", `Bool br)]
   | None ->
       `Assoc [("cond_sem", `Null)]
 

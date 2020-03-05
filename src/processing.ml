@@ -268,10 +268,14 @@ module Statement = struct
   let br_from_json json : t =
     let maybe_then_br = Utils.get_field_opt json "then_br" in
     match maybe_then_br with
-    | Some (`Bool true) -> ConditionalBranch {br= Branch.Then}
-    | Some (`Bool false) -> ConditionalBranch {br= Branch.Else}
-    | Some _ -> raise Utils.InvalidJSON
-    | None -> UnconditionalBranch
+    | Some (`Bool true) ->
+        ConditionalBranch {br= Branch.Then}
+    | Some (`Bool false) ->
+        ConditionalBranch {br= Branch.Else}
+    | Some _ ->
+        raise Utils.InvalidJSON
+    | None ->
+        UnconditionalBranch
 
   let binary_from_json json : t =
     let op = BinOp.of_json (Utils.get_field json "opcode") in

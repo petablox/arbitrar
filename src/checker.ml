@@ -11,6 +11,8 @@ module type CHECKER = sig
 
   val to_string : t -> string
 
+  val is_problematic : t -> bool
+
   val filter : Function.t -> bool
 
   val check : Function.t -> Trace.t -> t list
@@ -33,7 +35,7 @@ module IcmpResult = struct
         "NoCheck"
 end
 
-module RetValChecker : CHECKER = struct
+module RetValChecker = struct
   open IcmpResult
 
   type t = IcmpResult.t
@@ -45,6 +47,8 @@ module RetValChecker : CHECKER = struct
   let compare = compare
 
   let to_string = IcmpResult.to_string
+
+  let is_problematic r = match r with NoCheck -> true | _ -> false
 
   let filter (_, (ret_ty, _)) =
     match ret_ty with TypeKind.Pointer _ -> true | _ -> false
@@ -94,7 +98,7 @@ module RetValChecker : CHECKER = struct
         []
 end
 
-module ArgRelChecker : CHECKER = struct
+module ArgRelChecker = struct
   (**
    * When there's a relation, the `int` means the index of the argument.
    * e.g.
@@ -127,6 +131,8 @@ module ArgRelChecker : CHECKER = struct
         "NoRelation"
 
   let filter _ = true
+
+  let is_problematic r = match r with NoRelation -> true | _ -> false
 
   let has_intersect_symbols e1 e2 =
     let s1 = SymExpr.get_used_symbols e1 in
@@ -177,7 +183,7 @@ module type ARG_INDEX = sig
   val index : int
 end
 
-module ArgValChecker (A : ARG_INDEX) : CHECKER = struct
+module ArgValChecker (A : ARG_INDEX) = struct
   open IcmpResult
 
   type t = IcmpResult.t
@@ -198,6 +204,8 @@ module ArgValChecker (A : ARG_INDEX) : CHECKER = struct
       | _ ->
           false
     else false
+
+  let is_problematic r = match r with NoCheck -> true | _ -> false
 
   let rec check_helper cfgraph ret explored fringe result =
     match NodeSet.choose_opt fringe with
@@ -265,8 +273,14 @@ module Arg3ValChecker = ArgValChecker ((
   end :
     ARG_INDEX ))
 
-module Causality = struct
+module CausalityChecker = struct
   type t = Causing of string | None
+
+  let name = "causality"
+
+  let default = None
+
+  let compare = compare
 
   let to_string r =
     match r with
@@ -274,6 +288,10 @@ module Causality = struct
         Printf.sprintf "Causing(%s)" func_name
     | None ->
         "None"
+
+  let filter _ = true
+
+  let is_problematic r = match r with None -> true | _ -> false
 
   let rec check_helper dugraph explored fringe result =
     match NodeSet.choose_opt fringe with
@@ -288,40 +306,24 @@ module Causality = struct
           in
           let new_result =
             match hd.stmt with
-            | Call {func} -> Causing func :: result
-            | _ -> result
+            | Call {func} ->
+                Causing func :: result
+            | _ ->
+                result
           in
           check_helper dugraph new_explored new_fringe new_result
     | None ->
         result
 
-  let dedup xs =
-    let uniq_cons x xs = if List.mem x xs then xs else x :: xs in
-    List.fold_right uniq_cons xs []
-
-  let check (trace : Trace.t) : t list =
+  let check_trace (trace : Trace.t) : t list =
     let explored = NodeSet.singleton trace.target_node in
-    let fringe = NodeSet.of_list (NodeGraph.succ trace.dugraph trace.target_node) in
+    let fringe =
+      NodeSet.of_list (NodeGraph.succ trace.dugraph trace.target_node)
+    in
     let results = check_helper trace.dugraph explored fringe [] in
     match results with [] -> [None] | _ -> results
-end
 
-module CausalityChecker : CHECKER = struct
-  open Causality
-
-  type t = Causality.t
-
-  let name = "causality"
-
-  let default = Causality.None
-
-  let compare = compare
-
-  let to_string = Causality.to_string
-
-  let filter _ = true
-
-  let check _ = Causality.check
+  let check _ = check_trace
 end
 
 module IcmpBranchChecker = struct
@@ -340,27 +342,30 @@ module IcmpBranchChecker = struct
           in
           let new_result =
             match hd.stmt with
-            | Assume {pred; op0; op1} ->
+            | Assume {pred; op0; op1} -> (
                 let branch_instrs = NodeGraph.succ cfgraph hd in
                 let maybe_branch_instr =
                   List.find_opt
                     (fun (node : Node.t) ->
                       match node.stmt with
-                      | Statement.ConditionalBranch _ -> true
-                      | _ -> false)
+                      | Statement.ConditionalBranch _ ->
+                          true
+                      | _ ->
+                          false)
                     branch_instrs
                 in
-                (match maybe_branch_instr with
-                | Some ({stmt= Statement.ConditionalBranch {br}}) ->
+                match maybe_branch_instr with
+                | Some {stmt= Statement.ConditionalBranch {br}} ->
                     let is_op0_const = Value.is_const op0 in
                     let is_op1_const = Value.is_const op1 in
                     if is_op0_const && is_op0_const then result
                     else if is_op0_const && Value.sem_equal op1 var then
-                      Checked (pred, (Value.get_const op0), br) :: result
+                      Checked (pred, Value.get_const op0, br) :: result
                     else if is_op1_const && Value.sem_equal op0 var then
-                      Checked (pred, (Value.get_const op1), br) :: result
+                      Checked (pred, Value.get_const op1, br) :: result
                     else result
-                | _ -> result)
+                | _ ->
+                    result )
             | _ ->
                 result
           in
@@ -368,7 +373,8 @@ module IcmpBranchChecker = struct
     | None ->
         result
 
-  let check (trace : Trace.t) (var : Value.t) (start : Node.t) (succ : bool) : t list =
+  let check (trace : Trace.t) (var : Value.t) (start : Node.t) (succ : bool) :
+      t list =
     let succ_func = if succ then NodeGraph.succ else NodeGraph.pred in
     let fringe = NodeSet.of_list (succ_func trace.cfgraph start) in
     let explored = NodeSet.empty in
@@ -378,12 +384,15 @@ module IcmpBranchChecker = struct
     match trace.target_node.stmt with
     | Call {result} -> (
       match result with
-      | Some ret -> check trace ret trace.target_node true
-      | None -> [] )
-    | _ -> []
+      | Some ret ->
+          check trace ret trace.target_node true
+      | None ->
+          [] )
+    | _ ->
+        []
 end
 
-module FOpenChecker : CHECKER = struct
+module FOpenChecker = struct
   type t = Ok | Alarm
 
   let name = "fopen"
@@ -398,15 +407,20 @@ module FOpenChecker : CHECKER = struct
 
   let filter (func_name, _) = Str.string_match regex func_name 0
 
+  let is_problematic t = match t with Alarm -> true | _ -> false
+
   type zero_check = IsZero | NotZero | Other
 
   let is_zero retval_check =
     match retval_check with
     | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Then)
-    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Else) -> IsZero
+    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Else) ->
+        IsZero
     | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Else)
-    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then) -> NotZero
-    | _ -> Other
+    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then) ->
+        NotZero
+    | _ ->
+        Other
 
   let retval_checked trace : bool =
     let retval_checks = IcmpBranchChecker.check_retval trace in
@@ -417,8 +431,8 @@ module FOpenChecker : CHECKER = struct
     is_zero (List.nth retval_checks 0)
 
   let is_causing trace f : bool =
-    let causings = Causality.check trace in
-    List.mem (Causality.Causing f) causings
+    let causings = CausalityChecker.check_trace trace in
+    List.mem (CausalityChecker.Causing f) causings
 
   let check _ (trace : Trace.t) : t list =
     if retval_checked trace then
@@ -427,8 +441,8 @@ module FOpenChecker : CHECKER = struct
           if is_causing trace "fclose" || is_causing trace "fputs" then [Alarm]
           else [Ok]
       | NotZero ->
-          if is_causing trace "fclose" then [Ok]
-          else [Alarm]
-      | Other -> [Alarm]
+          if is_causing trace "fclose" then [Ok] else [Alarm]
+      | Other ->
+          [Alarm]
     else [Alarm]
 end
