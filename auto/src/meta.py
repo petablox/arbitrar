@@ -28,6 +28,8 @@ class Pkg:
     def __init__(self, name: str, pkg_src: PkgSrc):
         self.name = name
         self.pkg_src = pkg_src 
+        self.fetched = False
+        self.dir = None
 
 class Repo:
     def __init__(self):

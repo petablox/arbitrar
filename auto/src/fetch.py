@@ -3,10 +3,42 @@ from meta import *
 import json
 import sys
 import os.path
+import subprocess
 
 from optparse import OptionParser
+from optparse import Values
 
-options = {} # type: ignore
+options = Values() # type: Values
+
+def fetch_github(pkg: Pkg):
+    run = subprocess.run(['git','clone',pkg.pkg_src.link, pkg.name], stdout=subprocess.PIPE, cwd=options.dir) 
+    # Better for use to create some exception common to all processing and throw that
+    # one level up so we don't handle multiple times
+    if run.returncode != 0:
+        print("error: could not fetch {}".format(pkg.name))
+        return None
+    return pkg.name 
+
+def fetch_pkg(pkg: Pkg):
+    t = pkg.pkg_src.src_type
+    path = None
+    if t == PkgSrcType.github:
+        path = fetch_github(pkg)
+    elif t == PkgSrcType.aptget:
+        pass
+    elif t == PkgSrcType.direct:
+        pass
+    else:
+        print("warning: unrecognized package source {}".format(t)) 
+
+    if path is not None:
+        pkg.fetched = True
+        pkg.dir = path 
+
+def fetch_repo(repo: Repo): 
+    for _, p in repo.pkgs.items():
+        print("fetching {} using {}".format(p.name, p.pkg_src.src_type))
+        fetch_pkg(p)
 
 def read_package_json(repo: Repo, path: str):
     with open(path) as f:
@@ -20,7 +52,7 @@ if __name__ == "__main__":
     parser = OptionParser(usage=usage)
     parser.add_option('-d', '--dir', dest='dir', default='out', help='use DIR as working output directory', metavar='DIR')
 
-    (options, args) = parser.parse_args() # type: ignore
+    (options, args) = parser.parse_args() 
 
     if len(args) < 1:
         print("error: supply package-json")
@@ -28,3 +60,9 @@ if __name__ == "__main__":
 
     repo = Repo()
     read_package_json(repo, args[0]) 
+
+    if not os.path.exists(options.dir):
+        os.mkdir(options.dir)
+
+    fetch_repo(repo)
+
