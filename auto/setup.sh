@@ -1,4 +1,4 @@
 #!/bin/bash
 
-pip3 install mypy
+pip3 install mypy flake8
 

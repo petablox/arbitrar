@@ -10,6 +10,16 @@ run_mypy() {
   fi
 }
 
+run_flake8() {
+  flake8 ./src
+  if [[ $? -ne 0 ]]; then
+    echo "error: flake8 errors, check before comitting"
+    return 0
+  else
+    return 1
+  fi
+}
+
 run_tester() {
   echo "error: not yet implemented"
   return 1
@@ -23,6 +33,7 @@ fi
 case $1 in
   "check")
     run_mypy
+    run_flake8
     ;;
   "test")
     run_tester
