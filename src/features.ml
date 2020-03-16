@@ -63,7 +63,7 @@ module RetvalFeature = struct
         ; branch_not_zero = None }
 end
 
-module ArgvalFeature (A : ARG_INDEX) = struct
+(* module ArgvalFeature (A : ARG_INDEX) = struct
   type t =
     { has_arg_check: bool
     ; check_predicate: Predicate.t option
@@ -71,64 +71,64 @@ module ArgvalFeature (A : ARG_INDEX) = struct
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
     ; branch_not_zero: bool option }
+end *)
+
+module StringMap = Map.Make (String)
+
+module CausalityDictionary = struct
+  type t = int StringMap.t
+
+  let empty : t = StringMap.empty
+
+  let singleton caused = StringMap.singleton caused 1
+
+  let add dict caused =
+    StringMap.update caused
+      (fun maybe_count ->
+        match maybe_count with
+        | Some count -> Some (count + 1)
+        | None -> Some 1)
+      dict
+
+  let rec sublist b e l =
+    match l with
+    | [] -> []
+    | h :: t ->
+        let tail = if e = 0 then [] else sublist (b - 1) (e - 1) t in
+        if b > 0 then tail else h :: tail
+
+  let top dict amount =
+    let ls = StringMap.fold
+      (fun func count ls -> (func, count) :: ls)
+      dict []
+    in
+    let sorted = List.sort (fun (_, c1) (_, c2) -> c1 - c2) ls in
+    let top_sorted = sublist 0 amount sorted in
+    List.map fst top_sorted
 end
 
-module CausalityFeature = struct
-  module StringMap = Map.Make (String)
+module FunctionCausalityDictionary = struct
+  type t = CausalityDictionary.t StringMap.t
 
-  module CausalityDictionary = struct
-    type t = int StringMap.t
+  let empty : t = StringMap.empty
 
-    let empty : t = StringMap.empty
+  let add dict func caused_func =
+    StringMap.update func
+      (fun maybe_caused_dict ->
+        match maybe_caused_dict with
+        | Some caused_dict -> Some (CausalityDictionary.add caused_dict caused_func)
+        | None -> Some (CausalityDictionary.singleton caused_func))
+      dict
 
-    let singleton caused = StringMap.singleton caused 1
+  let find dict func = StringMap.find func dict
+end
 
-    let add dict caused =
-      StringMap.update caused
-        (fun maybe_count ->
-          match maybe_count with
-          | Some count -> Some (count + 1)
-          | None -> Some 1)
-        dict
-
-    let rec sublist b e l =
-      match l with
-      | [] -> []
-      | h :: t ->
-          let tail = if e = 0 then [] else sublist (b - 1) (e - 1) t in
-          if b > 0 then tail else h :: tail
-
-    let top dict amount =
-      let ls = StringMap.fold
-        (fun func count ls -> (func, count) :: ls)
-        dict []
-      in
-      let sorted = List.sort (fun (_, c1) (_, c2) -> c1 - c2) ls in
-      let top_sorted = sublist 0 amount sorted in
-      List.map fst top_sorted
-  end
-
-  module FunctionCausalityDictionary = struct
-    type t = CausalityDictionary.t StringMap.t
-
-    let empty : t = StringMap.empty
-
-    let add dict func caused_func =
-      StringMap.update func
-        (fun maybe_caused_dict ->
-          match maybe_caused_dict with
-          | Some caused_dict -> Some (CausalityDictionary.add caused_dict caused_func)
-          | None -> Some (CausalityDictionary.singleton caused_func))
-        dict
-
-    let find dict func = StringMap.find func dict
-  end
-
+module InvokedBeforeFeature = struct
   type dict = FunctionCausalityDictionary.t
 
   type t = Yojson.Safe.t
 
-  let name = "causality"
+  let name = "invoked_before"
 
   let dictionary = ref FunctionCausalityDictionary.empty
 
@@ -173,9 +173,60 @@ module CausalityFeature = struct
   let to_yojson j = j
 end
 
+module InvokedAfterFeature = struct
+  type dict = FunctionCausalityDictionary.t
+
+  type t = Yojson.Safe.t
+
+  let name = "invoked_after"
+
+  let dictionary = ref FunctionCausalityDictionary.empty
+
+  let amount = 10
+
+  let caused_funcs trace : string list =
+    let results = CausalityChecker.check_trace_backward trace in
+    List.filter_map
+      (fun result ->
+        match result with
+        | CausalityChecker.Causing f -> Some f
+        | _ -> None)
+      results
+
+  let init slices_json_dir dugraphs_dir =
+    let dict = fold_traces slices_json_dir dugraphs_dir
+      (fun dict ((func_name, _), trace) ->
+        let results = caused_funcs trace in
+        List.fold_left
+          (fun dict caused_func_name ->
+            FunctionCausalityDictionary.add dict func_name caused_func_name)
+          dict results)
+      FunctionCausalityDictionary.empty
+    in
+    dictionary := dict ;
+    ()
+
+  let filter _ = true
+
+  let extract (func_name, _) trace =
+    let results = caused_funcs trace in
+    let caused_dict = FunctionCausalityDictionary.find !dictionary func_name in
+    let top_caused = CausalityDictionary.top caused_dict amount in
+    let assocs = List.fold_left
+      (fun assocs func_name ->
+        let has_func = List.mem func_name results in
+        (func_name, `Bool has_func) :: assocs)
+      [] top_caused
+    in
+    `Assoc assocs
+
+  let to_yojson j = j
+end
+
 let feature_extractors : (module FEATURE) list =
   [ (module RetvalFeature)
-  ; (module CausalityFeature) ]
+  ; (module InvokedAfterFeature)
+  ; (module InvokedBeforeFeature) ]
 
 let process_trace features_dir func trace =
   let (func_name, func_type) = func in

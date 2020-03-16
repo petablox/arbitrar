@@ -323,6 +323,14 @@ module CausalityChecker = struct
     let results = check_helper trace.dugraph explored fringe [] in
     match results with [] -> [None] | _ -> results
 
+  let check_trace_backward (trace : Trace.t) : t list =
+    let explored = NodeSet.singleton trace.target_node in
+    let fringe =
+      NodeSet.of_list (NodeGraph.pred trace.dugraph trace.target_node)
+    in
+    let results = check_helper trace.dugraph explored fringe [] in
+    match results with [] -> [None] | _ -> results
+
   let check _ = check_trace
 end
 
@@ -378,7 +386,8 @@ module IcmpBranchChecker = struct
     let succ_func = if succ then NodeGraph.succ else NodeGraph.pred in
     let fringe = NodeSet.of_list (succ_func trace.cfgraph start) in
     let explored = NodeSet.empty in
-    check_helper trace.cfgraph succ_func var explored fringe []
+    let results = check_helper trace.cfgraph succ_func var explored fringe [] in
+    List.filter ((<>) NoCheck) results
 
   let check_retval (trace : Trace.t) : t list =
     match trace.target_node.stmt with
