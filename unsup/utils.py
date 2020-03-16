@@ -18,6 +18,22 @@ def load_jsons(dir):
         })
     return jsons
 
+def fopen_ground_truth(data):
+  features = data["features"]
+  if features["retval_check"]["has_retval_check"]:
+    if features["retval_check"]["branch_is_zero"]:
+      if features["causality"]["fclose"]:
+        return -1
+      else:
+        return 1
+    else:
+      if features["causality"]["fclose"]:
+        return 1
+      else:
+        return -1
+  else:
+    return -1
+
 def encode_causality(data):
   return [int(v) for v in data["causality"].values()]
 
