@@ -1,4 +1,4 @@
-type task = All | Slice | Occurence | Extract | Filter | Analyze | CallGraph
+type task = All | Slice | Occurence | Extract | Filter | Analyze | CallGraph | Feature
 
 let task = ref All
 
@@ -24,12 +24,14 @@ let parse_arg arg =
     | "call-graph" ->
         Options.options := Options.common_opts ;
         task := CallGraph
+    | "feature" ->
+        task := Feature
     | _ ->
         input_file := Utils.get_abs_path arg
   else input_file := Utils.get_abs_path arg
 
 let usage =
-  "llexetractor [all | slice | occurence | extract | filter | analyze | \
+  "llexetractor [all | slice | occurence | extract | filter | analyze | feature |\
    call-graph] [OPTIONS] [FILE]"
 
 let call_graph input_file =
@@ -56,7 +58,9 @@ let main () =
       Filter.main !input_file
   | Analyze ->
       Analyzer.main !input_file
+  | Feature ->
+      Features.main !input_file
   | All ->
-      Extractor.main !input_file ; Filter.main outdir ; Analyzer.main outdir
+      Extractor.main !input_file ; Filter.main outdir ; Analyzer.main outdir ; Features.main outdir
 
 let _ = main ()
