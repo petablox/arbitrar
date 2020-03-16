@@ -63,14 +63,15 @@ module RetvalFeature = struct
         ; branch_not_zero = None }
 end
 
-(* module ArgvalFeature (A : ARG_INDEX) = struct
+module ArgvalFeature (A : ARG_INDEX) = struct
   type t =
     { has_arg_check: bool
     ; check_predicate: Predicate.t option
     ; check_against: Int64.t option
     ; check_branch_taken: bool option
-    ;  }
-end *)
+    ; branch_is_zero: bool option
+    ; branch_not_zero: bool option }
+end
 
 module CausalityFeature = struct
   module StringMap = Map.Make (String)
@@ -224,4 +225,5 @@ let main input_directory =
       process_trace features_dir func trace
     ) ()
   in
+  Printf.printf "Done Feature Extraction\n" ;
   ()

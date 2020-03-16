@@ -4,6 +4,9 @@ _build
 # Build target
 llextractor
 
+# Python file
+__pycache__
+
 # Compiled files
 *.o
 *.bc
