@@ -1,4 +1,4 @@
 #!/bin/bash
 
-pip3 install mypy flake8
+pip3 install mypy flake8 pytest
 

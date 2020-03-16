@@ -65,7 +65,7 @@ class Pkg:
         pkg_src = PkgSrc.from_json(j["pkg_src"])
         fetched = j["fetched"] if "fetched" in j else False
         pkg_dir = j["pkg_dir"] if "pkg_dir" in j else None
-        build = Build.from_json(j["build"]) if "build" in j else None
+        build = Build.from_json(j["build"]) if "build" in j else Build(BuildType.unknown)
         return Pkg(j["name"], pkg_src, fetched, pkg_dir, build)
 
     def to_json(p):
