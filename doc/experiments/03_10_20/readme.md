@@ -175,3 +175,13 @@ Dumping results and bug reports...
 14 slices loaded (trace_id: 49)
 Labeling bugs in-place...
 ```
+
+## Inspecting Slices, DUGraph, Trace & Dot Files
+
+### Slices
+
+In the slicing step of our execution, we slice the
+
+### DUGraph
+
+The primary

@@ -54,6 +54,8 @@ module Predicate = struct
   let of_json json = Utils.string_from_json json |> of_string
 
   let to_json pred = `String (to_string pred)
+
+  let to_yojson : t -> Yojson.Safe.t = to_json
 end
 
 module BinOp = struct
@@ -165,6 +167,8 @@ module BinOp = struct
         "xor"
 
   let to_json op = `String (to_string op)
+
+  let to_yojson = to_json
 end
 
 module SymbolSet = Semantics.SymbolSet

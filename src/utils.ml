@@ -11,7 +11,7 @@ exception InvalidFunctionType
 module F = Format
 
 let mkdir dirname =
-  Printf.printf "Creating directory %s\n" dirname ;
+  (* Printf.printf "Creating directory %s\n" dirname ; *)
   if Sys.file_exists dirname && Sys.is_directory dirname then ()
   else if Sys.file_exists dirname && not (Sys.is_directory dirname) then
     let _ = F.fprintf F.err_formatter "Error: %s already exists." dirname in
