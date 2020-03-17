@@ -1,22 +1,16 @@
 # Running
 
-## Fetch
+# driver
 
-See test/test.json for input into the fetch step. The following will pull down openssl from github, and create a repo in `out`.
+See data/github.json for input into the fetch step. The following will pull down openssl from github, and create a repo in `out`. The driver will also
+attempt to build the repository, but in the future I will make it easier to split these.
 
 ```
-python src/fetch.py -d out test/test.json
+PYTHONPATH=. bin/driver -d out -p data/github.json
 ```
 
 Inside our repo, you will see a repo.json. This will contain complete information out everything in our automation (think repository of built source files etc.)
 
-## Compile
-
-Run a compile on a repo.json. This will attempt to figure out how to build packages in the repo, build them, and then extract bitcode.
-
-```
-python src/compile out/repo.json
-```
 
 Let the code actually load the json into our datastructures to manipulate (see src/meta.py) but expect json to look like the following:
 
@@ -42,4 +36,13 @@ Let the code actually load the json into our datastructures to manipulate (see s
       }
   }
 }
+```
+
+# tester
+
+The tester helps test each individual module. I will continue to split this out to better make sure everything works, but for now, run the following (which is a little
+redudent as a fetch is required for a compile.)
+
+```
+PYTHONPATH=. pytest test/
 ```
