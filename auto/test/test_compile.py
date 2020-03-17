@@ -35,6 +35,9 @@ def test_config_compile_succeeds(good_build):
     # Just make sure the bc exists
     for _, p in repo.pkgs.items():
         assert p.build.result == meta.BuildResult.success
+        assert len(p.build.libs) == 2
+        assert "libcrypto.so.3" in p.build.libs
+        assert "libssl.so.3" in p.build.libs
         bc = p.build.bc_files[0]
         assert os.path.exists(bc)
 

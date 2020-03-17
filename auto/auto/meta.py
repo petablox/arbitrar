@@ -47,17 +47,31 @@ class Build:
         build_type = BuildType(j["build_type"])
         build_dir = j["build_dir"] if "build_dir" in j else ""
         result = BuildResult(j["result"]) if "result" in j else BuildResult.notbuilt
+        libs = j["libs"] if "libs" in j else []
         bc_files = j["bc_files"] if "bc_files" in j else []
-        return Build(build_type, build_dir, result, bc_files)
+        return Build(build_type, build_dir, result, libs, bc_files)
 
     def to_json(b):
-        return {"build_type": b.build_type.value, "build_dir": b.build_dir, "result": b.result.value, "bc_files": b.bc_files}
+        return {"build_type": b.build_type.value, "build_dir": b.build_dir, "result": b.result.value, "libs": b.libs, "bc_files": b.bc_files}
 
-    def __init__(self, build_type: BuildType, build_dir: str = "", result: BuildResult = BuildResult.notbuilt, bc_files: List[str] = []):
+    def __init__(self, build_type: BuildType, build_dir: str = "", result: BuildResult = BuildResult.notbuilt, libs: List[str] = [], bc_files: List[str] = []):
         self.build_type = build_type
         self.build_dir = build_dir
         self.result = result
+        self.libs = libs
         self.bc_files = bc_files
+
+
+class Analysis:
+    def from_json(j):
+        return Analysis(j["lib"], j["outdir"])
+
+    def to_json(a):
+        return {"lib": a.lib, "outdir": a.outdir}
+
+    def __init__(self, lib: str, outdir: str):
+        self.lib = lib
+        self.outdir = outdir
 
 
 class Pkg:
@@ -66,18 +80,28 @@ class Pkg:
         fetched = j["fetched"] if "fetched" in j else False
         pkg_dir = j["pkg_dir"] if "pkg_dir" in j else None
         build = Build.from_json(j["build"]) if "build" in j else Build(BuildType.unknown)
-        return Pkg(j["name"], pkg_src, fetched, pkg_dir, build)
+        analysis = []
+        if "analysis" in j:
+            for aj in j["analysis"]:
+                a = Analysis.from_json(aj)
+                analysis.append(a)
+        return Pkg(j["name"], pkg_src, fetched, pkg_dir, build, analysis)
 
     def to_json(p):
+        analysis = []
+        for a in p.analysis:
+            analysis.append(Analysis.to_json(a))
         return {"name": p.name, "pkg_src": PkgSrc.to_json(p.pkg_src),
-                "fetched": p.fetched, "pkg_dir": p.pkg_dir, "build": Build.to_json(p.build)}
+                "fetched": p.fetched, "pkg_dir": p.pkg_dir, "build": Build.to_json(p.build),
+                "analysis": analysis}
 
-    def __init__(self, name: str, pkg_src: PkgSrc, fetched: bool, pkg_dir: str, build: Build):
+    def __init__(self, name: str, pkg_src: PkgSrc, fetched: bool, pkg_dir: str, build: Build, analysis: Analysis):
         self.name = name
         self.pkg_src = pkg_src
         self.fetched = fetched
         self.pkg_dir = pkg_dir
         self.build = build
+        self.analysis = analysis
 
 
 class Repo:
@@ -113,6 +137,9 @@ class Repo:
 
     def pkg_path(self, pkg) -> str:
         return os.path.join(self.main_dir, pkg.pkg_dir)
+
+    def data_path(self, pkg) -> str:
+        return os.path.join(self.main_dir, "data", pkg.pkg_dir)
 
 
 

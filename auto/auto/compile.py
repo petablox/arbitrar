@@ -45,6 +45,21 @@ def find_build(repo: Repo, pkg: Pkg):
         pkg.build = Build(BuildType.unknown)
 
 
+def get_soname(path):
+    objdump = subprocess.Popen(['objdump', '-p', path], stdout=subprocess.PIPE)
+    out = subprocess.run(['grep', 'SONAME'], stdout=subprocess.PIPE, stdin=objdump.stdout)
+    if len(out.stdout) == 0:
+        return None
+    return out.stdout.strip().split()[-1].decode()
+
+
+def soname_lib(libpath):
+    soname = get_soname(libpath)
+    if soname is None:
+        soname = libpath.split("/")[-1]
+    return soname
+
+
 def run_make(repo: Repo, pkg: Pkg):
     # Try a re-fetch and clean build with make
     print("building {} with configure/make".format(pkg.name))
@@ -94,7 +109,7 @@ def find_bc(path: str) -> List[str]:
     out = subprocess.run(['find', path, '-name', '*.bc'], stdout=subprocess.PIPE)
     bcs = []
     for l in out.stdout.splitlines():
-        bcs.append(l.decode('utf-8'))
+        bcs.append(l.decode())
     return bcs
 
 
@@ -103,11 +118,17 @@ def extract_bc(repo: Repo, pkg: Pkg):
     if len(libs) == 0:
         pkg.build.result = BuildResult.nolibs
         raise BuildException("nolibs")
-    for l in libs:
-        # l is full path, fix
-        so = l.split("/")[-1]
 
-        run = subprocess.run(["extract-bc", so],
+    sonames = set()
+    for l in libs:
+        sonames.add(get_soname(l))
+    if len(sonames) == 0:
+        pkg.build.result = BuildResult.nolibs
+        raise BuildException("nolibs")
+    pkg.build.libs = list(sonames)
+
+    for l in pkg.build.libs:
+        run = subprocess.run(["extract-bc", l],
                              stderr=subprocess.STDOUT,
                              cwd=repo.pkg_path(pkg))
         if run.returncode != 0:

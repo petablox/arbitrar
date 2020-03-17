@@ -1,1 +1,1 @@
-{"name": "opensll", "pkg_src": {"src_type": "github", "link": "https://github.com/openssl/openssl.git"}}
+{"name": "openssl", "pkg_src": {"src_type": "github", "link": "https://github.com/openssl/openssl.git"}}
