@@ -15,6 +15,7 @@ usage = "usage: %prog [options]"
 parser = OptionParser(usage=usage)
 parser.add_option('-d', '--dir', dest='dir', default='out', help='use DIR as working output directory', metavar='DIR')
 parser.add_option('-p', '--package', dest='package', default=None, help='use PACKAGE_JSON to fetch', metavar='PACKAGE_JSON')
+parser.add_option('-f', '--fetch-only', dest='fetch', action='store_true', help='quit at fetch step', metavar='BOOL')
 parser.add_option('-r', '--repo', dest='repo', default=None, help='use REPO_JSON', metavar='REPO_JSON')
 
 (options, args) = parser.parse_args()
@@ -36,7 +37,9 @@ else:
     print("error: use either the package (-p) or repo (-r) json to kick off the script")
     sys.exit(1)
 
-ex = compile.build_repo(repo)
+ex = True
+if not options.fetch:
+    ex = compile.build_repo(repo)
 repo.save()
 
 if not ex:

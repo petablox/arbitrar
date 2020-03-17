@@ -103,11 +103,11 @@ class Repo:
     def add(self, pkg: Pkg):
         self.pkgs[pkg.name] = pkg
 
-    def save(self) -> bool:
+    def save(self, name="repo.json") -> bool:
         if not os.path.exists(self.main_dir):
             print("error: main directory {} for repository does not exist".format(self.main_dir))
             return False
-        with open(os.path.join(self.main_dir, "repo.json"), "w") as f:
+        with open(os.path.join(self.main_dir, name), "w") as f:
             f.write(json.dumps(Repo.to_json(self)))
         return True
 
