@@ -1,0 +1,7 @@
+auto/.mypy_cache
+auto/__pycache__
+out
+__pycache__
+test/tmp
+test/__pycache__
+test/.mypy_cache

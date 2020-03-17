@@ -1,0 +1,45 @@
+#!/usr/bin/env python
+
+from auto import meta
+from auto import fetch
+from auto import compile
+
+import sys
+import json
+import os
+
+from optparse import OptionParser
+from optparse import Values
+
+usage = "usage: %prog [options]"
+parser = OptionParser(usage=usage)
+parser.add_option('-d', '--dir', dest='dir', default='out', help='use DIR as working output directory', metavar='DIR')
+parser.add_option('-p', '--package', dest='package', default=None, help='use PACKAGE_JSON to fetch', metavar='PACKAGE_JSON')
+parser.add_option('-r', '--repo', dest='repo', default=None, help='use REPO_JSON', metavar='REPO_JSON')
+
+(options, args) = parser.parse_args()
+
+if not os.path.exists(options.dir):
+    os.mkdir(options.dir)
+
+repo = None
+
+if options.package is not None:
+    repo = meta.Repo(options.dir)
+    fetch.read_package_json(repo, options.package)
+    fetch.fetch_repo(repo)
+elif options.repo is not None:
+    with open(options.repo) as f:
+        j = json.loads(f.read())
+        repo = meta.Repo.from_json(j)
+else:
+    print("error: use either the package (-p) or repo (-r) json to kick off the script")
+    sys.exit(1)
+
+ex = compile.build_repo(repo)
+repo.save()
+
+if not ex:
+    sys.exit(1)
+
+sys.exit(0)
