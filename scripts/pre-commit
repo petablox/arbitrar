@@ -1,3 +1,0 @@
-#!/bin/bash
-
-git diff --cached --name-status | awk '{ if ($1~/R/) { print $3 } else if ($1 != "D") { print $2 } }' | grep "\.ml" | xargs -I '{}' /bin/bash -c "ocamlformat '{}' --output '{}' ; git add '{}'"
