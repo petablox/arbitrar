@@ -73,7 +73,6 @@ def run_make(repo: Repo, pkg: Pkg):
 
     if pkg.build.build_type == BuildType.config:
         run = subprocess.run(["./" + config_file],
-                             stdout=subprocess.DEVNULL,
                              stderr=subprocess.STDOUT,
                              cwd=repo.pkg_path(pkg),
                              env=env.env)
@@ -81,7 +80,6 @@ def run_make(repo: Repo, pkg: Pkg):
             raise BuildException("configure failed")
 
     run = subprocess.run(['make', '-j32'],
-                         stdout=subprocess.DEVNULL,
                          stderr=subprocess.STDOUT,
                          cwd=repo.pkg_path(pkg),
                          env=env.env)

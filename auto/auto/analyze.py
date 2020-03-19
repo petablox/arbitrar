@@ -28,7 +28,7 @@ def analyze_pkg(repo: Repo, pkg: Pkg):
     for l in pkg.build.libs:
         bc = os.path.join(repo.pkg_path(pkg), l + ".bc")
         if not os.path.exists(bc):
-            raise AnalyzeException("no bc file for shared library")
+            raise AnalyzeException("no bc file for shared library {} at {}".format(l, bc))
         outdir = os.path.join(repo.data_path(pkg), l.split(".")[0])
         os.makedirs(outdir, exist_ok=True)
         run = subprocess.run(llextractor_cmd(bc, outdir),
