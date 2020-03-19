@@ -1,11 +1,10 @@
 # Ocaml build
 _build
 
-# Build target
-llextractor
-
 # Python file
 __pycache__
+.mypy_cache
+.pytest_cache
 
 # Compiled files
 *.o
@@ -15,8 +14,7 @@ __pycache__
 
 # Output
 data
-*.dot
-llextractor-out
+old
 
 # Misc
 .*DS_Store
