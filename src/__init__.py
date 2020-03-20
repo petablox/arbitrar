@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import os
 
 from . import collector
+from .database import Database
 
 
 def init_parser():
@@ -11,7 +12,7 @@ def init_parser():
 
 
 def setup_collect_parser(parser: ArgumentParser):
-    parser.add_argument('repos', type=str, help='Input JSON file')
+    parser.add_argument('packages', type=str, help='Input JSON file')
 
 
 def setup_analyze_parser(parser: ArgumentParser):
@@ -52,6 +53,12 @@ def setup_parser(parser: ArgumentParser):
 def main():
     parser = init_parser()
     args = parser.parse_args()
-    args.cwd = os.getcwd()
+
+    cwd = os.getcwd()
+    args.cwd = cwd
+
+    db = Database(f"{cwd}/{args.db}")
+    args.db = db
+
     if args.cmd == 'collect':
         collector.main(args)
