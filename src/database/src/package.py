@@ -1,10 +1,6 @@
 from enum import Enum
 from typing import Dict, List
 
-import os.path
-import json
-
-
 class PkgSrcType(Enum):
     github = "github"
     aptget = "aptget"
@@ -64,20 +60,6 @@ class Build:
         self.bc_files = bc_files
 
 
-class Analysis:
-    @staticmethod
-    def from_json(j):
-        return Analysis(j["lib"], j["outdir"])
-
-    @staticmethod
-    def to_json(a):
-        return {"lib": a.lib, "outdir": a.outdir}
-
-    def __init__(self, lib: str, outdir: str):
-        self.lib = lib
-        self.outdir = outdir
-
-
 class Pkg:
     @staticmethod
     def from_json(j):
@@ -85,66 +67,22 @@ class Pkg:
         fetched = j["fetched"] if "fetched" in j else False
         pkg_dir = j["pkg_dir"] if "pkg_dir" in j else None
         build = Build.from_json(j["build"]) if "build" in j else Build(BuildType.unknown)
-        analysis = []
-        if "analysis" in j:
-            for aj in j["analysis"]:
-                a = Analysis.from_json(aj)
-                analysis.append(a)
-        return Pkg(j["name"], pkg_src, fetched, pkg_dir, build, analysis)
+        return Pkg(j["name"], pkg_src, fetched, pkg_dir, build)
 
     @staticmethod
     def to_json(p):
-        analysis = []
-        for a in p.analysis:
-            analysis.append(Analysis.to_json(a))
         return {"name": p.name, "pkg_src": PkgSrc.to_json(p.pkg_src),
-                "fetched": p.fetched, "pkg_dir": p.pkg_dir, "build": Build.to_json(p.build),
-                "analysis": analysis}
+                "fetched": p.fetched, "pkg_dir": p.pkg_dir, "build": Build.to_json(p.build)}
 
-    def __init__(self, name: str, pkg_src: PkgSrc, fetched: bool, pkg_dir: str, build: Build, analysis: Analysis):
+    def __init__(self, name: str, pkg_src: PkgSrc, fetched: bool, pkg_dir: str, build: Build):
         self.name = name
         self.pkg_src = pkg_src
         self.fetched = fetched
         self.pkg_dir = pkg_dir
         self.build = build
-        self.analysis = analysis
 
+    def is_fetched(self) -> bool:
+        return self.fetched
 
-class Repo:
-    @staticmethod
-    def from_json(j):
-        main_dir = j["main_dir"]
-        pkgs = {}
-        if "pkgs" in j:
-            for pj in j["pkgs"]:
-                p = Pkg.from_json(pj)
-                pkgs[p.name] = p
-        return Repo(main_dir, pkgs=pkgs)
-
-    @staticmethod
-    def to_json(r):
-        pkgs = []
-        for _, p in r.pkgs.items():
-            pkgs.append(Pkg.to_json(p))
-        return {"main_dir": r.main_dir, "pkgs": pkgs}
-
-    def __init__(self, main_dir: str, pkgs: Dict[str, Pkg] = {}):
-        self.main_dir = main_dir
-        self.pkgs = pkgs
-
-    def add(self, pkg: Pkg):
-        self.pkgs[pkg.name] = pkg
-
-    def save(self, name="repo.json") -> bool:
-        if not os.path.exists(self.main_dir):
-            print("error: main directory {} for repository does not exist".format(self.main_dir))
-            return False
-        with open(os.path.join(self.main_dir, name), "w") as f:
-            f.write(json.dumps(Repo.to_json(self)))
-        return True
-
-    def pkg_path(self, pkg) -> str:
-        return os.path.join(self.main_dir, pkg.pkg_dir)
-
-    def data_path(self, pkg) -> str:
-        return os.path.join(self.main_dir, "data", pkg.pkg_dir)
+    def is_built(self) -> bool:
+        return self.build.build_type != BuildResult.notbuilt
