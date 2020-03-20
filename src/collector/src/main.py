@@ -33,7 +33,4 @@ def main(args):
     db: Database = args.db
     pkgs: List[Pkg] = load_input(args)
     for pkg in pkgs:
-        try:
-            process_pkg(db, pkg)
-        except BaseException:
-            print(f"Failed processing package {pkg.name}")
+        process_pkg(db, pkg)
