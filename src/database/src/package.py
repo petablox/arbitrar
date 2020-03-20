@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Dict, List
 
+
 class PkgSrcType(Enum):
     github = "github"
     aptget = "aptget"
@@ -45,19 +46,17 @@ class Build:
         build_dir = j["build_dir"] if "build_dir" in j else ""
         result = BuildResult(j["result"]) if "result" in j else BuildResult.notbuilt
         libs = j["libs"] if "libs" in j else []
-        bc_files = j["bc_files"] if "bc_files" in j else []
-        return Build(build_type, build_dir, result, libs, bc_files)
+        return Build(build_type, build_dir, result, libs)
 
     @staticmethod
     def to_json(b):
-        return {"build_type": b.build_type.value, "build_dir": b.build_dir, "result": b.result.value, "libs": b.libs, "bc_files": b.bc_files}
+        return {"build_type": b.build_type.value, "build_dir": b.build_dir, "result": b.result.value, "libs": b.libs}
 
-    def __init__(self, build_type: BuildType, build_dir: str = "", result: BuildResult = BuildResult.notbuilt, libs: List[str] = [], bc_files: List[str] = []):
+    def __init__(self, build_type: BuildType, build_dir: str = "", result: BuildResult = BuildResult.notbuilt, libs: List[str] = []):
         self.build_type = build_type
         self.build_dir = build_dir
         self.result = result
         self.libs = libs
-        self.bc_files = bc_files
 
 
 class Pkg:

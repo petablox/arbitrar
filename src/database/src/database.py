@@ -6,6 +6,7 @@ import json
 
 from .package import *
 
+
 class Database:
     directory: str
     packages: List[Pkg]
