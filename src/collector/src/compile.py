@@ -59,17 +59,19 @@ def run_make(db: Database, pkg: Pkg):
 
     env = BuildEnv()
 
-    # TODO: Incorporate this into BuildTypes enum
-    config_file = exists(src_dir, ["configure", "config"])
-    if config_file is None:
-        raise BuildException("should never happen")
-
     if pkg.build.build_type == BuildType.config:
+
+        # TODO: Incorporate this into BuildTypes enum
+        config_file = exists(src_dir, ["configure", "config"])
+        if config_file is None:
+            raise BuildException("should never happen")
+
         run = subprocess.run(["./" + config_file],
                              stdout=subprocess.DEVNULL,
                              stderr=subprocess.STDOUT,
                              cwd=src_dir,
                              env=env.env)
+
         if run.returncode != 0:
             raise BuildException("configure failed")
 
@@ -78,8 +80,9 @@ def run_make(db: Database, pkg: Pkg):
                          stderr=subprocess.STDOUT,
                          cwd=src_dir,
                          env=env.env)
+
     if run.returncode != 0:
-        raise BuildException("configure failed")
+        raise BuildException("make failed")
 
 
 def build_pkg(db: Database, pkg: Pkg):

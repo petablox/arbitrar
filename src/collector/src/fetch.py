@@ -26,13 +26,13 @@ def fetch_pkg(db: Database, pkg: Pkg):
     if t == PkgSrcType.github:
         path = fetch_github_repo(db, pkg)
     elif t == PkgSrcType.aptget:
-        print("warning: aptget unimplemented")
+        print("Warning: aptget unimplemented")
         pass
     elif t == PkgSrcType.direct:
-        print("warning: direct unimplemented")
+        print("Warning: direct unimplemented")
         pass
     else:
-        print("warning: unrecognized package source {}".format(t))
+        print(f"Warning: unrecognized package source {t}")
 
     if path is not None:
         pkg.fetched = True
