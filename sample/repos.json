@@ -5,5 +5,12 @@
       "src_type": "github",
       "link": "https://github.com/openssl/openssl.git"
     }
+  },
+  {
+    "name": "git",
+    "pkg_src": {
+      "src_type": "github",
+      "link": "https://github.com/git/git.git"
+    }
   }
 ]
