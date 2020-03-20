@@ -40,13 +40,15 @@ module RetvalFeature = struct
   let extract func trace =
     let results = IcmpBranchChecker.check_retval trace in
     match results with
-    | (IcmpBranchChecker.Checked (pred, i, br)) :: _ ->
-        let (is_zero, not_zero) = match (pred, i, br) with
-        | Predicate.Eq, 0L, Branch.Then
-        | Predicate.Ne, 0L, Branch.Else -> true, false
-        | Predicate.Eq, 0L, Branch.Else
-        | Predicate.Ne, 0L, Branch.Then -> false, true
-        | _ -> false, false
+    | IcmpBranchChecker.Checked (pred, i, br) :: _ ->
+        let is_zero, not_zero =
+          match (pred, i, br) with
+          | Predicate.Eq, 0L, Branch.Then | Predicate.Ne, 0L, Branch.Else ->
+              (true, false)
+          | Predicate.Eq, 0L, Branch.Else | Predicate.Ne, 0L, Branch.Then ->
+              (false, true)
+          | _ ->
+              (false, false)
         in
         { has_retval_check= true
         ; check_predicate= Some pred
@@ -60,7 +62,7 @@ module RetvalFeature = struct
         ; check_against= None
         ; check_branch_taken= None
         ; branch_is_zero= None
-        ; branch_not_zero = None }
+        ; branch_not_zero= None }
 end
 
 (* module ArgvalFeature (A : ARG_INDEX) = struct
@@ -86,21 +88,23 @@ module CausalityDictionary = struct
     StringMap.update caused
       (fun maybe_count ->
         match maybe_count with
-        | Some count -> Some (count + 1)
-        | None -> Some 1)
+        | Some count ->
+            Some (count + 1)
+        | None ->
+            Some 1)
       dict
 
   let rec sublist b e l =
     match l with
-    | [] -> []
+    | [] ->
+        []
     | h :: t ->
         let tail = if e = 0 then [] else sublist (b - 1) (e - 1) t in
         if b > 0 then tail else h :: tail
 
   let top dict amount =
-    let ls = StringMap.fold
-      (fun func count ls -> (func, count) :: ls)
-      dict []
+    let ls =
+      StringMap.fold (fun func count ls -> (func, count) :: ls) dict []
     in
     let sorted = List.sort (fun (_, c1) (_, c2) -> c1 - c2) ls in
     let top_sorted = sublist 0 amount sorted in
@@ -116,8 +120,10 @@ module FunctionCausalityDictionary = struct
     StringMap.update func
       (fun maybe_caused_dict ->
         match maybe_caused_dict with
-        | Some caused_dict -> Some (CausalityDictionary.add caused_dict caused_func)
-        | None -> Some (CausalityDictionary.singleton caused_func))
+        | Some caused_dict ->
+            Some (CausalityDictionary.add caused_dict caused_func)
+        | None ->
+            Some (CausalityDictionary.singleton caused_func))
       dict
 
   let find dict func = StringMap.find func dict
@@ -138,21 +144,20 @@ module InvokedBeforeFeature = struct
     let results = CausalityChecker.check_trace trace in
     List.filter_map
       (fun result ->
-        match result with
-        | CausalityChecker.Causing f -> Some f
-        | _ -> None)
+        match result with CausalityChecker.Causing f -> Some f | _ -> None)
       results
 
   let init slices_json_dir dugraphs_dir =
-    let dict = fold_traces slices_json_dir dugraphs_dir
-      (fun dict ((func_name, _), trace) ->
-        Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
-        let results = caused_funcs trace in
-        List.fold_left
-          (fun dict caused_func_name ->
-            FunctionCausalityDictionary.add dict func_name caused_func_name)
-          dict results)
-      FunctionCausalityDictionary.empty
+    let dict =
+      fold_traces slices_json_dir dugraphs_dir
+        (fun dict ((func_name, _), trace) ->
+          Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
+          let results = caused_funcs trace in
+          List.fold_left
+            (fun dict caused_func_name ->
+              FunctionCausalityDictionary.add dict func_name caused_func_name)
+            dict results)
+        FunctionCausalityDictionary.empty
     in
     dictionary := dict ;
     ()
@@ -163,11 +168,12 @@ module InvokedBeforeFeature = struct
     let results = caused_funcs trace in
     let caused_dict = FunctionCausalityDictionary.find !dictionary func_name in
     let top_caused = CausalityDictionary.top caused_dict amount in
-    let assocs = List.fold_left
-      (fun assocs func_name ->
-        let has_func = List.mem func_name results in
-        (func_name, `Bool has_func) :: assocs)
-      [] top_caused
+    let assocs =
+      List.fold_left
+        (fun assocs func_name ->
+          let has_func = List.mem func_name results in
+          (func_name, `Bool has_func) :: assocs)
+        [] top_caused
     in
     `Assoc assocs
 
@@ -189,21 +195,20 @@ module InvokedAfterFeature = struct
     let results = CausalityChecker.check_trace_backward trace in
     List.filter_map
       (fun result ->
-        match result with
-        | CausalityChecker.Causing f -> Some f
-        | _ -> None)
+        match result with CausalityChecker.Causing f -> Some f | _ -> None)
       results
 
   let init slices_json_dir dugraphs_dir =
-    let dict = fold_traces slices_json_dir dugraphs_dir
-      (fun dict ((func_name, _), trace) ->
-        Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
-        let results = caused_funcs trace in
-        List.fold_left
-          (fun dict caused_func_name ->
-            FunctionCausalityDictionary.add dict func_name caused_func_name)
-          dict results)
-      FunctionCausalityDictionary.empty
+    let dict =
+      fold_traces slices_json_dir dugraphs_dir
+        (fun dict ((func_name, _), trace) ->
+          Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
+          let results = caused_funcs trace in
+          List.fold_left
+            (fun dict caused_func_name ->
+              FunctionCausalityDictionary.add dict func_name caused_func_name)
+            dict results)
+        FunctionCausalityDictionary.empty
     in
     dictionary := dict ;
     ()
@@ -214,11 +219,12 @@ module InvokedAfterFeature = struct
     let results = caused_funcs trace in
     let caused_dict = FunctionCausalityDictionary.find !dictionary func_name in
     let top_caused = CausalityDictionary.top caused_dict amount in
-    let assocs = List.fold_left
-      (fun assocs func_name ->
-        let has_func = List.mem func_name results in
-        (func_name, `Bool has_func) :: assocs)
-      [] top_caused
+    let assocs =
+      List.fold_left
+        (fun assocs func_name ->
+          let has_func = List.mem func_name results in
+          (func_name, `Bool has_func) :: assocs)
+        [] top_caused
     in
     `Assoc assocs
 
@@ -231,19 +237,20 @@ let feature_extractors : (module FEATURE) list =
   ; (module InvokedBeforeFeature) ]
 
 let process_trace features_dir func trace =
-  let (func_name, func_type) = func in
+  let func_name, func_type = func in
   (* Iterate through all feature extractors to generate features *)
-  let features = List.fold_left
-    (fun assoc extractor ->
-      let module M = (val extractor : FEATURE) in
-      if M.filter func then
-        let result = M.extract func trace in
-        let json_result = M.to_yojson result in
-        (M.name, json_result) :: assoc
-      else (
-        Printf.printf "Have not pass the filter; \n" ;
-        assoc)
-    ) [] feature_extractors
+  let features =
+    List.fold_left
+      (fun assoc extractor ->
+        let module M = (val extractor : FEATURE) in
+        if M.filter func then
+          let result = M.extract func trace in
+          let json_result = M.to_yojson result in
+          (M.name, json_result) :: assoc
+        else (
+          Printf.printf "Have not pass the filter; \n" ;
+          assoc ))
+      [] feature_extractors
   in
   let json = `Assoc features in
   let func_dir = Printf.sprintf "%s/%s" features_dir func_name in
@@ -264,20 +271,23 @@ let main input_directory =
   let dugraphs_dir = input_directory ^ "/dugraphs" in
   let slices_json_dir = input_directory ^ "/slices.json" in
   (* Initialize the extractors with traces *)
-  let _ = List.iter
-    (fun extractor ->
-      let module M = (val extractor : FEATURE) in
-      Printf.printf "Initializing Feature Extractor %s\n" M.name ;
-      M.init dugraphs_dir slices_json_dir)
-    feature_extractors
+  let _ =
+    List.iter
+      (fun extractor ->
+        let module M = (val extractor : FEATURE) in
+        Printf.printf "Initializing Feature Extractor %s\n" M.name ;
+        M.init dugraphs_dir slices_json_dir)
+      feature_extractors
   in
   (* Run extractors on every trace *)
-  let _ = fold_traces dugraphs_dir slices_json_dir
-    (fun _ (func, trace) ->
-      Printf.printf "Extracting trace #%d/#%d\r" trace.slice_id trace.trace_id ;
-      flush stdout ;
-      process_trace features_dir func trace
-    ) ()
+  let _ =
+    fold_traces dugraphs_dir slices_json_dir
+      (fun _ (func, trace) ->
+        Printf.printf "Extracting trace #%d/#%d\r" trace.slice_id
+          trace.trace_id ;
+        flush stdout ;
+        process_trace features_dir func trace)
+      ()
   in
   Printf.printf "Done Feature Extraction\n" ;
   ()

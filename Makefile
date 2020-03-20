@@ -1,6 +1,6 @@
 .PHONY: all
 
-all:
+all: build
 
 setup:
 	pip3 install wllvm mypy flake8 autopep8 pytest
@@ -8,6 +8,8 @@ setup:
 	opam install llvm.8.0.0 ctypes ctypes-foreign
 	opam install ocamlgraph
 	opam install yojson ppx_compare ppx_deriving ppx_deriving_yojson
+
+.PHONY: build
 
 build:
 	make -C src/analyzer
@@ -24,4 +26,4 @@ format-py:
 .PHONY: format-ml
 
 format-ml:
-	ls src/*.ml | xargs -I '{}' ocamlformat '{}' --output '{}'
+	make -C src/analyzer format
