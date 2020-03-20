@@ -1,5 +1,6 @@
 from typing import List, Optional
 import subprocess
+import traceback
 
 from .. import *
 
@@ -129,6 +130,10 @@ def extract_bc(db: Database, pkg: Pkg):
 
 
 def compile_pkg(db: Database, pkg: Pkg):
-    find_build(db, pkg)
-    build_pkg(db, pkg)
-    extract_bc(db, pkg)
+    try:
+        find_build(db, pkg)
+        build_pkg(db, pkg)
+        extract_bc(db, pkg)
+    except BuildException as e:
+        print(e)
+        traceback.print_exc()
