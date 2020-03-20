@@ -63,3 +63,19 @@ class Database:
                 self.packages[i] = pkg
                 return
         self.packages.append(pkg)
+        with open(self.package_index_json_dir(pkg), 'w') as f:
+            f.write(json.dumps(Pkg.to_json(pkg)))
+
+    def package_dir(self, pkg: Pkg) -> str:
+        d = f"{self.packages_dir()}/{pkg.name}"
+        if not os.path.exists(d):
+            os.mkdir(d)
+        return d
+
+    def package_source_dir(self, pkg: Pkg) -> str:
+        pkg_dir = self.package_dir(pkg)
+        d = f"{pkg_dir}/source"
+        return d
+
+    def package_index_json_dir(self, pkg: Pkg) -> str:
+        return f"{self.package_dir(pkg)}/index.json"
