@@ -1,0 +1,35 @@
+FROM ubuntu:20.04
+
+RUN   apt-get update && \
+      apt-get install -y python3 git vim sudo clang cmake llvm llvm-dev python3-pip opam pkg-config 
+
+RUN   pip3 install wllvm
+
+# ssh-server & x11-fowrwaring
+RUN apt-get install -y ssh xauth && \
+      mkdir /var/run/sshd && \
+      echo "X11UseLocalhost no" >> /etc/ssh/sshd_config
+
+RUN useradd -m -s /bin/bash -G sudo aspire && \
+    (echo "ai4code"; echo "ai4code") | passwd aspire && \
+    echo 'export LLVM_COMPILER=clang' >> /home/aspire/.bashrc && \
+    echo 'eval `opam env`' >> /home/aspire/.bashrc && \
+    echo "alias sudo='sudo LLVM_COMPILER=\$LLVM_COMPILER'" >> /home/aspire/.bashrc
+
+COPY src/install-*.sh /home/aspire/
+RUN chown aspire.aspire -R /home/aspire/* /home/aspire/.[a-z]*
+
+
+USER aspire
+RUN   opam init --disable-sandboxing && \
+      eval `opam env` && \
+      opam switch -y create 4.10.0 && \
+      eval `opam env` 
+
+RUN   opam install -y llvm
+
+USER root
+
+EXPOSE 22
+
+CMD ["/usr/sbin/sshd", "-D"] 
