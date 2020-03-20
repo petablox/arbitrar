@@ -90,4 +90,4 @@ class Pkg:
         return self.fetched
 
     def is_built(self) -> bool:
-        return self.build.build_type == BuildResult.success
+        return self.build.result == BuildResult.success

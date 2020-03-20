@@ -58,13 +58,13 @@ class Database:
         return None
 
     def add_package(self, pkg: Pkg):
+        with open(self.package_index_json_dir(pkg), 'w') as f:
+            f.write(json.dumps(Pkg.to_json(pkg)))
         for i in range(len(self.packages)):
             if self.packages[i].name == pkg.name:
                 self.packages[i] = pkg
                 return
         self.packages.append(pkg)
-        with open(self.package_index_json_dir(pkg), 'w') as f:
-            f.write(json.dumps(Pkg.to_json(pkg)))
 
     def package_dir(self, pkg: Pkg) -> str:
         d = f"{self.packages_dir()}/{pkg.name}"
