@@ -1,4 +1,12 @@
-type task = All | Slice | Occurence | Extract | Filter | Analyze | CallGraph | Feature
+type task =
+  | All
+  | Slice
+  | Occurence
+  | Extract
+  | Filter
+  | Analyze
+  | CallGraph
+  | Feature
 
 let task = ref All
 
@@ -31,8 +39,8 @@ let parse_arg arg =
   else input_file := Utils.get_abs_path arg
 
 let usage =
-  "llexetractor [all | slice | occurence | extract | filter | analyze | feature |\
-   call-graph] [OPTIONS] [FILE]"
+  "llexetractor [all | slice | occurence | extract | filter | analyze | \
+   feature |call-graph] [OPTIONS] [FILE]"
 
 let call_graph input_file =
   let llctx = Llvm.create_context () in
@@ -61,6 +69,11 @@ let main () =
   | Feature ->
       Features.main !input_file
   | All ->
-      Extractor.main !input_file ; Filter.main outdir ; Analyzer.main outdir ; Features.main outdir
+      Extractor.main !input_file ;
+      Filter.main outdir ;
+      Analyzer.main outdir ;
+      Features.main outdir
 
 let _ = main ()
+
+(* Static API Misuse Detection *)

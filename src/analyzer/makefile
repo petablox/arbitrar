@@ -22,3 +22,6 @@ clean:
 
 clean-tests:
 	$(RM) tests/*.bc
+
+format:
+	ls src/**.ml | xargs -I '{}' ocamlformat '{}' --output '{}'
