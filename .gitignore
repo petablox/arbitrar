@@ -17,5 +17,5 @@ data
 old
 
 # Misc
-.*DS_Store
+*.DS_Store
 .vscode
