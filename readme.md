@@ -2,7 +2,7 @@
 
 TODO: Intros here
 
-## Tools to Implement
+## How to use
 
 ``` bash
 ./misapi collect <repo.json>       # Fetch & Compile & Analyze
@@ -15,4 +15,12 @@ TODO: Intros here
 
 ## Requirements
 
+```
+$ make setup
+```
+
 ## Build & Install
+
+```
+$ make build
+```
