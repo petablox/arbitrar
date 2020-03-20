@@ -71,8 +71,13 @@ class Pkg:
 
     @staticmethod
     def to_json(p):
-        return {"name": p.name, "pkg_src": PkgSrc.to_json(p.pkg_src),
-                "fetched": p.fetched, "pkg_dir": p.pkg_dir, "build": Build.to_json(p.build)}
+        return {
+            "name": p.name,
+            "pkg_src": PkgSrc.to_json(p.pkg_src),
+            "fetched": p.fetched,
+            "pkg_dir": p.pkg_dir,
+            "build": Build.to_json(p.build)
+        }
 
     def __init__(self, name: str, pkg_src: PkgSrc, fetched: bool, pkg_dir: str, build: Build):
         self.name = name
@@ -85,4 +90,4 @@ class Pkg:
         return self.fetched
 
     def is_built(self) -> bool:
-        return self.build.build_type != BuildResult.notbuilt
+        return self.build.build_type == BuildResult.success
