@@ -10,6 +10,7 @@ setup:
 	opam install yojson ppx_compare ppx_deriving ppx_deriving_yojson
 
 build:
+	make -C src/analyzer
 
 .PHONY: format
 
@@ -23,3 +24,4 @@ format-py:
 .PHONY: format-ml
 
 format-ml:
+	ls src/*.ml | xargs -I '{}' ocamlformat '{}' --output '{}'
