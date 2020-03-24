@@ -1,6 +1,8 @@
 from typing import List, Optional
 import subprocess
 import traceback
+import glob
+import shutil
 
 from .. import *
 
@@ -14,12 +16,12 @@ def exists(path: str, files: List[str]) -> Optional[str]:
 
 def find_build(db: Database, pkg: Pkg):
     src_dir = db.package_source_dir(pkg)
-    if exists(src_dir, ["configure", "config"]) is not None:
+    if pkg.pkg_src.src_type == PkgSrcType.debian:
+        pkg.build = Build(BuildType.dpkg)
+    elif exists(src_dir, ["configure", "config"]) is not None:
         pkg.build = Build(BuildType.config)
     elif exists(src_dir, ["Makefile", "makefile"]) is not None:
         pkg.build = Build(BuildType.makeonly)
-    elif pkg.pkg_src.src_type == PkgSrcType.aptget:
-        pkg.build = Build(BuildType.dpkg)
     else:
         pkg.build = Build(BuildType.unknown)
 
@@ -35,6 +37,8 @@ class BuildEnv:
         self.env["CC"] = "wllvm"
         self.env["CXX"] = "wllvm++"
         self.env["CFLAGS"] = "-g -O1"
+        self.env["DEB_CFLAGS_SET"] = "-g -O1"
+        self.env["DEB_BUILD_OPTIONS"] = "nocheck notest"
 
 
 def get_soname(path):
@@ -86,13 +90,76 @@ def run_make(db: Database, pkg: Pkg):
         raise BuildException("make failed")
 
 
+def run_dpkg(db: Database, pkg: Pkg):
+    src_dir = db.package_source_dir(pkg)
+
+    env = BuildEnv()
+
+    run = subprocess.run(['dpkg-buildpackage', '-us', '-uc', '-d'], 
+                         stderr=subprocess.STDOUT, 
+                         cwd=src_dir, 
+                         env=env.env)
+    if run.returncode != 0:
+        raise BuildException("dpkg-buildpakcage failed")
+
+
+# Really, this can only work for debian packages, but perhaps in the future we can support
+# more build systems, so I'm seperating out the step from the main build
+def build_dep(db: Database, pkg: Pkg):
+    if pkg.build.build_type != BuildType.dpkg:
+        return
+
+    run = subprocess.run(['apt-get', 'build-dep', '-y', pkg.pkg_src.link], stderr=subprocess.STDOUT)
+    if run.returncode != 0:
+        raise BuildException("dependency build failed")
+
+
 def build_pkg(db: Database, pkg: Pkg):
     if pkg.build.build_type == BuildType.config or pkg.build.build_type == BuildType.makeonly:
         run_make(db, pkg)
+    elif pkg.build.build_type == BuildType.dpkg:
+        run_dpkg(db, pkg)
     else:
         raise BuildException("not yet implemented")
     pkg.build.result = BuildResult.compiled
 
+
+# I am unsure how your analysis needs to be structured, so I will keep the extract-bc intact
+# as is, but this process essentially grabs the debian packaged libs and puts them into the
+# source folder
+def install_libs(db: Database, pkg: Pkg):
+    if pkg.build.build_type != BuildType.dpkg:
+        return None
+
+    pkg_dir = db.package_dir(pkg)
+    
+    debs = glob.glob(f"{pkg_dir}/*.deb")
+    req_deb = ""
+    
+    for d in debs:
+        if f"{pkg.pkg_src.link}_" in d:
+            req_deb = d
+            break
+
+    if req_deb == "":
+        raise BuildException("could not find requested debian package after build")
+    
+    run = subprocess.run(['dpkg', '-x', req_deb, pkg_dir], stdout=subprocess.PIPE)
+    if run.returncode != 0:
+        raise BuildException("could not extract debian package")
+
+    ulibs = find_libs(f"{pkg_dir}/usr")
+    llibs = find_libs(f"{pkg_dir}/lib")
+    libs = ulibs + llibs
+
+
+    new_libs = []
+    for l in libs:
+        name = l.split("/")[-1]
+        shutil.copy(l, f"{pkg_dir}/source")
+        new_libs.append(f"{pkg_dir}/source/{name}")
+
+    return new_libs
 
 def find_libs(path: str) -> List[str]:
     out = subprocess.run(['find', path, '-name', 'lib*.so*'], stdout=subprocess.PIPE)
@@ -102,9 +169,12 @@ def find_libs(path: str) -> List[str]:
     return libs
 
 
-def extract_bc(db: Database, pkg: Pkg):
+def extract_bc(db: Database, pkg: Pkg, libs=None):
     src_dir = db.package_source_dir(pkg)
-    libs = find_libs(src_dir)
+
+    if libs is None:
+        libs = find_libs(src_dir)
+
     if len(libs) == 0:
         pkg.build.result = BuildResult.nolibs
         raise BuildException("nolibs")
@@ -132,8 +202,10 @@ def extract_bc(db: Database, pkg: Pkg):
 def compile_pkg(db: Database, pkg: Pkg):
     try:
         find_build(db, pkg)
+        build_dep(db, pkg)
         build_pkg(db, pkg)
-        extract_bc(db, pkg)
+        libs = install_libs(db, pkg)
+        extract_bc(db, pkg, libs)
     except BuildException as e:
         print(e)
         traceback.print_exc()

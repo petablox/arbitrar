@@ -4,7 +4,7 @@ from typing import Dict, List
 
 class PkgSrcType(Enum):
     github = "github"
-    aptget = "aptget"
+    debian = "debian"
     direct = "direct"
 
 

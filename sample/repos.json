@@ -1,16 +1,9 @@
 [
   {
-    "name": "openssl",
+    "name": "libz",
     "pkg_src": {
-      "src_type": "github",
-      "link": "https://github.com/openssl/openssl.git"
-    }
-  },
-  {
-    "name": "git",
-    "pkg_src": {
-      "src_type": "github",
-      "link": "https://github.com/git/git.git"
+      "src_type": "debian",
+      "link": "zlib1g"
     }
   }
 ]
