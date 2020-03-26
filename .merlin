@@ -1,6 +1,6 @@
-S ./src/**
+S ./src/analyzer/src/**
 
-B ./_build/**
+B ./src/analyzer/_build/**
 
 PKG llvm
 PKG llvm.analysis

@@ -5,7 +5,7 @@ all: build
 setup:
 	pip3 install wllvm mypy flake8 autopep8 pytest
 	opam install ocamlbuild ocamlformat merlin
-	opam install llvm.8.0.0 ctypes ctypes-foreign
+	opam install llvm ctypes ctypes-foreign
 	opam install ocamlgraph
 	opam install yojson ppx_compare ppx_deriving ppx_deriving_yojson
 
@@ -13,6 +13,9 @@ setup:
 
 build:
 	make -C src/analyzer
+
+clean:
+	make clean -C src/analyzer
 
 .PHONY: format
 

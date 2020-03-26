@@ -1,4 +1,4 @@
-<src/*>: include
+<src/analyzer/src/*>: include
 true: package(unix), package(str)
 true: package(llvm), package(llvm.analysis), package(llvm.bitreader), package(llvm.irreader)
 true: package(ocamlgraph), package(yojson)

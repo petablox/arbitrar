@@ -501,6 +501,10 @@ let json_of_instr instr =
       json_of_opcode "cleanuppad"
   | CatchSwitch ->
       json_of_opcode "catchswitch"
+  | FNeg ->
+      json_of_opcode "fneg"
+  | CallBr ->
+      json_of_opcode "callbr"
 
 let is_llvm_function f : bool =
   let r1 = Str.regexp "llvm\\.dbg\\..+" in
