@@ -37,7 +37,7 @@ docker run -p 2020:22 -d --name my-test acanino1/ll-analyzer-builder:bionic-x11-
 please mount your ~/.ssh to /home/aspire/.ssh.
 
 ```
-docker run -p 2020:22 -v ~/.ssh:/home/aspire/.ssh -d --name my-test acanino1/debloat-builder:buster-x11-ssh
+docker run -p 2020:22 -v ~/.ssh:/home/aspire/.ssh -d --name my-test acanino1/ll-analyzer-builder:bionic-x11-ssh
 ```
 
 2. Connect the docker-container through ssh with x11-forwarding
@@ -57,6 +57,3 @@ ssh -p 2020 aspire@localhost
 Once logged in, run the ``install-ll-extractor.sh`` script in /home/aspire using your github credentials.
 
 After that, you will need to update the apt source list so we can build debian source packages. Using `sudo` open up `/etc/apt/sources.list` and uncomment each of the `#deb-src` lines if the original `deb` line is uncommented. After saving, run `sudo apt-get update`.
-
-
-
