@@ -54,6 +54,6 @@ ssh -p 2020 aspire@localhost
 
 2. Final setup
 
-Once logged in, run the ``install-ll-extractor.sh`` script in /home/aspire using your github credentials.
+Once logged in, run the `install-ll-analyzer.sh` script in /home/aspire using your github credentials.
 
 After that, you will need to update the apt source list so we can build debian source packages. Using `sudo` open up `/etc/apt/sources.list` and uncomment each of the `#deb-src` lines if the original `deb` line is uncommented. After saving, run `sudo apt-get update`.
