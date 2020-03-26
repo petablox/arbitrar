@@ -95,9 +95,9 @@ def run_dpkg(db: Database, pkg: Pkg):
 
     env = BuildEnv()
 
-    run = subprocess.run(['dpkg-buildpackage', '-us', '-uc', '-d'], 
-                         stderr=subprocess.STDOUT, 
-                         cwd=src_dir, 
+    run = subprocess.run(['dpkg-buildpackage', '-us', '-uc', '-d'],
+                         stderr=subprocess.STDOUT,
+                         cwd=src_dir,
                          env=env.env)
     if run.returncode != 0:
         raise BuildException("dpkg-buildpakcage failed")
@@ -132,10 +132,10 @@ def install_libs(db: Database, pkg: Pkg):
         return None
 
     pkg_dir = db.package_dir(pkg)
-    
+
     debs = glob.glob(f"{pkg_dir}/*.deb")
     req_deb = ""
-    
+
     for d in debs:
         if f"{pkg.pkg_src.link}_" in d:
             req_deb = d
@@ -143,7 +143,7 @@ def install_libs(db: Database, pkg: Pkg):
 
     if req_deb == "":
         raise BuildException("could not find requested debian package after build")
-    
+
     run = subprocess.run(['dpkg', '-x', req_deb, pkg_dir], stdout=subprocess.PIPE)
     if run.returncode != 0:
         raise BuildException("could not extract debian package")
@@ -152,7 +152,6 @@ def install_libs(db: Database, pkg: Pkg):
     llibs = find_libs(f"{pkg_dir}/lib")
     libs = ulibs + llibs
 
-
     new_libs = []
     for l in libs:
         name = l.split("/")[-1]
@@ -160,6 +159,7 @@ def install_libs(db: Database, pkg: Pkg):
         new_libs.append(f"{pkg_dir}/source/{name}")
 
     return new_libs
+
 
 def find_libs(path: str) -> List[str]:
     out = subprocess.run(['find', path, '-name', 'lib*.so*'], stdout=subprocess.PIPE)
