@@ -10,9 +10,20 @@ docker build -t petablox/ll-analyzer-builder:<TAG> -f <DOCKERFILE>
 ```
 
 ### Pre-defined Tags
+
 | Dockerfile | Tag |
 | --- | --- |
 | Dockerfile.bionic.x11forwarding | bionic-x11-ssh |
+
+### Alternative:
+
+When you are inside this `docker/` directory, do
+
+```
+docker build -f Dockerfile.bionic.x11forwarding -t apimisuse .
+docker run apimisuse
+docker exec -it apimisuse bash
+```
 
 ### How to use
 
