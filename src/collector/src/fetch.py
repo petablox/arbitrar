@@ -22,11 +22,6 @@ def fetch_github_repo(db: Database, pkg: Pkg):
 
 def fetch_debian_repo(db: Database, pkg: Pkg):
     pkg_dir = db.package_dir(pkg)
-    #deb_dir = f"{pkg_dir}/debian-source"
-    if not os.path.exists(pkg_dir):
-        os.mkdir(pkg_dir)
-    # if not os.path.exists(deb_dir):
-    #    os.mkdir(deb_dir)
 
     run = subprocess.run(['apt-get', 'source', pkg.pkg_src.link], stderr=subprocess.STDOUT, cwd=pkg_dir)
 
