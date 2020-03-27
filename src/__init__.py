@@ -4,13 +4,13 @@ import os
 from . import collector
 from . import database
 from . import analyzer
-from . import unsupervised
+from . import learning
 
 modules = {
     'collect': collector,
     'analyze': analyzer,
     'db': database,
-    'learn': unsupervised
+    'learn': learning
 }
 
 
