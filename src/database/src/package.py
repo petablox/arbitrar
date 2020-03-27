@@ -90,3 +90,6 @@ class Pkg:
 
     def is_built(self) -> bool:
         return self.build.result == BuildResult.success
+
+    def bc_files(self) -> List[str]:
+        return [f"{self.pkg_dir}/source/{lib}.bc" for lib in self.build.libs]

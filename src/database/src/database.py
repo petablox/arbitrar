@@ -5,7 +5,7 @@ import os
 import json
 
 from .package import *
-
+from .utils import *
 
 class Database:
     directory: str
@@ -18,16 +18,28 @@ class Database:
 
     def setup_file_system(self):
         # Create the directory if not existed
-        if not os.path.exists(self.directory):
-            os.mkdir(self.directory)
+        mkdir(self.directory)
 
         # Create the packages directory
         self.setup_packages_file_system()
 
+        # Create the analysis directory
+        self.setup_analysis_file_system()
+
+        # Create temporary directory
+        self.setup_temporary_file_system()
+
     def setup_packages_file_system(self):
-        d = self.packages_dir()
-        if not os.path.exists(d):
-            os.mkdir(d)
+        mkdir(self.packages_dir())
+
+    def setup_analysis_file_system(self):
+        mkdir(self.analysis_dir())
+        mkdir(self.slices_dir())
+        mkdir(self.dugraphs_dir())
+        mkdir(self.features_dir())
+
+    def setup_temporary_file_system(self):
+        mkdir(self.temp_dir())
 
     def setup_indices(self):
         self.setup_packages_indices()
@@ -45,6 +57,45 @@ class Database:
 
     def packages_dir(self) -> str:
         return f"{self.directory}/packages"
+
+    def analysis_dir(self) -> str:
+        return f"{self.directory}/analysis"
+
+    def slices_dir(self) -> str:
+        return f"{self.analysis_dir()}/slices"
+
+    def func_slices_dir(self, func: str) -> str:
+        return mkdir(f"{self.slices_dir()}/{func}")
+
+    def func_bc_slices_dir(self, func: str, bc_name: str) -> str:
+        return mkdir(f"{self.func_slices_dir(func)}/{bc_name}")
+
+    def dugraphs_dir(self) -> str:
+        return f"{self.analysis_dir()}/dugraphs"
+
+    def func_dugraphs_dir(self, func: str) -> str:
+        return mkdir(f"{self.dugraphs_dir()}/{func}")
+
+    def func_bc_dugraphs_dir(self, func: str, bc_name: str) -> str:
+        return mkdir(f"{self.func_dugraphs_dir(func)}/{bc_name}")
+
+    def func_bc_slice_dugraphs_dir(self, func: str, bc_name: str, slice_id: int) -> str:
+        return mkdir(f"{self.func_bc_dugraphs_dir(func, bc_name)}/{slice_id}")
+
+    def features_dir(self) -> str:
+        return f"{self.analysis_dir()}/features"
+
+    def func_features_dir(self, func: str) -> str:
+        return mkdir(f"{self.features_dir()}/{func}")
+
+    def func_bc_features_dir(self, func: str, bc_name: str) -> str:
+        return mkdir(f"{self.func_features_dir(func)}/{bc_name}")
+
+    def func_bc_slice_features_dir(self, func: str, bc_name: str, slice_id: int) -> str:
+        return mkdir(f"{self.func_bc_features_dir(func, bc_name)}/{slice_id}")
+
+    def temp_dir(self) -> str:
+        return f"{self.directory}/temp"
 
     def contains_package(self, package_name: str) -> bool:
         for pkg in self.packages:
@@ -80,3 +131,6 @@ class Database:
 
     def package_index_json_dir(self, pkg: Pkg) -> str:
         return f"{self.package_dir(pkg)}/index.json"
+
+    def bc_files(self) -> List[str]:
+        return [bc_file for pkg in self.packages for bc_file in pkg.bc_files()]

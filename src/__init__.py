@@ -2,7 +2,8 @@ from argparse import ArgumentParser
 import os
 
 from . import collector
-from .database import Database
+from . import database
+from . import analyzer
 
 
 def init_parser():
@@ -16,19 +17,23 @@ def setup_collect_parser(parser: ArgumentParser):
 
 
 def setup_analyze_parser(parser: ArgumentParser):
-    pass
+    parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice Size')
+    parser.add_argument('-r', '--redo', action='store_true', help='Redo All Analysis')
+    parser.add_argument('-b', '--bc', type=str, default="", help='The .bc file to analyze')
 
 
 def setup_info_parser(parser: ArgumentParser):
-    pass
+    subparsers = parser.add_subparsers(dest="info_cmd")
 
+    subparsers.add_parser("bc-files")
+    # TODO: Add --package argument
 
 def setup_unsup_parser(parser: ArgumentParser):
     pass
 
 
 def setup_parser(parser: ArgumentParser):
-    parser.add_argument('-d', '--db', type=str, default="data/", help='Operating Database')
+    parser.add_argument('-d', '--db', type=str, default="data", help='Operating Database')
 
     # Subparsers
     subparsers = parser.add_subparsers(dest="cmd")
@@ -57,8 +62,12 @@ def main():
     cwd = os.getcwd()
     args.cwd = cwd
 
-    db = Database(f"{cwd}/{args.db}")
+    db = database.Database(f"{cwd}/{args.db}")
     args.db = db
 
     if args.cmd == 'collect':
         collector.main(args)
+    elif args.cmd == 'info':
+        database.main(args)
+    elif args.cmd == 'analyze':
+        analyzer.main(args)

@@ -330,10 +330,14 @@ module Node = struct
 end
 
 module Nodes = struct
+  exception CannotFindNodeById
+
   type t = Node.t list
 
   let find_node_by_id nodes id : Node.t =
-    List.find (fun (node : Node.t) -> node.id = id) nodes
+    match List.find_opt (fun (node : Node.t) -> node.id = id) nodes with
+    | Some node -> node
+    | None -> raise CannotFindNodeById
 end
 
 module NodeSet = Set.Make (Node)

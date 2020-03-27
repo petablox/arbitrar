@@ -20,8 +20,8 @@ docker build -t petablox/ll-analyzer-builder:<TAG> -f <DOCKERFILE>
 When you are inside this `docker/` directory, do
 
 ```
-docker build -f Dockerfile.bionic.x11forwarding -t apimisuse .
-docker run apimisuse
+docker build -f Dockerfile.bionic.x11forwarding -t petablox/api-misuse .
+docker run -p 2020:22 -v ~/.ssh:/home/aspire/.ssh -d --name apimisuse petablox/api-misuse
 docker exec -it apimisuse bash
 ```
 
