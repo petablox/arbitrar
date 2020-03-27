@@ -3,6 +3,7 @@ from typing import List
 
 import os
 import json
+import subprocess
 
 from .package import *
 from .utils import *
@@ -134,3 +135,6 @@ class Database:
 
     def bc_files(self) -> List[str]:
         return [bc_file for pkg in self.packages for bc_file in pkg.bc_files()]
+
+    def clear_analysis_of_bc(self, bc_file):
+        subprocess.run(['rm', '-rf', f"{self.analysis_dir()}/**/{bc_file}/*"])

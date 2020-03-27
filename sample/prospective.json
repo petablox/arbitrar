@@ -1,0 +1,37 @@
+[
+  {
+    "name": "libz",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "zlib1g"
+    }
+  },
+  {
+    "name": "openssl",
+    "pkg_src": {
+      "src_type": "github",
+      "link": "https://github.com/openssl/openssl.git"
+    }
+  },
+  {
+    "name": "libcurl",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "libcurl4-openssl-dev"
+    }
+  },
+  {
+    "name": "vim",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "vim"
+    }
+  },
+  {
+    "name": "git",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "vim"
+    }
+  }
+]

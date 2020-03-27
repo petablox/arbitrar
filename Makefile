@@ -3,7 +3,7 @@
 all: build
 
 setup:
-	pip3 install wllvm mypy flake8 autopep8 pytest
+	pip3 install wllvm mypy flake8 autopep8 pytest scikit-learn
 	opam install ocamlbuild ocamlformat merlin
 	opam install llvm ctypes ctypes-foreign
 	opam install ocamlgraph
