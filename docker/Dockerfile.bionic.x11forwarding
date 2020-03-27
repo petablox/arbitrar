@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 
 RUN   apt-get update && \
-      apt-get install -y python3 git vim sudo clang cmake llvm llvm-dev python3-pip opam pkg-config 
+      apt-get install -y python3 git vim sudo clang cmake llvm llvm-dev python3-pip opam pkg-config
 
 RUN   pip3 install wllvm
 
@@ -16,7 +16,7 @@ RUN useradd -m -s /bin/bash -G sudo aspire && \
     echo 'eval `opam env`' >> /home/aspire/.bashrc && \
     echo "alias sudo='sudo LLVM_COMPILER=\$LLVM_COMPILER'" >> /home/aspire/.bashrc
 
-COPY src/install-*.sh /home/aspire/
+COPY src/*.sh /home/aspire/
 RUN chown aspire.aspire -R /home/aspire/* /home/aspire/.[a-z]*
 
 
@@ -24,10 +24,10 @@ USER aspire
 RUN   opam init --disable-sandboxing && \
       eval `opam env` && \
       opam switch -y create 4.10.0 && \
-      eval `opam env` 
+      eval `opam env`
 
 USER root
 
 EXPOSE 22
 
-CMD ["/usr/sbin/sshd", "-D"] 
+CMD ["/usr/sbin/sshd", "-D"]
