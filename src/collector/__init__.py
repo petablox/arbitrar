@@ -1,2 +1,2 @@
 from ..database import *
-from .src.main import main
+from .src.main import *

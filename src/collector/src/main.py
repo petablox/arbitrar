@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 import json
 
 from .. import *
@@ -27,6 +28,10 @@ def process_pkg(db: Database, pkg: Pkg):
         if not stored_pkg.is_built():
             compile_pkg(db, stored_pkg)
             db.add_package(stored_pkg)
+
+
+def setup_parser(parser: ArgumentParser):
+    parser.add_argument('packages', type=str, help='Input JSON file')
 
 
 def main(args):

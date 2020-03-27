@@ -12,12 +12,5 @@
       "src_type": "github",
       "link": "https://github.com/openssl/openssl.git"
     }
-  },
-  {
-    "name": "libcurl",
-    "pkg_src": {
-      "src_type": "debian",
-      "link": "libcurl4-openssl-dev"
-    }
   }
 ]
