@@ -6,6 +6,7 @@ import json
 import subprocess
 
 from .package import *
+from .analysis import *
 from .utils import *
 
 class Database:
