@@ -7,24 +7,17 @@
     }
   },
   {
-    "name": "git",
-    "pkg_src": {
-      "src_type": "debian",
-      "link": "git"
-    }
-  },
-  {
-    "name": "vim",
-    "pkg_src": {
-      "src_type": "debian",
-      "link": "vim"
-    }
-  },
-  {
     "name": "openssl",
     "pkg_src": {
+      "src_type": "github",
+      "link": "https://github.com/openssl/openssl.git"
+    }
+  },
+  {
+    "name": "libcurl",
+    "pkg_src": {
       "src_type": "debian",
-      "link": "openssl"
+      "link": "libcurl4-openssl-dev"
     }
   }
 ]

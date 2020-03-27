@@ -306,11 +306,8 @@ module CausalityChecker = struct
           in
           let new_result =
             match hd.stmt with
-            | Call {func} ->
-                Printf.printf "Checking call stmt: %s\n" func ;
-                Causing func :: result
-            | _ ->
-                result
+            | Call {func} -> Causing func :: result
+            | _ -> result
           in
           check_helper succ dugraph new_explored new_fringe new_result
     | None ->

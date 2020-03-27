@@ -127,6 +127,8 @@ module FunctionCausalityDictionary = struct
       dict
 
   let find dict func = StringMap.find func dict
+
+  let find_opt dict func = StringMap.find_opt func dict
 end
 
 module InvokedBeforeFeature = struct
@@ -166,16 +168,19 @@ module InvokedBeforeFeature = struct
 
   let extract (func_name, _) trace =
     let results = caused_funcs trace in
-    let caused_dict = FunctionCausalityDictionary.find !dictionary func_name in
-    let top_caused = CausalityDictionary.top caused_dict amount in
-    let assocs =
-      List.fold_left
-        (fun assocs func_name ->
-          let has_func = List.mem func_name results in
-          (func_name, `Bool has_func) :: assocs)
-        [] top_caused
-    in
-    `Assoc assocs
+    let maybe_caused_dict = FunctionCausalityDictionary.find_opt !dictionary func_name in
+    match maybe_caused_dict with
+    | Some caused_dict ->
+        let top_caused = CausalityDictionary.top caused_dict amount in
+        let assocs =
+          List.fold_left
+            (fun assocs func_name ->
+              let has_func = List.mem func_name results in
+              (func_name, `Bool has_func) :: assocs)
+            [] top_caused
+        in
+        `Assoc assocs
+    | None -> `Assoc []
 
   let to_yojson j = j
 end
@@ -217,16 +222,19 @@ module InvokedAfterFeature = struct
 
   let extract (func_name, _) trace =
     let results = caused_funcs trace in
-    let caused_dict = FunctionCausalityDictionary.find !dictionary func_name in
-    let top_caused = CausalityDictionary.top caused_dict amount in
-    let assocs =
-      List.fold_left
-        (fun assocs func_name ->
-          let has_func = List.mem func_name results in
-          (func_name, `Bool has_func) :: assocs)
-        [] top_caused
-    in
-    `Assoc assocs
+    let maybe_caused_dict = FunctionCausalityDictionary.find_opt !dictionary func_name in
+    match maybe_caused_dict with
+    | Some caused_dict ->
+        let top_caused = CausalityDictionary.top caused_dict amount in
+        let assocs =
+          List.fold_left
+            (fun assocs func_name ->
+              let has_func = List.mem func_name results in
+              (func_name, `Bool has_func) :: assocs)
+            [] top_caused
+        in
+        `Assoc assocs
+    | None -> `Assoc []
 
   let to_yojson j = j
 end
@@ -248,7 +256,6 @@ let process_trace features_dir func trace =
           let json_result = M.to_yojson result in
           (M.name, json_result) :: assoc
         else (
-          Printf.printf "Have not pass the filter; \n" ;
           assoc ))
       [] feature_extractors
   in
