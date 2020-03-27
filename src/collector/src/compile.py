@@ -5,7 +5,7 @@ import glob
 import shutil
 import os
 
-from .. import *
+from src.database import Database, Pkg, PkgSrcType, Build, BuildType, BuildResult
 
 
 def exists(path: str, files: List[str]) -> Optional[str]:

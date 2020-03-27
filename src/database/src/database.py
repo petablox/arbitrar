@@ -66,11 +66,16 @@ class Database:
     def slices_dir(self) -> str:
         return f"{self.analysis_dir()}/slices"
 
-    def func_slices_dir(self, func: str) -> str:
-        return mkdir(f"{self.slices_dir()}/{func}")
+    def func_slices_dir(self, func: str, create = True) -> str:
+        d = f"{self.slices_dir()}/{func}"
+        return mkdir(d) if create else d
 
-    def func_bc_slices_dir(self, func: str, bc_name: str) -> str:
-        return mkdir(f"{self.func_slices_dir(func)}/{bc_name}")
+    def func_bc_slices_dir(self, func: str, bc_name: str, create = True) -> str:
+        d = f"{self.func_slices_dir(func)}/{bc_name}"
+        return mkdir(d) if create else d
+
+    def slice_dir(self, func: str, bc_name: str, slice_id: int) -> str:
+        return f"{self.func_bc_slices_dir(func, bc_name)}/{slice_id}.json"
 
     def dugraphs_dir(self) -> str:
         return f"{self.analysis_dir()}/dugraphs"
@@ -84,6 +89,9 @@ class Database:
     def func_bc_slice_dugraphs_dir(self, func: str, bc_name: str, slice_id: int) -> str:
         return mkdir(f"{self.func_bc_dugraphs_dir(func, bc_name)}/{slice_id}")
 
+    def dugraph_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
+        return f"{self.func_bc_slice_dugraphs_dir(func, bc_name, slice_id)}/{trace_id}.json"
+
     def features_dir(self) -> str:
         return f"{self.analysis_dir()}/features"
 
@@ -95,6 +103,9 @@ class Database:
 
     def func_bc_slice_features_dir(self, func: str, bc_name: str, slice_id: int) -> str:
         return mkdir(f"{self.func_bc_features_dir(func, bc_name)}/{slice_id}")
+
+    def feature_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
+        return f"{self.func_bc_slice_features_dir(func, bc_name, slice_id)}/{trace_id}.json"
 
     def temp_dir(self) -> str:
         return f"{self.directory}/temp"
@@ -139,3 +150,32 @@ class Database:
 
     def clear_analysis_of_bc(self, bc_file):
         subprocess.run(['rm', '-rf', f"{self.analysis_dir()}/**/{bc_file}/*"])
+
+    def slice(self, func_name, bc, slice_id):
+        with open(self.slice_dir(func_name, bc, slice_id)) as f:
+            return json.load(f)
+
+    def dugraph(self, func_name, bc, slice_id, trace_id):
+        with open(self.dugraph_dir(func_name, bc, slice_id, trace_id)) as f:
+            return json.load(f)
+
+    def feature(self, func_name, bc, slice_id, trace_id):
+        with open(self.feature_dir(func_name, bc, slice_id, trace_id)) as f:
+            return json.load(f)
+
+    def function_datapoints(self, func_name: str):
+        # Check if the function is there
+        func_slices_dir = self.func_slices_dir(func_name, create=False)
+        if not os.path.exists(func_slices_dir):
+            raise Exception(f"No function {func_name} in database")
+
+        # List the directory
+        for bc in os.listdir(func_slices_dir):
+            bc_dir = self.func_bc_slices_dir(func_name, bc)
+            for slice_name in os.listdir(bc_dir):
+                slice_id = int(os.path.splitext(slice_name)[0])
+                slice = self.slice(func_name, bc, slice_id)
+                trace_dir = self.func_bc_slice_dugraphs_dir(func_name, bc, slice_id)
+                for trace_name in os.listdir(trace_dir):
+                    trace_id = int(os.path.splitext(trace_name)[0])
+                    yield DataPoint(self, func_name, bc, slice_id, trace_id, slice=slice)

@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 import json
 
-from .. import *
+from src.database import Database, Pkg
 
 from .fetch import fetch_pkg
 from .compile import compile_pkg

@@ -1,6 +1,7 @@
 import subprocess
+import os
 
-from .. import *
+from src.database import Database, Pkg, PkgSrcType
 
 
 def fetch_github_repo(db: Database, pkg: Pkg):
