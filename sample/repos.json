@@ -5,5 +5,26 @@
       "src_type": "debian",
       "link": "zlib1g"
     }
+  },
+  {
+    "name": "git",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "git"
+    }
+  },
+  {
+    "name": "vim",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "vim"
+    }
+  },
+  {
+    "name": "openssl",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "openssl"
+    }
   }
 ]

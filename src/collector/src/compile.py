@@ -109,7 +109,7 @@ def build_dep(db: Database, pkg: Pkg):
     if pkg.build.build_type != BuildType.dpkg:
         return
 
-    run = subprocess.run(['apt-get', 'build-dep', '-y', pkg.pkg_src.link], stderr=subprocess.STDOUT)
+    run = subprocess.run(['sudo', 'apt-get', 'build-dep', '-y', pkg.pkg_src.link], stderr=subprocess.STDOUT)
     if run.returncode != 0:
         raise BuildException("dependency build failed")
 
