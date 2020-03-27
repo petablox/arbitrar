@@ -14,7 +14,7 @@ modules = {
 }
 
 
-def init_parser():
+def new_arg_parser():
     parser = ArgumentParser()
     parser.add_argument('-d', '--db', type=str, default="data", help='Operating Database')
     subparsers = parser.add_subparsers(dest="cmd")
@@ -25,7 +25,9 @@ def init_parser():
 
 
 def main():
-    parser = init_parser()
+
+    # Initialize the parser and command line arguments
+    parser = new_arg_parser()
     args = parser.parse_args()
     cwd = os.getcwd()
     args.cwd = cwd
