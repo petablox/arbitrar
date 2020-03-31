@@ -26,8 +26,6 @@ RUN   opam init --disable-sandboxing && \
       opam switch -y create 4.10.0 && \
       eval `opam env` 
 
-RUN   opam install -y llvm
-
 USER root
 
 EXPOSE 22
