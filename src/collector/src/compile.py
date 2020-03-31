@@ -4,6 +4,7 @@ import traceback
 import glob
 import shutil
 import os
+import magic
 
 from src.database import Database, Pkg, PkgSrcType, Build, BuildType, BuildResult
 
@@ -157,10 +158,26 @@ def install_libs(db: Database, pkg: Pkg):
     for l in libs:
         name = l.split("/")[-1]
         shutil.copy(l, f"{pkg_dir}/source")
-        new_libs.append(f"{pkg_dir}/source/{name}")
+        new_libs.append(("lib",f"{pkg_dir}/source/{name}"))
+
+    # Going to also look for some ndirs = ["bin", "sbin", "usr/bin", "usr/sbin"]
+
+    bindirs = ["bin", "sbin", "usr/bin", "usr/sbin"]
+    binaries = []
+
+    for b in bindirs:
+        for (dirpath, dirnames, filenames) in os.walk(f"{pkg_dir}/{b}"):
+            for f in filenames:
+                p = os.path.join(dirpath, f)
+                if not os.path.islink(p) and magic.from_file(p, mime=True) == 'application/x-executable':
+                    binaries.append(p)
+                    
+    for b in binaries:
+        name = b.split("/")[-1]
+        shutil.copy(b, f"{pkg_dir}/source")
+        new_libs.append(("bin",f"{pkg_dir}/source/{name}"))
 
     return new_libs
-
 
 def find_libs(path: str) -> List[str]:
     out = subprocess.run(['find', path, '-name', 'lib*.so*'], stdout=subprocess.PIPE)
@@ -169,24 +186,29 @@ def find_libs(path: str) -> List[str]:
         libs.append(l.decode('utf-8'))
     return libs
 
-
 def extract_bc(db: Database, pkg: Pkg, libs=None):
     src_dir = db.package_source_dir(pkg)
 
     if libs is None:
         libs = find_libs(src_dir)
+        libs = map(lambda x: ("lib",x), libs)
 
     if len(libs) == 0:
         pkg.build.result = BuildResult.nolibs
         raise BuildException("nolibs")
 
-    sonames = set()
+    extracts = set()
     for l in libs:
-        sonames.add(get_soname(l))
-    if len(sonames) == 0:
+        t, n = l
+        if t == "lib":
+            extracts.add(get_soname(n))
+        else:
+            extracts.add(n)
+
+    if len(extracts) == 0:
         pkg.build.result = BuildResult.nolibs
         raise BuildException("nolibs")
-    pkg.build.libs = [soname for soname in list(sonames) if soname]
+    pkg.build.libs = list(extracts)
 
     for l in pkg.build.libs:
         if not os.path.exists(f"{src_dir}/{l}.bc"):
