@@ -9,7 +9,7 @@ from . import learning
 modules = {
     'collect': collector,
     'analyze': analyzer,
-    'db': database,
+    'query': database,
     'learn': learning
 }
 

@@ -1,8 +1,13 @@
-def setup_parser(parser):
-    subparsers = parser.add_subparsers(dest="db_cmd")
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
 
-    _ = subparsers.add_parser("bc-files")
-    # TODO: Add --package argument
+def setup_parser(parser):
+    subparsers = parser.add_subparsers(dest="query")
+
+    packages = subparsers.add_parser("packages")
+
+    bc_files_parser = subparsers.add_parser("bc-files")
+    bc_files_parser.add_argument('-p', '--package', type=str, help="Only the bc files in a package")
 
     num_slices_parser = subparsers.add_parser("num-slices")
     num_slices_parser.add_argument('-p', '--package', type=str, help='Only the slices in a package')
@@ -32,9 +37,17 @@ def setup_parser(parser):
     feature_parser.add_argument('trace-id', type=int, help='The trace id')
 
 
+def print_packages(args):
+    db = args.db
+    print("Name\tFetch Status\tBuild Status")
+    for package in db.packages:
+        f = "fetched" if package.fetched else "not fetched"
+        b = package.build.result.value
+        print(f"{package.name}\t{f}\t\t{b}")
+
+
 def print_bc_files(args):
-    bc_files = args.db.bc_files()
-    print(f"{len(bc_files)} bc-files in total:")
+    bc_files = args.db.bc_files(package = args.package)
     for bc_file in bc_files:
         print(bc_file)
 
@@ -44,7 +57,14 @@ def print_num_slices(args):
 
 
 def print_slice(args):
-    raise Exception("Not implemented")
+    db = args.db
+    var_args = vars(args)
+    input_bc_file = var_args["bc-file"]
+    bc_name = args.db.find_bc_name(input_bc_file)
+    if bc_name:
+        pp.pprint(args.db.slice(args.function, bc_name, var_args["slice-id"]))
+    else:
+        print(f"Unknown bc {input_bc_file}")
 
 
 def print_num_traces(args):
@@ -59,6 +79,7 @@ def print_feature(args):
     raise Exception("Not implemented")
 
 actions = {
+    'packages': print_packages,
     'bc-files': print_bc_files,
     'num-slices': print_num_slices,
     'slice': print_slice,
@@ -68,4 +89,7 @@ actions = {
 }
 
 def main(args):
-    actions[args.db_cmd](args)
+    if args.query in actions:
+        actions[args.query](args)
+    else:
+        print(f"Unknown query {args.query}")

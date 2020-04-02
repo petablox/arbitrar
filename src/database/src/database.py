@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 import os
 import json
@@ -66,12 +66,12 @@ class Database:
     def slices_dir(self) -> str:
         return f"{self.analysis_dir()}/slices"
 
-    def func_slices_dir(self, func: str, create = True) -> str:
+    def func_slices_dir(self, func: str, create = False) -> str:
         d = f"{self.slices_dir()}/{func}"
         return mkdir(d) if create else d
 
-    def func_bc_slices_dir(self, func: str, bc_name: str, create = True) -> str:
-        d = f"{self.func_slices_dir(func)}/{bc_name}"
+    def func_bc_slices_dir(self, func: str, bc_name: str, create = False) -> str:
+        d = f"{self.func_slices_dir(func, create=create)}/{bc_name}"
         return mkdir(d) if create else d
 
     def slice_dir(self, func: str, bc_name: str, slice_id: int) -> str:
@@ -110,7 +110,7 @@ class Database:
     def temp_dir(self) -> str:
         return f"{self.directory}/temp"
 
-    def contains_package(self, package_name: str) -> bool:
+    def has_package(self, package_name: str) -> bool:
         for pkg in self.packages:
             if pkg.name == package_name:
                 return True
@@ -145,11 +145,28 @@ class Database:
     def package_index_json_dir(self, pkg: Pkg) -> str:
         return f"{self.package_dir(pkg)}/index.json"
 
-    def bc_files(self) -> List[str]:
-        return [bc_file for pkg in self.packages for bc_file in pkg.bc_files()]
+    def bc_files(self, package = None):
+        if package:
+            if not self.has_package(package):
+                raise Exception(f"Unknown package {package}")
+
+        for pkg in self.packages:
+            if package == None or pkg.name == package:
+                for bc_file in pkg.bc_files():
+                    yield bc_file
+
+    def find_bc_name(self, s) -> Optional[str]:
+        for pkg in self.packages:
+            for bc_file in pkg.bc_files(full = False):
+                if s in bc_file:
+                    return bc_file
+        return None
 
     def clear_analysis_of_bc(self, bc_file):
         subprocess.run(['rm', '-rf', f"{self.analysis_dir()}/**/{bc_file}/*"])
+
+    def num_slices(self, func_name = None, bc = None):
+        pass
 
     def slice(self, func_name, bc, slice_id):
         with open(self.slice_dir(func_name, bc, slice_id)) as f:
