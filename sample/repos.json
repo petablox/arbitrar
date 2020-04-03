@@ -19,5 +19,19 @@
       "src_type": "debian",
       "link": "libcurl4"
     }
+  },
+  {
+    "name": "libattr",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "libattr1"
+    }
+  },
+  {
+    "name": "git",
+    "pkg_src": {
+      "src_type": "debian",
+      "link": "git"
+    }
   }
 ]
