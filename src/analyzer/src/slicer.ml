@@ -547,24 +547,25 @@ let slice llctx llm depth : Slices.t =
   flush stdout ;
   slices
 
-let occurence input_file =
+let occurrence input_file =
   let llctx = Llvm.create_context () in
   let llmem = Llvm.MemoryBuffer.of_file input_file in
   let llm = Llvm_irreader.parse_ir llctx llmem in
   let call_graph = CallGraph.from_llm llm in
+  let filter = gen_filter !Options.include_func !Options.exclude_func in
   let func_counter =
     CallGraph.fold_edges_instr_set
       (fun edge func_counter ->
         let caller, _, callee = edge in
-        let singleton_caller = LlvalueSet.singleton caller in
-        let entries =
-          find_entries 1 call_graph singleton_caller LlvalueSet.empty
-        in
-        let num_entries = LlvalueSet.cardinal entries in
-        let func_counter =
+        if filter (Llvm.value_name callee) then
+          let singleton_caller = LlvalueSet.singleton caller in
+          let entries =
+            find_entries 1 call_graph singleton_caller LlvalueSet.empty
+          in
+          let num_entries = LlvalueSet.cardinal entries in
           FunctionCounter.add func_counter callee num_entries
-        in
-        func_counter)
+        else
+          func_counter)
       call_graph FunctionCounter.empty
   in
   let func_count_list =
