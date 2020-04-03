@@ -53,7 +53,8 @@ def print_bc_files(args):
 
 
 def print_num_slices(args):
-    raise Exception("Not implemented")
+    db = args.db
+    print(db.num_slices(func_name = args.function, bc = bc_name))
 
 
 def print_slice(args):

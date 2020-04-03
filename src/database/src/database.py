@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import os
 import json
+import ntpath
 import subprocess
 
 from .package import *
@@ -80,35 +81,42 @@ class Database:
     def dugraphs_dir(self) -> str:
         return f"{self.analysis_dir()}/dugraphs"
 
-    def func_dugraphs_dir(self, func: str) -> str:
-        return mkdir(f"{self.dugraphs_dir()}/{func}")
+    def func_dugraphs_dir(self, func: str, create = False) -> str:
+        d = f"{self.dugraphs_dir()}/{func}"
+        return mkdir(d) if create else d
 
-    def func_bc_dugraphs_dir(self, func: str, bc_name: str) -> str:
-        return mkdir(f"{self.func_dugraphs_dir(func)}/{bc_name}")
+    def func_bc_dugraphs_dir(self, func: str, bc_name: str, create = False) -> str:
+        d = f"{self.func_dugraphs_dir(func, create=create)}/{bc_name}"
+        return mkdir(d) if create else d
 
-    def func_bc_slice_dugraphs_dir(self, func: str, bc_name: str, slice_id: int) -> str:
-        return mkdir(f"{self.func_bc_dugraphs_dir(func, bc_name)}/{slice_id}")
+    def func_bc_slice_dugraphs_dir(self, func: str, bc_name: str, slice_id: int, create = False) -> str:
+        d = f"{self.func_bc_dugraphs_dir(func, bc_name, create=create)}/{slice_id}"
+        return mkdir(d) if create else d
 
-    def dugraph_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
-        return f"{self.func_bc_slice_dugraphs_dir(func, bc_name, slice_id)}/{trace_id}.json"
+    def dugraph_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int, create = False) -> str:
+        return f"{self.func_bc_slice_dugraphs_dir(func, bc_name, slice_id, create=create)}/{trace_id}.json"
 
     def features_dir(self) -> str:
         return f"{self.analysis_dir()}/features"
 
-    def func_features_dir(self, func: str) -> str:
-        return mkdir(f"{self.features_dir()}/{func}")
+    def func_features_dir(self, func: str, create = False) -> str:
+        d = f"{self.features_dir()}/{func}"
+        return mkdir(d) if create else d
 
-    def func_bc_features_dir(self, func: str, bc_name: str) -> str:
-        return mkdir(f"{self.func_features_dir(func)}/{bc_name}")
+    def func_bc_features_dir(self, func: str, bc_name: str, create = False) -> str:
+        d = f"{self.func_features_dir(func, create=create)}/{bc_name}"
+        return mkdir(d) if create else d
 
-    def func_bc_slice_features_dir(self, func: str, bc_name: str, slice_id: int) -> str:
-        return mkdir(f"{self.func_bc_features_dir(func, bc_name)}/{slice_id}")
+    def func_bc_slice_features_dir(self, func: str, bc_name: str, slice_id: int, create = False) -> str:
+        d = f"{self.func_bc_features_dir(func, bc_name, create=create)}/{slice_id}"
+        return mkdir(d) if create else d
 
     def feature_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
         return f"{self.func_bc_slice_features_dir(func, bc_name, slice_id)}/{trace_id}.json"
 
-    def temp_dir(self) -> str:
-        return f"{self.directory}/temp"
+    def temp_dir(self, create = False) -> str:
+        d = f"{self.directory}/temp"
+        return mkdir(d) if create else d
 
     def has_package(self, package_name: str) -> bool:
         for pkg in self.packages:
@@ -145,14 +153,14 @@ class Database:
     def package_index_json_dir(self, pkg: Pkg) -> str:
         return f"{self.package_dir(pkg)}/index.json"
 
-    def bc_files(self, package = None):
+    def bc_files(self, package = None, full = True):
         if package:
             if not self.has_package(package):
                 raise Exception(f"Unknown package {package}")
 
         for pkg in self.packages:
             if package == None or pkg.name == package:
-                for bc_file in pkg.bc_files():
+                for bc_file in pkg.bc_files(full = full):
                     yield bc_file
 
     def find_bc_name(self, s) -> Optional[str]:
@@ -165,8 +173,32 @@ class Database:
     def clear_analysis_of_bc(self, bc_file):
         subprocess.run(['rm', '-rf', f"{self.analysis_dir()}/**/{bc_file}/*"])
 
-    def num_slices(self, func_name = None, bc = None):
-        pass
+    def num_slices(self, func_name = None, bc = None) -> int:
+        if func_name != None and bc != None:
+            count = 0
+            for root, dirs, files in os.walk(self.func_bc_slices_dir(func_name, bc)):
+                for f in files:
+                    count += 1
+            return count
+        elif func_name != None:
+            count = 0
+            for root, dirs, files in os.walk(self.func_slices_dir(func_name)):
+                for f in files:
+                    count += 1
+            return count
+        elif bc != None:
+            count = 0
+            for root, dirs, files in os.walk(self.slices_dir()):
+                if len(files) != 0:
+                    bc_name = ntpath.basename(root)
+                    if bc in bc_name:
+                        count += len(files)
+            return count
+        else:
+            count = 0
+            for root, _, files in os.walk(self.slices_dir()):
+                count += len(files)
+            return count
 
     def slice(self, func_name, bc, slice_id):
         with open(self.slice_dir(func_name, bc, slice_id)) as f:

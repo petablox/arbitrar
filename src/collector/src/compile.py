@@ -169,13 +169,16 @@ def install_libs(db: Database, pkg: Pkg):
         for (dirpath, dirnames, filenames) in os.walk(f"{pkg_dir}/{b}"):
             for f in filenames:
                 p = os.path.join(dirpath, f)
-                if not os.path.islink(p) and magic.from_file(p, mime=True) == 'application/x-executable':
+                mime = magic.from_file(p, mime = True)
+                is_exec = mime == 'application/x-executable'
+                is_shlib = mime == 'application/x-sharedlib'
+                if not os.path.islink(p) and (is_exec or is_shlib):
                     binaries.append(p)
-                    
+
     for b in binaries:
         name = b.split("/")[-1]
         shutil.copy(b, f"{pkg_dir}/source")
-        new_libs.append(("bin",f"{pkg_dir}/source/{name}"))
+        new_libs.append(("bin",f"{name}"))
 
     return new_libs
 

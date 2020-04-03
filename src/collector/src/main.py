@@ -15,7 +15,7 @@ def load_input(args):
 
 
 def process_pkg(db: Database, pkg: Pkg):
-    if not db.contains_package(pkg.name):
+    if not db.has_package(pkg.name):
         fetch_pkg(db, pkg)
         db.add_package(pkg)  # Save the temporary result
         compile_pkg(db, pkg)

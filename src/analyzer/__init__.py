@@ -12,6 +12,7 @@ def setup_parser(parser):
     parser.add_argument('-b', '--bc', type=str, default="", help='The .bc file to analyze')
     parser.add_argument('-f', '--feature', action='store_true', help='Only do feature extraction')
     parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be considered API')
+    parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
     parser.add_argument('-c', '--commit', action='store_true', help='Commit the analysis data to the database')
 
 
@@ -29,7 +30,7 @@ def main(args):
 
 def run_analyzer(db, bc_file, args):
     bc_name = ntpath.basename(bc_file)
-    temp_outdir = f"{db.temp_dir()}/{bc_name}"
+    temp_outdir = f"{db.temp_dir(create = True)}/{bc_name}"
     analyze_finished_file = f"{temp_outdir}/anal_fin.txt"
     move_finished_file = f"{temp_outdir}/move_fin.txt"
 
@@ -37,12 +38,26 @@ def run_analyzer(db, bc_file, args):
     if args.redo or args.commit:
         db.clear_analysis_of_bc(bc_file)
 
+    has_temp_dir = os.path.exists(temp_outdir)
+    has_analyze_finished_file = os.path.exists(analyze_finished_file)
+    analyze_finished = has_temp_dir and has_analyze_finished_file
+
     # Check if analysis is finished
-    if args.redo or not os.path.exists(analyze_finished_file):
-        run = subprocess.run(
-            ['./analyzer', bc_file, '-n', str(args.slice_size), '-min-freq', '10',
-             '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^OPENSSL_cleanse', '-outdir', temp_outdir],
-            cwd=dir_path)
+    if args.redo or not analyze_finished:
+        cmd = ['./analyzer', bc_file,
+               '-n', str(args.slice_size),
+               '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
+               '-outdir', temp_outdir]
+
+        if "min_freq" in args:
+            print(f"Setting min-freq to {args.min_freq}")
+            cmd += ['-min-freq', str(args.min_freq)]
+
+        if "include_fn" in args:
+            print(f"Only including functions {args.include_fn}")
+            cmd += ['-include-fn', args.include_fn]
+
+        run = subprocess.run(cmd, cwd=dir_path)
 
         # Save a file indicating the state of analysis
         open(analyze_finished_file, 'a').close()
@@ -74,12 +89,14 @@ def run_analyzer(db, bc_file, args):
                     func_counts[callee] = 1
 
                 if not args.feature:
-                    fpd = db.func_bc_slices_dir(callee, bc_name)
+
+                    # Move slices
+                    fpd = db.func_bc_slices_dir(callee, bc_name, create = True)
                     with open(f"{fpd}/{index}.json", "w") as out:
                         json.dump(slice_json, out)
 
                     # Then we move dugraphs
-                    dugraphs_dir = db.func_bc_slice_dugraphs_dir(callee, bc_name, index)
+                    dugraphs_dir = db.func_bc_slice_dugraphs_dir(callee, bc_name, index, create=True)
                     with open(f"{temp_outdir}/dugraphs/{callee}-{slice_id}.json") as dgs_file:
                         dgs_json = json.load(dgs_file)
                         num_traces = len(dgs_json)
@@ -88,7 +105,7 @@ def run_analyzer(db, bc_file, args):
                                 json.dump(dg_json, out)
 
                 # We move extracted features
-                features_dir = db.func_bc_slice_features_dir(callee, bc_name, index)
+                features_dir = db.func_bc_slice_features_dir(callee, bc_name, index, create=True)
                 for trace_id in range(num_traces):
                     with open(f"{temp_outdir}/features/{callee}/{slice_id}-{trace_id}.json") as feature_file:
                         feature_json = json.load(feature_file)
