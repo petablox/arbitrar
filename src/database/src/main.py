@@ -1,7 +1,7 @@
 import pprint
 from . import utils
 
-pp = pprint.PrettyPrinter(indent=4)
+pp = pprint.PrettyPrinter(indent = 2)
 
 class QueryExecutor:
     def setup_parser(parser):
@@ -98,7 +98,7 @@ class SliceQuery(QueryExecutor):
         if bc_name:
             slice = args.db.slice(args.function, bc_name, var_args["slice-id"])
             if slice:
-                pp.pprint(args.db.slice(args.function, bc_name, var_args["slice-id"]))
+                pp.pprint(slice)
             else:
                 print("Slice does not exist")
         else:
@@ -132,7 +132,21 @@ class DUGraphQuery(QueryExecutor):
         parser.add_argument('trace-id', type=int, help='The trace id')
 
     def execute(args):
-        raise Exception("Not implemented")
+        db = args.db
+        var_args = vars(args)
+        input_bc_file = var_args["bc-file"]
+        bc_name = args.db.find_bc_name(input_bc_file)
+        fn = args.function
+        slice_id = var_args["slice-id"]
+        trace_id = var_args["trace-id"]
+        if bc_name:
+            dugraph = args.db.dugraph(fn, bc_name, slice_id, trace_id)
+            if dugraph:
+                pp.pprint(dugraph)
+            else:
+                print("DUGraph does not exist")
+        else:
+            print(f"Unknown bc {input_bc_file}")
 
 
 class FeatureQuery(QueryExecutor):
@@ -143,7 +157,21 @@ class FeatureQuery(QueryExecutor):
         parser.add_argument('trace-id', type=int, help='The trace id')
 
     def execute(args):
-        raise Exception("Not implemented")
+        db = args.db
+        var_args = vars(args)
+        input_bc_file = var_args["bc-file"]
+        bc_name = args.db.find_bc_name(input_bc_file)
+        fn = args.function
+        slice_id = var_args["slice-id"]
+        trace_id = var_args["trace-id"]
+        if bc_name:
+            feature = args.db.feature(fn, bc_name, slice_id, trace_id)
+            if feature:
+                pp.pprint(feature)
+            else:
+                print("Feature does not exist")
+        else:
+            print(f"Unknown bc {input_bc_file}")
 
 
 query_executors = {
@@ -153,7 +181,7 @@ query_executors = {
     'num-slices': NumSlicesQuery,
     'slice': SliceQuery,
     'num-traces': NumTracesQuery,
-    'du-graph': DUGraphQuery,
+    'dugraph': DUGraphQuery,
     'feature': FeatureQuery
 }
 
