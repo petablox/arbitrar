@@ -174,6 +174,24 @@ class Database:
                     return bc_file
         return None
 
+    def occurrence_json_dir(self, bc_file):
+        return f"{self.occurrence_dir()}/{bc_file}.json"
+
+    def occurrence(self, bc_file):
+        d = self.occurrence_json_dir(bc_file)
+        if os.path.exists(d):
+            with open(d) as f:
+                return json.load(f)
+        else:
+            return None
+
+    def occurrences(self, package = None):
+        for bc_file in self.bc_files(package = package, full = False):
+            d = self.occurrence_json_dir(bc_file)
+            with open(d) as f:
+                occurrence = json.load(f)
+                yield bc_file, occurrence
+
     def clear_analysis_of_bc(self, bc_file):
         subprocess.run(['rm', '-rf', f"{self.analysis_dir()}/**/{bc_file}/*"])
 
