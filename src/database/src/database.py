@@ -230,6 +230,33 @@ class Database:
         else:
             return None
 
+    def num_traces(self, func_name = None, bc = None):
+        if func_name != None and bc != None:
+            count = 0
+            for root, dirs, files in os.walk(self.func_bc_dugraphs_dir(func_name, bc)):
+                for f in files:
+                    count += 1
+            return count
+        elif func_name != None:
+            count = 0
+            for root, dirs, files in os.walk(self.func_dugraphs_dir(func_name)):
+                for f in files:
+                    count += 1
+            return count
+        elif bc != None:
+            count = 0
+            for root, dirs, files in os.walk(self.dugraphs_dir()):
+                if len(files) != 0:
+                    bc_name = ntpath.basename(root)
+                    if bc in bc_name:
+                        count += len(files)
+            return count
+        else:
+            count = 0
+            for root, _, files in os.walk(self.dugraphs_dir()):
+                count += len(files)
+            return count
+
     def dugraph(self, func_name, bc, slice_id, trace_id):
         with open(self.dugraph_dir(func_name, bc, slice_id, trace_id)) as f:
             return json.load(f)

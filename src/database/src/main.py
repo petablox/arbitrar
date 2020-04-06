@@ -112,7 +112,16 @@ class NumTracesQuery(QueryExecutor):
         parser.add_argument('-f', '--function', type=str, help='Only the traces around a function')
 
     def execute(args):
-        raise Exception("Not implemented")
+        db = args.db
+        count = 0
+        if args.package:
+            for bc_name in db.bc_files(package = args.package, full = False):
+                n = db.num_traces(bc = bc_name, func_name = args.function)
+                count += n
+        else:
+            n = db.num_traces(bc = args.bc, func_name = args.function)
+            count += n
+        print(count)
 
 
 class DUGraphQuery(QueryExecutor):

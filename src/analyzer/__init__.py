@@ -12,7 +12,7 @@ def setup_parser(parser):
     parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice size')
     parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
     parser.add_argument('-f', '--redo-feature', action='store_true', help='Only do feature extraction')
-    parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be considered API')
+    parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
     parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
     parser.add_argument('-c', '--commit', action='store_true', help='Commit the analysis data to the database')
 
