@@ -201,8 +201,12 @@ class Database:
             return count
 
     def slice(self, func_name, bc, slice_id):
-        with open(self.slice_dir(func_name, bc, slice_id)) as f:
-            return json.load(f)
+        slice_file_dir = self.slice_dir(func_name, bc, slice_id)
+        if os.path.exists(slice_file_dir):
+            with open(slice_file_dir) as f:
+                return json.load(f)
+        else:
+            return None
 
     def dugraph(self, func_name, bc, slice_id, trace_id):
         with open(self.dugraph_dir(func_name, bc, slice_id, trace_id)) as f:
