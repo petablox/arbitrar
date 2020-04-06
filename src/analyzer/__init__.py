@@ -2,9 +2,10 @@ import subprocess
 import os
 import ntpath
 import json
+import shutil
 
 # This file path
-dir_path = os.path.dirname(os.path.realpath(__file__))
+this_path = os.path.dirname(os.path.realpath(__file__))
 
 def setup_parser(parser):
     parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice size')
@@ -31,6 +32,9 @@ def main(args):
 def run_analyzer(db, bc_file, args):
     bc_name = ntpath.basename(bc_file)
     temp_outdir = f"{db.temp_dir(create = True)}/{bc_name}"
+
+    # Marker files
+    occurrence_finished_file = f"{temp_outdir}/occur_fin.txt"
     analyze_finished_file = f"{temp_outdir}/anal_fin.txt"
     move_finished_file = f"{temp_outdir}/move_fin.txt"
 
@@ -39,10 +43,31 @@ def run_analyzer(db, bc_file, args):
         db.clear_analysis_of_bc(bc_file)
 
     has_temp_dir = os.path.exists(temp_outdir)
+
+    # Check if occurrence analysis is finished
+    has_occurrence_finished_file = os.path.exists(occurrence_finished_file)
+    occurrence_finished = has_temp_dir and has_occurrence_finished_file
+
+    # Run occurrence if not finished
+    if args.redo or not occurrence_finished:
+        cmd = ['./analyzer', 'occurrence', bc_file,
+               '-json',
+               '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
+               '-outdir', temp_outdir]
+
+        run = subprocess.run(cmd, cwd=this_path)
+
+        shutil.copy(f"{temp_outdir}/occurrence.json", f"{db.occurrence_dir()}/{bc_name}.json")
+
+        open(occurrence_finished_file, 'a').close()
+    else:
+        print(f"Skipping occurrence counting of {bc_name}")
+
+    # Check if analysis is finished
     has_analyze_finished_file = os.path.exists(analyze_finished_file)
     analyze_finished = has_temp_dir and has_analyze_finished_file
 
-    # Check if analysis is finished
+    # Analyze if not finished
     if args.redo or not analyze_finished:
         cmd = ['./analyzer', bc_file,
                '-n', str(args.slice_size),
@@ -57,14 +82,14 @@ def run_analyzer(db, bc_file, args):
             print(f"Only including functions {args.include_fn}")
             cmd += ['-include-fn', args.include_fn]
 
-        run = subprocess.run(cmd, cwd=dir_path)
+        run = subprocess.run(cmd, cwd=this_path)
 
         # Save a file indicating the state of analysis
         open(analyze_finished_file, 'a').close()
 
     # Only run feature extraction
     elif args.feature:
-        run = subprocess.run(['./analyzer', 'feature', temp_outdir], cwd=dir_path)
+        run = subprocess.run(['./analyzer', 'feature', temp_outdir], cwd=this_path)
 
     else:
         print(f"Skipping analysis of {bc_name}")

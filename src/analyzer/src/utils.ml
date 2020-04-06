@@ -18,6 +18,10 @@ let mkdir dirname =
     exit 1
   else Unix.mkdir dirname 0o755
 
+let initialize_output_directories outdir =
+  List.iter mkdir
+    [outdir; outdir ^ "/dugraphs"; outdir ^ "/dots"; outdir ^ "/traces"]
+
 (* LLVM utility functions *)
 
 let string_cache = Hashtbl.create 2048

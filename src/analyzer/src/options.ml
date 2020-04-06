@@ -27,6 +27,11 @@ let include_func = ref ""
 
 let exclude_func = ref ""
 
+(* Occurrence Options *)
+let occ_output_csv = ref true
+
+let occ_output_json = ref false
+
 (* Filter Options *)
 let no_filter = ref false
 
@@ -71,6 +76,9 @@ let slicer_opts_local =
   ; ("-include-fn", Arg.Set_string include_func, "Target function regex")
   ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex") ]
 
+let occurrence_opts_local =
+  [ ("-json", Arg.Set occ_output_json, "Output .json file") ]
+
 let executor_opts_local =
   [ ( "-max-traces"
     , Arg.Set_int max_traces
@@ -110,6 +118,8 @@ let analyzer_opts_local =
     , "The checker to run. e.g. argrel, retval" ) ]
 
 let slicer_opts = common_opts_local @ slicer_opts_local
+
+let occurrence_opts = common_opts_local @ slicer_opts_local @ occurrence_opts_local
 
 let executor_opts = common_opts_local @ executor_opts_local
 

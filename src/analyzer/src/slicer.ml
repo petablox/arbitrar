@@ -577,12 +577,24 @@ let occurrence input_file =
     List.sort (fun (_, c1) (_, c2) -> c2 - c1) func_count_list
   in
   let outdir = Options.outdir () in
-  let file = outdir ^ "/occurence.csv" in
-  let oc = open_out file in
-  Printf.fprintf oc "Function,Occurence\n" ;
-  List.iter
-    (fun (func_name, count) -> Printf.fprintf oc "%s,%d\n" func_name count)
-    sorted_func_count_list
+  Utils.initialize_output_directories outdir ;
+  if not !Options.occ_output_json then
+    let file = outdir ^ "/occurrence.csv" in
+    let oc = open_out file in
+    Printf.fprintf oc "Function,Occurrence\n" ;
+    List.iter
+      (fun (func_name, count) -> Printf.fprintf oc "%s,%d\n" func_name count)
+      sorted_func_count_list
+  else
+    let file = outdir ^ "/occurrence.json" in
+    let assoc = 
+      List.map 
+        (fun (func_name, count) -> (func_name, `Int count)) 
+        sorted_func_count_list
+    in
+    let json = `Assoc assoc in
+    Yojson.Safe.to_file file json
+
 
 let main input_file =
   let llctx = Llvm.create_context () in

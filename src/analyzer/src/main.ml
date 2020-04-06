@@ -19,6 +19,7 @@ let parse_arg arg =
         Options.options := Options.slicer_opts ;
         task := Slice
     | "occurrence" ->
+        Options.options := Options.occurrence_opts ;
         task := Occurrence
     | "extract" ->
         Options.options := Options.extractor_opts ;

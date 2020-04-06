@@ -96,15 +96,11 @@ let execute lc outdir llctx llm slices =
   Printf.fprintf lc "%s" msg ;
   Metadata.print lc metadata
 
-let initialize_directories outdir =
-  List.iter Utils.mkdir
-    [outdir; outdir ^ "/dugraphs"; outdir ^ "/dots"; outdir ^ "/traces"]
-
 let main input_file =
   Printf.printf "Running extractor on %s...\n" input_file ;
   flush stdout ;
   let outdir = Options.outdir () in
-  initialize_directories outdir ;
+  Utils.initialize_output_directories outdir ;
   let log_channel = setup_loc_channel outdir in
   let llctx, llm = setup_ll_module input_file in
   Printf.printf "Slicing program...\n" ;

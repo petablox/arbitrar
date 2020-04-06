@@ -1,4 +1,5 @@
 import pprint
+
 pp = pprint.PrettyPrinter(indent=4)
 
 class QueryExecutor:
@@ -12,11 +13,11 @@ class QueryExecutor:
 class PackagesQuery(QueryExecutor):
     def execute(args):
         db = args.db
-        print("Name\tFetch Status\tBuild Status")
+        print("Name\t\tFetch Status\tBuild Status")
         for package in db.packages:
             f = "fetched" if package.fetched else "not fetched"
             b = package.build.result.value
-            print(f"{package.name}\t{f}\t\t{b}")
+            print(f"{package.name}\t\t{f}\t\t{b}")
 
 
 class BCFilesQuery(QueryExecutor):
@@ -71,7 +72,7 @@ class NumTracesQuery(QueryExecutor):
         raise Exception("Not implemented")
 
 
-class TraceQuery(QueryExecutor):
+class DUGraphQuery(QueryExecutor):
     def setup_parser(parser):
         parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
         parser.add_argument('function', type=str, help="The function that the trace is about")
@@ -99,7 +100,7 @@ query_executors = {
     'num-slices': NumSlicesQuery,
     'slice': SliceQuery,
     'num-traces': NumTracesQuery,
-    'trace': TraceQuery,
+    'du-graph': DUGraphQuery,
     'feature': FeatureQuery
 }
 

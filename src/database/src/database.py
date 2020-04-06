@@ -40,6 +40,7 @@ class Database:
         mkdir(self.slices_dir())
         mkdir(self.dugraphs_dir())
         mkdir(self.features_dir())
+        mkdir(self.occurrence_dir())
 
     def setup_temporary_file_system(self):
         mkdir(self.temp_dir())
@@ -63,6 +64,9 @@ class Database:
 
     def analysis_dir(self) -> str:
         return f"{self.directory}/analysis"
+
+    def occurrence_dir(self) -> str:
+        return f"{self.analysis_dir()}/occurrence"
 
     def slices_dir(self) -> str:
         return f"{self.analysis_dir()}/slices"
