@@ -8,10 +8,10 @@ import shutil
 this_path = os.path.dirname(os.path.realpath(__file__))
 
 def setup_parser(parser):
+    parser.add_argument('-b', '--bc', type=str, default="", help='The .bc file to analyze')
     parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice size')
     parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
-    parser.add_argument('-b', '--bc', type=str, default="", help='The .bc file to analyze')
-    parser.add_argument('-f', '--feature', action='store_true', help='Only do feature extraction')
+    parser.add_argument('-f', '--redo-feature', action='store_true', help='Only do feature extraction')
     parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be considered API')
     parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
     parser.add_argument('-c', '--commit', action='store_true', help='Commit the analysis data to the database')
@@ -88,7 +88,7 @@ def run_analyzer(db, bc_file, args):
         open(analyze_finished_file, 'a').close()
 
     # Only run feature extraction
-    elif args.feature:
+    elif args.redo_feature:
         run = subprocess.run(['./analyzer', 'feature', temp_outdir], cwd=this_path)
 
     else:
@@ -113,7 +113,7 @@ def run_analyzer(db, bc_file, args):
                     index = 0
                     func_counts[callee] = 1
 
-                if not args.feature:
+                if not args.redo_feature:
 
                     # Move slices
                     fpd = db.func_bc_slices_dir(callee, bc_name, create = True)
