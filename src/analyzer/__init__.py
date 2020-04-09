@@ -7,26 +7,52 @@ import shutil
 # This file path
 this_path = os.path.dirname(os.path.realpath(__file__))
 
+
 def setup_parser(parser):
-    parser.add_argument('-b', '--bc', type=str, default="", help='The .bc file to analyze')
-    parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice size')
-    parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
-    parser.add_argument('-f', '--redo-feature', action='store_true', help='Only do feature extraction')
-    parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
-    parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
-    parser.add_argument('-c', '--commit', action='store_true', help='Commit the analysis data to the database')
+    parser.add_argument('-b',
+                        '--bc',
+                        type=str,
+                        default="",
+                        help='The .bc file to analyze')
+    parser.add_argument('-s',
+                        '--slice-size',
+                        type=int,
+                        default=1,
+                        help='Slice size')
+    parser.add_argument('-r',
+                        '--redo',
+                        action='store_true',
+                        help='Redo all analysis')
+    parser.add_argument('-i',
+                        '--input',
+                        type=str,
+                        help="Given an input bc file")
+    parser.add_argument(
+        '--min-freq',
+        type=int,
+        default=1,
+        help='Threshold of #occurrence of function to be included')
+    parser.add_argument('--include-fn',
+                        type=str,
+                        default="",
+                        help='Only include functions')
+    parser.add_argument('--redo-feature',
+                        action='store_true',
+                        help='Only do feature extraction')
+    parser.add_argument('--commit',
+                        action='store_true',
+                        help='Commit the analysis data to the database')
 
 
 def main(args):
     db = args.db
-
-    # Get the bc_files
-    bc_files = db.bc_files()
-
-    # Run analyzer on each one of the bc_files
-    for bc_file in bc_files:
-        if args.bc == '' or args.bc in bc_file:
-            run_analyzer(db, bc_file, args)
+    if args.input:
+        inp = os.path.join(os.getcwd(), args.input)
+        run_analyzer(db, inp, args)
+    else:
+        for bc_file in db.bc_files():
+            if args.bc == '' or args.bc in bc_file:
+                run_analyzer(db, bc_file, args)
 
 
 def run_analyzer(db, bc_file, args):
@@ -50,14 +76,16 @@ def run_analyzer(db, bc_file, args):
 
     # Run occurrence if not finished
     if args.redo or not occurrence_finished:
-        cmd = ['./analyzer', 'occurrence', bc_file,
-               '-json',
-               '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
-               '-outdir', temp_outdir]
+        cmd = [
+            './analyzer', 'occurrence', bc_file, '-json', '-exclude-fn',
+            '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse', '-outdir',
+            temp_outdir
+        ]
 
         run = subprocess.run(cmd, cwd=this_path)
 
-        shutil.copy(f"{temp_outdir}/occurrence.json", f"{db.occurrence_dir()}/{bc_name}.json")
+        shutil.copy(f"{temp_outdir}/occurrence.json",
+                    f"{db.occurrence_dir()}/{bc_name}.json")
 
         open(occurrence_finished_file, 'a').close()
     else:
@@ -69,10 +97,12 @@ def run_analyzer(db, bc_file, args):
 
     # Analyze if not finished
     if args.redo or not analyze_finished:
-        cmd = ['./analyzer', bc_file,
-               '-n', str(args.slice_size),
-               '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
-               '-outdir', temp_outdir]
+        cmd = [
+            './analyzer', bc_file, '-n',
+            str(args.slice_size), '-exclude-fn',
+            '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse', '-outdir',
+            temp_outdir
+        ]
 
         if "min_freq" in args:
             print(f"Setting min-freq to {args.min_freq}")
@@ -89,7 +119,8 @@ def run_analyzer(db, bc_file, args):
 
     # Only run feature extraction
     elif args.redo_feature:
-        run = subprocess.run(['./analyzer', 'feature', temp_outdir], cwd=this_path)
+        run = subprocess.run(['./analyzer', 'feature', temp_outdir],
+                             cwd=this_path)
 
     else:
         print(f"Skipping analysis of {bc_name}")
@@ -116,25 +147,37 @@ def run_analyzer(db, bc_file, args):
                 if not args.redo_feature:
 
                     # Move slices
-                    fpd = db.func_bc_slices_dir(callee, bc_name, create = True)
+                    fpd = db.func_bc_slices_dir(callee, bc_name, create=True)
                     with open(f"{fpd}/{index}.json", "w") as out:
                         json.dump(slice_json, out)
 
                     # Then we move dugraphs
-                    dugraphs_dir = db.func_bc_slice_dugraphs_dir(callee, bc_name, index, create=True)
-                    with open(f"{temp_outdir}/dugraphs/{callee}-{slice_id}.json") as dgs_file:
+                    dugraphs_dir = db.func_bc_slice_dugraphs_dir(callee,
+                                                                 bc_name,
+                                                                 index,
+                                                                 create=True)
+                    with open(
+                            f"{temp_outdir}/dugraphs/{callee}-{slice_id}.json"
+                    ) as dgs_file:
                         dgs_json = json.load(dgs_file)
                         num_traces = len(dgs_json)
                         for trace_id, dg_json in enumerate(dgs_json):
-                            with open(f"{dugraphs_dir}/{trace_id}.json", "w") as out:
+                            with open(f"{dugraphs_dir}/{trace_id}.json",
+                                      "w") as out:
                                 json.dump(dg_json, out)
 
                 # We move extracted features
-                features_dir = db.func_bc_slice_features_dir(callee, bc_name, index, create=True)
+                features_dir = db.func_bc_slice_features_dir(callee,
+                                                             bc_name,
+                                                             index,
+                                                             create=True)
                 for trace_id in range(num_traces):
-                    with open(f"{temp_outdir}/features/{callee}/{slice_id}-{trace_id}.json") as feature_file:
+                    with open(
+                            f"{temp_outdir}/features/{callee}/{slice_id}-{trace_id}.json"
+                    ) as feature_file:
                         feature_json = json.load(feature_file)
-                        with open(f"{features_dir}/{trace_id}.json", "w") as out:
+                        with open(f"{features_dir}/{trace_id}.json",
+                                  "w") as out:
                             json.dump(feature_json, out)
 
         # Store the status

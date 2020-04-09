@@ -16,7 +16,11 @@ modules = {
 
 def new_arg_parser():
     parser = ArgumentParser()
-    parser.add_argument('-d', '--db', type=str, default="data", help='Operating Database')
+    parser.add_argument('-d',
+                        '--db',
+                        type=str,
+                        default="data",
+                        help='Operating Database')
     subparsers = parser.add_subparsers(dest="cmd")
     for (key, module) in modules.items():
         subparser = subparsers.add_parser(key)

@@ -249,29 +249,21 @@ module ArgValChecker (A : ARG_INDEX) = struct
         []
 end
 
-module Arg0ValChecker = ArgValChecker ((
-  struct
-    let index = 0
-  end :
-    ARG_INDEX ))
+module Arg0ValChecker = ArgValChecker (struct
+  let index = 0
+end)
 
-module Arg1ValChecker = ArgValChecker ((
-  struct
-    let index = 1
-  end :
-    ARG_INDEX ))
+module Arg1ValChecker = ArgValChecker (struct
+  let index = 1
+end)
 
-module Arg2ValChecker = ArgValChecker ((
-  struct
-    let index = 2
-  end :
-    ARG_INDEX ))
+module Arg2ValChecker = ArgValChecker (struct
+  let index = 2
+end)
 
-module Arg3ValChecker = ArgValChecker ((
-  struct
-    let index = 3
-  end :
-    ARG_INDEX ))
+module Arg3ValChecker = ArgValChecker (struct
+  let index = 3
+end)
 
 module CausalityChecker = struct
   type t = Causing of string | None
@@ -306,8 +298,10 @@ module CausalityChecker = struct
           in
           let new_result =
             match hd.stmt with
-            | Call {func} -> Causing func :: result
-            | _ -> result
+            | Call {func} ->
+                Causing func :: result
+            | _ ->
+                result
           in
           check_helper succ dugraph new_explored new_fringe new_result
     | None ->

@@ -1,9 +1,11 @@
 import os
 
+
 def mkdir(d: str) -> str:
     if not os.path.exists(d):
         os.mkdir(d)
     return d
+
 
 def print_counts(data) -> str:
     max_len = 0

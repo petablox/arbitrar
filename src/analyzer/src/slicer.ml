@@ -564,8 +564,7 @@ let occurrence input_file =
           in
           let num_entries = LlvalueSet.cardinal entries in
           FunctionCounter.add func_counter callee num_entries
-        else
-          func_counter)
+        else func_counter)
       call_graph FunctionCounter.empty
   in
   let func_count_list =
@@ -578,23 +577,22 @@ let occurrence input_file =
   in
   let outdir = Options.outdir () in
   Utils.initialize_output_directories outdir ;
-  if not !Options.occ_output_json then
+  if not !Options.occ_output_json then (
     let file = outdir ^ "/occurrence.csv" in
     let oc = open_out file in
     Printf.fprintf oc "Function,Occurrence\n" ;
     List.iter
       (fun (func_name, count) -> Printf.fprintf oc "%s,%d\n" func_name count)
-      sorted_func_count_list
+      sorted_func_count_list )
   else
     let file = outdir ^ "/occurrence.json" in
-    let assoc = 
-      List.map 
-        (fun (func_name, count) -> (func_name, `Int count)) 
+    let assoc =
+      List.map
+        (fun (func_name, count) -> (func_name, `Int count))
         sorted_func_count_list
     in
     let json = `Assoc assoc in
     Yojson.Safe.to_file file json
-
 
 let main input_file =
   let llctx = Llvm.create_context () in

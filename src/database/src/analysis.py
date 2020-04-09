@@ -2,7 +2,15 @@ import os
 
 
 class DataPoint:
-    def __init__(self, db, func_name, bc, slice_id, trace_id, slice = None, dugraph = None, feature = None):
+    def __init__(self,
+                 db,
+                 func_name,
+                 bc,
+                 slice_id,
+                 trace_id,
+                 slice=None,
+                 dugraph=None,
+                 feature=None):
         self.db = db
         self.func_name = func_name
         self.bc = bc
@@ -21,10 +29,12 @@ class DataPoint:
 
     def dugraph(self):
         if not self._dugraph:
-            self._dugraph = self.db.dugraph(self.func_name, self.bc, self.slice_id, self.trace_id)
+            self._dugraph = self.db.dugraph(self.func_name, self.bc,
+                                            self.slice_id, self.trace_id)
         return self._dugraph
 
     def feature(self):
         if not self._feature:
-            self._feature = self.db.feature(self.func_name, self.bc, self.slice_id, self.trace_id)
+            self._feature = self.db.feature(self.func_name, self.bc,
+                                            self.slice_id, self.trace_id)
         return self._feature

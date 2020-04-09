@@ -336,8 +336,10 @@ module Nodes = struct
 
   let find_node_by_id nodes id : Node.t =
     match List.find_opt (fun (node : Node.t) -> node.id = id) nodes with
-    | Some node -> node
-    | None -> raise CannotFindNodeById
+    | Some node ->
+        node
+    | None ->
+        raise CannotFindNodeById
 end
 
 module NodeSet = Set.Make (Node)

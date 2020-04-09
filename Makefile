@@ -24,7 +24,7 @@ format: format-py format-ml
 .PHONY: format-py
 
 format-py:
-	autopep8 --in-place --recursive --aggressive .
+	yapf -i --recursive misapi src/
 
 .PHONY: format-ml
 

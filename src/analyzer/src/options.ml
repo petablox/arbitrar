@@ -77,7 +77,7 @@ let slicer_opts_local =
   ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex") ]
 
 let occurrence_opts_local =
-  [ ("-json", Arg.Set occ_output_json, "Output .json file") ]
+  [("-json", Arg.Set occ_output_json, "Output .json file")]
 
 let executor_opts_local =
   [ ( "-max-traces"
@@ -119,7 +119,8 @@ let analyzer_opts_local =
 
 let slicer_opts = common_opts_local @ slicer_opts_local
 
-let occurrence_opts = common_opts_local @ slicer_opts_local @ occurrence_opts_local
+let occurrence_opts =
+  common_opts_local @ slicer_opts_local @ occurrence_opts_local
 
 let executor_opts = common_opts_local @ executor_opts_local
 

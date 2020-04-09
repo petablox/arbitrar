@@ -45,7 +45,9 @@ class BuildEnv:
 
 def get_soname(path):
     objdump = subprocess.Popen(['objdump', '-p', path], stdout=subprocess.PIPE)
-    out = subprocess.run(['grep', 'SONAME'], stdout=subprocess.PIPE, stdin=objdump.stdout)
+    out = subprocess.run(['grep', 'SONAME'],
+                         stdout=subprocess.PIPE,
+                         stdin=objdump.stdout)
     if len(out.stdout) == 0:
         return None
     return out.stdout.strip().split()[-1].decode()
@@ -111,7 +113,9 @@ def build_dep(db: Database, pkg: Pkg):
     if pkg.build.build_type != BuildType.dpkg:
         return
 
-    run = subprocess.run(['sudo', 'apt-get', 'build-dep', '-y', pkg.pkg_src.link], stderr=subprocess.STDOUT)
+    run = subprocess.run(
+        ['sudo', 'apt-get', 'build-dep', '-y', pkg.pkg_src.link],
+        stderr=subprocess.STDOUT)
     if run.returncode != 0:
         raise BuildException("dependency build failed")
 
@@ -144,9 +148,11 @@ def install_libs(db: Database, pkg: Pkg):
             break
 
     if req_deb == "":
-        raise BuildException("could not find requested debian package after build")
+        raise BuildException(
+            "could not find requested debian package after build")
 
-    run = subprocess.run(['dpkg', '-x', req_deb, pkg_dir], stdout=subprocess.PIPE)
+    run = subprocess.run(['dpkg', '-x', req_deb, pkg_dir],
+                         stdout=subprocess.PIPE)
     if run.returncode != 0:
         raise BuildException("could not extract debian package")
 
@@ -158,7 +164,7 @@ def install_libs(db: Database, pkg: Pkg):
     for l in libs:
         name = l.split("/")[-1]
         shutil.copy(l, f"{pkg_dir}/source")
-        new_libs.append(("lib",f"{pkg_dir}/source/{name}"))
+        new_libs.append(("lib", f"{pkg_dir}/source/{name}"))
 
     # Going to also look for some ndirs = ["bin", "sbin", "usr/bin", "usr/sbin"]
 
@@ -169,7 +175,7 @@ def install_libs(db: Database, pkg: Pkg):
         for (dirpath, dirnames, filenames) in os.walk(f"{pkg_dir}/{b}"):
             for f in filenames:
                 p = os.path.join(dirpath, f)
-                mime = magic.from_file(p, mime = True)
+                mime = magic.from_file(p, mime=True)
                 is_exec = mime == 'application/x-executable'
                 is_shlib = mime == 'application/x-sharedlib'
                 if not os.path.islink(p) and (is_exec or is_shlib):
@@ -178,23 +184,26 @@ def install_libs(db: Database, pkg: Pkg):
     for b in binaries:
         name = b.split("/")[-1]
         shutil.copy(b, f"{pkg_dir}/source")
-        new_libs.append(("bin",f"{name}"))
+        new_libs.append(("bin", f"{name}"))
 
     return new_libs
 
+
 def find_libs(path: str) -> List[str]:
-    out = subprocess.run(['find', path, '-name', 'lib*.so*'], stdout=subprocess.PIPE)
+    out = subprocess.run(['find', path, '-name', 'lib*.so*'],
+                         stdout=subprocess.PIPE)
     libs = []
     for l in out.stdout.splitlines():
         libs.append(l.decode('utf-8'))
     return libs
+
 
 def extract_bc(db: Database, pkg: Pkg, libs=None):
     src_dir = db.package_source_dir(pkg)
 
     if libs is None:
         libs = find_libs(src_dir)
-        libs = map(lambda x: ("lib",x), libs)
+        libs = map(lambda x: ("lib", x), libs)
 
     if len(libs) == 0:
         pkg.build.result = BuildResult.nolibs

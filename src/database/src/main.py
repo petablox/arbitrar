@@ -1,7 +1,8 @@
 import pprint
 from . import utils
 
-pp = pprint.PrettyPrinter(indent = 2)
+pp = pprint.PrettyPrinter(indent=2)
+
 
 class QueryExecutor:
     def setup_parser(parser):
@@ -23,56 +24,105 @@ class PackagesQuery(QueryExecutor):
 
 class BCFilesQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('-p', '--package', type=str, help="Only the bc files in a package")
+        parser.add_argument('-p',
+                            '--package',
+                            type=str,
+                            help="Only the bc files in a package")
 
     def execute(args):
-        bc_files = args.db.bc_files(package = args.package)
+        bc_files = args.db.bc_files(package=args.package)
         for bc_file in bc_files:
             print(bc_file)
 
 
 class OccurrenceQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('function', type=str, help="The function name")
+        parser.add_argument('-f',
+                            '--function',
+                            type=str,
+                            help="The function name")
         parser.add_argument('-p', '--package', type=str, help="The package")
-        parser.add_argument('-v', '--verbose', action='store_true', help="Verbose")
+        parser.add_argument('--bc', type=str, help="LLVM Byte Code File")
+        parser.add_argument('-v',
+                            '--verbose',
+                            action='store_true',
+                            help="Verbose")
+        parser.add_argument('-t',
+                            '--threshold',
+                            type=int,
+                            help="Occurred at least [threshold] times")
+        parser.add_argument('-l',
+                            '--limit',
+                            type=int,
+                            help="Only output top [limit] results")
 
     def execute(args):
-        count = 0
-        individual_counts = []
-        for bc_file, occurrence in args.db.occurrences(package = args.package):
-            if args.function in occurrence:
-                n = occurrence[args.function]
-                count += n
-                individual_counts.append((bc_file, n))
-
-        if args.verbose:
-            individual_counts.append(("Total", count))
-            utils.print_counts(individual_counts)
+        if args.function:
+            count = 0
+            individual_counts = []
+            for bc_file, occurrence in args.db.occurrences(
+                    package=args.package, bc_file=args.bc):
+                if args.function in occurrence:
+                    n = occurrence[args.function]
+                    count += n
+                    individual_counts.append((bc_file, n))
+            if args.verbose:
+                individual_counts.append(("Total", count))
+                utils.print_counts(individual_counts)
+            else:
+                print(count)
         else:
-            print(count)
+            counts = {}
+            for bc_file, occurrence in args.db.occurrences(
+                    package=args.package, bc_file=args.bc):
+                for func, count in occurrence.items():
+                    if func in counts:
+                        counts[func] += count
+                    else:
+                        counts[func] = count
+            counts_arr = []
+            for func, count in counts.items():
+                if not args.threshold or count >= args.threshold:
+                    counts_arr.append((func, count))
+            counts_arr = sorted(counts_arr, key=lambda t: -t[1])
+            if args.limit:
+                utils.print_counts(counts_arr[0:args.limit])
+            else:
+                utils.print_counts(counts_arr)
 
 
 class NumSlicesQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('-p', '--package', type=str, help='Only the slices in a package')
-        parser.add_argument('-b', '--bc', type=str, help='Only the slices in a bc-file')
-        parser.add_argument('-f', '--function', type=str, help='Only the slices around a function')
-        parser.add_argument('-v', '--verbose', action='store_true', help='Verbose')
+        parser.add_argument('-p',
+                            '--package',
+                            type=str,
+                            help='Only the slices in a package')
+        parser.add_argument('-b',
+                            '--bc',
+                            type=str,
+                            help='Only the slices in a bc-file')
+        parser.add_argument('-f',
+                            '--function',
+                            type=str,
+                            help='Only the slices around a function')
+        parser.add_argument('-v',
+                            '--verbose',
+                            action='store_true',
+                            help='Verbose')
 
     def execute(args):
         db = args.db
         if args.bc:
             bc_name = db.find_bc_name(args.bc)
             if bc_name:
-                print(db.num_slices(func_name = args.function, bc = bc_name))
+                print(db.num_slices(func_name=args.function, bc=bc_name))
             else:
                 print(f"Unknown bc {bc_name}")
         else:
             count = 0
             individual_count = []
-            for bc_name in db.bc_files(package = args.package, full = False):
-                n = db.num_slices(func_name = args.function, bc = bc_name)
+            for bc_name in db.bc_files(package=args.package, full=False):
+                n = db.num_slices(func_name=args.function, bc=bc_name)
                 count += n
                 if n > 0:
                     individual_count.append((bc_name, n))
@@ -86,8 +136,12 @@ class NumSlicesQuery(QueryExecutor):
 
 class SliceQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('bc-file', type=str, help='The bc-file that the slice belongs to')
-        parser.add_argument('function', type=str, help='The function that the slice contain')
+        parser.add_argument('bc-file',
+                            type=str,
+                            help='The bc-file that the slice belongs to')
+        parser.add_argument('function',
+                            type=str,
+                            help='The function that the slice contain')
         parser.add_argument('slice-id', type=int, help='The slice id')
 
     def execute(args):
@@ -107,27 +161,40 @@ class SliceQuery(QueryExecutor):
 
 class NumTracesQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('-p', '--package', type=str, help='Only the traces in a package')
-        parser.add_argument('-b', '--bc', type=str, help='Only the traces in a bc-file')
-        parser.add_argument('-f', '--function', type=str, help='Only the traces around a function')
+        parser.add_argument('-p',
+                            '--package',
+                            type=str,
+                            help='Only the traces in a package')
+        parser.add_argument('-b',
+                            '--bc',
+                            type=str,
+                            help='Only the traces in a bc-file')
+        parser.add_argument('-f',
+                            '--function',
+                            type=str,
+                            help='Only the traces around a function')
 
     def execute(args):
         db = args.db
         count = 0
         if args.package:
-            for bc_name in db.bc_files(package = args.package, full = False):
-                n = db.num_traces(bc = bc_name, func_name = args.function)
+            for bc_name in db.bc_files(package=args.package, full=False):
+                n = db.num_traces(bc=bc_name, func_name=args.function)
                 count += n
         else:
-            n = db.num_traces(bc = args.bc, func_name = args.function)
+            n = db.num_traces(bc=args.bc, func_name=args.function)
             count += n
         print(count)
 
 
 class DUGraphQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
-        parser.add_argument('function', type=str, help="The function that the trace is about")
+        parser.add_argument('bc-file',
+                            type=str,
+                            help="The bc-file that the trace belong to")
+        parser.add_argument('function',
+                            type=str,
+                            help="The function that the trace is about")
         parser.add_argument('slice-id', type=int, help='The slice id')
         parser.add_argument('trace-id', type=int, help='The trace id')
 
@@ -151,8 +218,12 @@ class DUGraphQuery(QueryExecutor):
 
 class FeatureQuery(QueryExecutor):
     def setup_parser(parser):
-        parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
-        parser.add_argument('function', type=str, help="The function that the trace is about")
+        parser.add_argument('bc-file',
+                            type=str,
+                            help="The bc-file that the trace belong to")
+        parser.add_argument('function',
+                            type=str,
+                            help="The function that the trace is about")
         parser.add_argument('slice-id', type=int, help='The slice id')
         parser.add_argument('trace-id', type=int, help='The trace id')
 

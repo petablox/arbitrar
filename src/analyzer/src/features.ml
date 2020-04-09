@@ -65,7 +65,7 @@ module RetvalFeature = struct
         ; branch_not_zero= None }
 end
 
-(* module ArgvalFeature (A : ARG_INDEX) = struct
+module ArgvalFeature (A : ARG_INDEX) = struct
   type t =
     { has_arg_check: bool
     ; check_predicate: Predicate.t option
@@ -73,7 +73,24 @@ end
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
     ; branch_not_zero: bool option }
-end *)
+  [@@deriving to_yojson]
+
+  module AVC = ArgValChecker (A)
+
+  let name = Printf.sprintf "argval_%d_check" A.index
+
+  let init _ _ = ()
+
+  let filter = AVC.filter
+
+  let extract _f _t =
+    { has_arg_check= true
+    ; check_predicate= None
+    ; check_against= None
+    ; check_branch_taken= None
+    ; branch_is_zero= None
+    ; branch_not_zero= None }
+end
 
 module StringMap = Map.Make (String)
 
@@ -168,7 +185,9 @@ module InvokedBeforeFeature = struct
 
   let extract (func_name, _) trace =
     let results = caused_funcs trace in
-    let maybe_caused_dict = FunctionCausalityDictionary.find_opt !dictionary func_name in
+    let maybe_caused_dict =
+      FunctionCausalityDictionary.find_opt !dictionary func_name
+    in
     match maybe_caused_dict with
     | Some caused_dict ->
         let top_caused = CausalityDictionary.top caused_dict amount in
@@ -180,7 +199,8 @@ module InvokedBeforeFeature = struct
             [] top_caused
         in
         `Assoc assocs
-    | None -> `Assoc []
+    | None ->
+        `Assoc []
 
   let to_yojson j = j
 end
@@ -222,7 +242,9 @@ module InvokedAfterFeature = struct
 
   let extract (func_name, _) trace =
     let results = caused_funcs trace in
-    let maybe_caused_dict = FunctionCausalityDictionary.find_opt !dictionary func_name in
+    let maybe_caused_dict =
+      FunctionCausalityDictionary.find_opt !dictionary func_name
+    in
     match maybe_caused_dict with
     | Some caused_dict ->
         let top_caused = CausalityDictionary.top caused_dict amount in
@@ -234,7 +256,8 @@ module InvokedAfterFeature = struct
             [] top_caused
         in
         `Assoc assocs
-    | None -> `Assoc []
+    | None ->
+        `Assoc []
 
   let to_yojson j = j
 end
@@ -242,7 +265,19 @@ end
 let feature_extractors : (module FEATURE) list =
   [ (module RetvalFeature)
   ; (module InvokedAfterFeature)
-  ; (module InvokedBeforeFeature) ]
+  ; (module InvokedBeforeFeature)
+  ; ( module ArgvalFeature (struct
+      let index = 0
+    end) )
+  ; ( module ArgvalFeature (struct
+      let index = 1
+    end) )
+  ; ( module ArgvalFeature (struct
+      let index = 2
+    end) )
+  ; ( module ArgvalFeature (struct
+      let index = 3
+    end) ) ]
 
 let process_trace features_dir func trace =
   let func_name, func_type = func in
@@ -255,8 +290,7 @@ let process_trace features_dir func trace =
           let result = M.extract func trace in
           let json_result = M.to_yojson result in
           (M.name, json_result) :: assoc
-        else (
-          assoc ))
+        else assoc)
       [] feature_extractors
   in
   let json = `Assoc features in

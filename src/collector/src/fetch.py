@@ -23,7 +23,9 @@ def fetch_github_repo(db: Database, pkg: Pkg):
 def fetch_debian_repo(db: Database, pkg: Pkg):
     pkg_dir = db.package_dir(pkg)
 
-    run = subprocess.run(['apt-get', 'source', pkg.pkg_src.link], stderr=subprocess.STDOUT, cwd=pkg_dir)
+    run = subprocess.run(['apt-get', 'source', pkg.pkg_src.link],
+                         stderr=subprocess.STDOUT,
+                         cwd=pkg_dir)
 
     # Better for use to create some exception common to all processing and throw that
     # one level up so we don't handle multiple times
@@ -38,7 +40,8 @@ def fetch_debian_repo(db: Database, pkg: Pkg):
             break
 
     if extracted_dir == "":
-        print("error: could not find extracted directory in {}".format(deb_dir))
+        print(
+            "error: could not find extracted directory in {}".format(deb_dir))
         return None
 
     os.rename(f"{pkg_dir}/{extracted_dir}", f"{pkg_dir}/source")

@@ -6,7 +6,9 @@ MV = @ mv
 TEST_C_FILES = $(shell find tests/ -type f -name '*.c')
 TEST_BC_FILES = $(patsubst tests/%.c, tests/%.bc, $(TEST_C_FILES))
 
-all:
+all: build tests
+
+build:
 	$(OCAMLBUILD) src/main.native
 	$(MV) main.native analyzer
 
