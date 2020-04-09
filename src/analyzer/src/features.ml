@@ -67,7 +67,7 @@ end
 
 module ArgvalFeature (A : ARG_INDEX) = struct
   type t =
-    { has_arg_check: bool
+    { has_argval_check: bool
     ; check_predicate: Predicate.t option
     ; check_against: Int64.t option
     ; check_branch_taken: bool option
@@ -83,13 +83,32 @@ module ArgvalFeature (A : ARG_INDEX) = struct
 
   let filter = AVC.filter
 
-  let extract _f _t =
-    { has_arg_check= true
-    ; check_predicate= None
-    ; check_against= None
-    ; check_branch_taken= None
-    ; branch_is_zero= None
-    ; branch_not_zero= None }
+  let extract _ trace =
+    let results = IcmpBranchChecker.check_argval trace A.index in
+    match results with
+    | IcmpBranchChecker.Checked (pred, i, br) :: _ ->
+        let is_zero, not_zero =
+          match (pred, i, br) with
+          | Predicate.Eq, 0L, Branch.Then | Predicate.Ne, 0L, Branch.Else ->
+              (true, false)
+          | Predicate.Eq, 0L, Branch.Else | Predicate.Ne, 0L, Branch.Then ->
+              (false, true)
+          | _ ->
+              (false, false)
+        in
+        { has_argval_check= true
+        ; check_predicate= Some pred
+        ; check_against= Some i
+        ; check_branch_taken= Some (br = Branch.Then)
+        ; branch_is_zero= Some is_zero
+        ; branch_not_zero= Some not_zero }
+    | _ ->
+        { has_argval_check= false
+        ; check_predicate= None
+        ; check_against= None
+        ; check_branch_taken= None
+        ; branch_is_zero= None
+        ; branch_not_zero= None }
 end
 
 module StringMap = Map.Make (String)

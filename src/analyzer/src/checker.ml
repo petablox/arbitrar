@@ -397,6 +397,15 @@ module IcmpBranchChecker = struct
           [] )
     | _ ->
         []
+
+  let check_argval (trace : Trace.t) (ith : int) : t list =
+    match trace.target_node.stmt with
+    | Call {args} -> (
+        let arg = List.nth args ith in
+        let results = check trace arg trace.target_node false in
+        match results with [] -> [NoCheck] | _ -> results )
+    | _ ->
+        []
 end
 
 module FOpenChecker = struct
