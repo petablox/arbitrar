@@ -5,6 +5,7 @@ import os
 import json
 import ntpath
 import subprocess
+import datetime
 
 from .package import *
 from .analysis import *
@@ -118,6 +119,16 @@ class Database:
 
   def feature_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
     return f"{self.func_bc_slice_features_dir(func, bc_name, slice_id)}/{trace_id}.json"
+
+  def learning_dir(self, create=False) -> str:
+    d = f"{self.directory}/learning"
+    return mkdir(d) if create else d
+
+  def new_learning_dir(self, label) -> str:
+    dt = datetime.datetime.now()
+    prefix = f"{dt.month}-{dt.day}-{dt.year}-{dt.hour}-{dt.minute}"
+    d = f"{self.learning_dir(create=True)}/{prefix}-{label}"
+    return mkdir(d)
 
   def temp_dir(self, create=False) -> str:
     d = f"{self.directory}/temp"

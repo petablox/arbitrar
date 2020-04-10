@@ -28,3 +28,20 @@ class DataPoint:
     if not self._feature:
       self._feature = self.db.feature(self.func_name, self.bc, self.slice_id, self.trace_id)
     return self._feature
+
+  def labels(self):
+    dugraph = self.dugraph()
+    return dugraph["labels"] if dugraph["labels"] else []
+
+  def alarms(self):
+    return [a for a in self.labels() if "alarm" in a]
+
+  def has_alarm(self, alarm = None):
+    if alarm:
+      for a in self.alarms():
+        if alarm in a:
+          return True
+      return False
+    else:
+      return len(self.alarms()) > 0
+

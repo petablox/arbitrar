@@ -1,12 +1,22 @@
 import numpy as np
+import joblib
+import sys
+
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
+from sklearn.manifold import TSNE
+
+import matplotlib.pyplot as plt
+
 from src.database import Database, DataPoint
 
 
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
   parser.add_argument('-m', '--model', type=str, default='ocsvm', help='Model (ocsvm)')
+  parser.add_argument('-g', '--ground-truth', type=str, help='Ground Truth Label')
+  parser.add_argument('-s', '--seed', type=int, default=1234)
+  parser.add_argument('-v', '--verbose', action='store_true')
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -17,51 +27,99 @@ def setup_parser(parser):
 
 
 class Model:
+  def __init__(self, datapoints, x, args):
+    self.datapoints = datapoints
+    self.x = x
+    self.clf = None
+
   def alarms(self):
-    raise Exception("Alarm not implemented")
+    predicted = self.clf.predict(self.x)
+    scores = self.clf.score_samples(self.x)
+    for (dp, p, s) in zip(self.datapoints, predicted, scores):
+      if p == -1:
+        yield (dp, s)
+
+  def predicted(self):
+    return self.clf.predict(self.x)
 
 
 # One-Class SVM
 class OCSVM(Model):
   def __init__(self, datapoints, x, args):
-    self.datapoints = datapoints
-    self.x = x
+    super().__init__(datapoints, x, args)
     self.clf = OneClassSVM(kernel=args.kernel, nu=args.nu).fit(x)
-
-  def alarms(self):
-    predicted = self.clf.predict(self.x)
-    scores = self.clf.score_samples(self.x)
-    for (dp, p, s) in zip(self.datapoints, predicted, scores):
-      if p == -1:
-        yield (dp, s)
 
 
 # Isolation Forest
 class IF(Model):
   def __init__(self, datapoints, x, args):
-    self.datapoints = datapoints
-    self.x = x
+    super().__init__(datapoints, x, args)
     self.clf = IsolationForest(contamination=args.contamination).fit(x)
-
-  def alarms(self):
-    predicted = self.clf.predict(self.x)
-    scores = self.clf.score_samples(self.x)
-    for (dp, p, s) in zip(self.datapoints, predicted, scores):
-      if p == -1:
-        yield (dp, s)
 
 
 models = {"ocsvm": OCSVM, "isolation-forest": IF}
 
 
 def main(args):
+  np.random.seed(args.seed)
+
   db = args.db
+
+  # Get the model
   datapoints = list(db.function_datapoints(args.function))
   features = unify_features(datapoints)
   x = np.array([encode_feature(feature) for feature in features])
   model = models[args.model](datapoints, x, args)
-  for (dp, score) in sorted(list(model.alarms()), key=lambda x: x[1]):
-    print(dp.slice_id, dp.trace_id, score, [l for l in dp.dugraph()["labels"] if "alarm" in l])
+
+  # Get the output directory
+  exp_dir = db.new_learning_dir(args.function)
+
+  # Dump the command line arguments
+  with open(f"{exp_dir}/log.txt", "w") as f:
+    f.write(str(sys.argv))
+
+  # Dump the model
+  with open(f"{exp_dir}/model.joblib", "wb") as f:
+    joblib.dump(model.clf, f)
+
+  # Dump the raised alarms
+  with open(f"{exp_dir}/alarms.csv", "w") as f:
+    f.write("bc,slice_id,trace_id,score,alarms\n")
+    for (dp, score) in sorted(list(model.alarms()), key=lambda x: x[1]):
+      s = f"{dp.bc},{dp.slice_id},{dp.trace_id},{score},\"{str(dp.alarms())}\"\n"
+      f.write(s)
+      if args.verbose:
+        print(s, end="")
+
+  # Dump t-SNE
+  x_embedded = TSNE(n_components=2, verbose=2 if args.verbose else 0).fit_transform(x)
+  predicted = model.predicted()
+  if args.ground_truth:
+    tp, tn, fp, fn = [], [], [], []
+
+    def label(prediction, datapoint):
+      pos = prediction < 0
+      alarm = datapoint.has_alarm(alarm = args.ground_truth)
+      if pos and alarm: # True positive
+        return tp
+      elif not pos and not alarm: # True negative
+        return tn
+      elif pos and not alarm: # False positive
+        return fp
+      else: # False negative
+        return fn
+
+    for x, p, dp in zip(x_embedded, predicted, datapoints):
+      label(p, dp).append(x)
+
+    for arr, color, zorder in [(tn, 'b', 0), (fp, 'y', 1), (fn, 'r', 2), (tp, 'g', 3)]:
+      nparr = np.array(arr) if len(arr) > 0 else np.empty([0, 2])
+      plt.scatter(nparr[:, 0], nparr[:, 1], c=color, zorder=zorder)
+
+  else:
+    colors = ['g' if p > 0 else 'r' for p in predicted]
+    plt.scatter(x_embedded[:, 0], x_embedded[:, 1], c=colors)
+  plt.savefig(f"{exp_dir}/tsne.png")
 
 
 def unify_causality(causalities):
@@ -100,8 +158,8 @@ def encode_feature(feature_json):
   argval_2_features = encode_argval(feature_json["argval_2_check"]) if "argval_2_check" in feature_json else []
   argval_3_features = encode_argval(feature_json["argval_3_check"]) if "argval_3_check" in feature_json else []
   return invoked_before_features + invoked_after_features + \
-          retval_features + \
-          argval_0_features + argval_1_features + argval_2_features + argval_3_features
+         retval_features + \
+         argval_0_features + argval_1_features + argval_2_features + argval_3_features
 
 
 def encode_causality(causality):
@@ -111,14 +169,14 @@ def encode_causality(causality):
 def encode_retval(retval):
   if retval["has_retval_check"]:
     return [
-        int(retval["has_retval_check"]),
+        int(retval["has_retval_check"]) * 10,
         int(retval["check_branch_taken"]),
         int(retval["branch_is_zero"]),
         int(retval["branch_not_zero"])
     ]
   else:
     return [
-        int(retval["has_retval_check"]),
+        0,
         0,  # Default
         0,  # Default
         0  # Default
@@ -128,14 +186,14 @@ def encode_retval(retval):
 def encode_argval(argval):
   if argval["has_argval_check"]:
     return [
-        int(argval["has_argval_check"]),
+        int(argval["has_argval_check"]) * 10,
         int(argval["check_branch_taken"]),
         int(argval["branch_is_zero"]),
         int(argval["branch_not_zero"])
     ]
   else:
     return [
-        int(argval["has_argval_check"]),
+        0,
         0,
         0,
         0
