@@ -95,7 +95,13 @@ def encode_feature(feature_json):
   invoked_before_features = encode_causality(feature_json["invoked_before"])
   invoked_after_features = encode_causality(feature_json["invoked_after"])
   retval_features = encode_retval(feature_json["retval_check"]) if "retval_check" in feature_json else []
-  return invoked_before_features + invoked_after_features + retval_features
+  argval_0_features = encode_argval(feature_json["argval_0_check"]) if "argval_0_check" in feature_json else []
+  argval_1_features = encode_argval(feature_json["argval_1_check"]) if "argval_1_check" in feature_json else []
+  argval_2_features = encode_argval(feature_json["argval_2_check"]) if "argval_2_check" in feature_json else []
+  argval_3_features = encode_argval(feature_json["argval_3_check"]) if "argval_3_check" in feature_json else []
+  return invoked_before_features + invoked_after_features + \
+          retval_features + \
+          argval_0_features + argval_1_features + argval_2_features + argval_3_features
 
 
 def encode_causality(causality):
@@ -116,4 +122,21 @@ def encode_retval(retval):
         0,  # Default
         0,  # Default
         0  # Default
+    ]
+
+
+def encode_argval(argval):
+  if argval["has_argval_check"]:
+    return [
+        int(argval["has_argval_check"]),
+        int(argval["check_branch_taken"]),
+        int(argval["branch_is_zero"]),
+        int(argval["branch_not_zero"])
+    ]
+  else:
+    return [
+        int(argval["has_argval_check"]),
+        0,
+        0,
+        0
     ]

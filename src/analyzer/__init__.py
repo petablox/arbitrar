@@ -4,7 +4,6 @@ import ntpath
 import json
 import shutil
 
-# This file path
 this_path = os.path.dirname(os.path.realpath(__file__))
 
 
