@@ -9,7 +9,7 @@ void fclose(void *);
 void good_1() {
   void *in;
   in = git_fopen("temp.txt", "w");
-  if (!in) exit(1);
+  if (!in) return;
   fwrite(in, "asdfasdfadsfasdf");
   fclose(in);
 }

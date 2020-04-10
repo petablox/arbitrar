@@ -17,6 +17,7 @@ void good_1() {
 void bad_5() {
   void *in;
   in = openssl_fopen("temp.txt", "w");
+  // No check, no fclose
 }
 
 void bad_4() {
