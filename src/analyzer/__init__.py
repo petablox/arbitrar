@@ -73,8 +73,8 @@ def run_analyzer(db, bc_file, args):
   if args.redo or not analyze_finished:
     cmd = [
         './analyzer', bc_file, '-n',
-        str(args.slice_size), '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
-        '-causality-dict-size', str(args.causality_dict_size), '-outdir', temp_outdir
+        str(args.slice_size), '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse', '-causality-dict-size',
+        str(args.causality_dict_size), '-outdir', temp_outdir
     ]
 
     if "min_freq" in args:
@@ -94,8 +94,10 @@ def run_analyzer(db, bc_file, args):
   elif args.redo_feature:
     run = subprocess.run([
         './analyzer', 'feature', '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
-        '-causality-dict-size', str(args.causality_dict_size), temp_outdir
-    ], cwd=this_path)
+        '-causality-dict-size',
+        str(args.causality_dict_size), temp_outdir
+    ],
+                         cwd=this_path)
 
   else:
     print(f"Skipping analysis of {bc_name}")

@@ -113,8 +113,9 @@ def unify_features_with_sample(datapoints, unified):
   def unify_feature(datapoint, unified):
     feature = datapoint.feature()
     for k in ['invoked_before', 'invoked_after']:
-      feature[k] = { key: feature[k][key] if key in feature[k] else False for key in unified[k] }
+      feature[k] = {key: feature[k][key] if key in feature[k] else False for key in unified[k]}
     return feature
+
   return [unify_feature(dp, unified) for dp in datapoints]
 
 
@@ -164,14 +165,14 @@ def train_and_test(args):
 
     def label(prediction, datapoint):
       pos = prediction < 0
-      alarm = datapoint.has_alarm(alarm = args.ground_truth)
-      if pos and alarm: # True positive
+      alarm = datapoint.has_alarm(alarm=args.ground_truth)
+      if pos and alarm:  # True positive
         return tp
-      elif not pos and not alarm: # True negative
+      elif not pos and not alarm:  # True negative
         return tn
-      elif pos and not alarm: # False positive
+      elif pos and not alarm:  # False positive
         return fp
-      else: # False negative
+      else:  # False negative
         return fn
 
     for x, p, dp in zip(x_embedded, predicted, datapoints):
@@ -222,8 +223,7 @@ def encode_feature(feature_json):
   argval_1_features = encode_argval(feature_json["argval_1_check"]) if "argval_1_check" in feature_json else []
   argval_2_features = encode_argval(feature_json["argval_2_check"]) if "argval_2_check" in feature_json else []
   argval_3_features = encode_argval(feature_json["argval_3_check"]) if "argval_3_check" in feature_json else []
-  return invoked_before_features + invoked_after_features + \
-         retval_features + \
+  return invoked_before_features + invoked_after_features + retval_features + \
          argval_0_features + argval_1_features + argval_2_features + argval_3_features
 
 
@@ -242,9 +242,9 @@ def encode_retval(retval):
   else:
     return [
         0,
-        0,  # Default
-        0,  # Default
-        0  # Default
+        -1,  # Default
+        -1,  # Default
+        -1  # Default
     ]
 
 
@@ -257,9 +257,4 @@ def encode_argval(argval):
         int(argval["branch_not_zero"])
     ]
   else:
-    return [
-        0,
-        0,
-        0,
-        0
-    ]
+    return [0, -1, -1, -1]

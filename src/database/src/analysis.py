@@ -36,7 +36,7 @@ class DataPoint:
   def alarms(self):
     return [a for a in self.labels() if "alarm" in a]
 
-  def has_alarm(self, alarm = None):
+  def has_alarm(self, alarm=None):
     if alarm:
       for a in self.alarms():
         if alarm in a:
@@ -44,4 +44,3 @@ class DataPoint:
       return False
     else:
       return len(self.alarms()) > 0
-

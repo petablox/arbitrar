@@ -130,10 +130,8 @@ module CausalityDictionary = struct
             Some 1)
       dict
 
-  let find dict f = 
-    match StringMap.find_opt f dict with
-    | Some i -> i
-    | None -> 0
+  let find dict f =
+    match StringMap.find_opt f dict with Some i -> i | None -> 0
 
   let rec sublist b e l =
     match l with
@@ -180,12 +178,10 @@ let gen_exc_filter exc : string -> bool =
 
 let function_filter =
   let is_excluding = gen_exc_filter !Options.exclude_func in
-  let invalid_starting_char f = 
-    match String.get f 0 with
-    | '(' | '%' -> true
-    | _ -> false
+  let invalid_starting_char f =
+    match f.[0] with '(' | '%' -> true | _ -> false
   in
-  fun f -> not (invalid_starting_char f) && not (is_excluding f)
+  fun f -> (not (invalid_starting_char f)) && not (is_excluding f)
 
 module InvokedBeforeFeature = struct
   type dict = FunctionCausalityDictionary.t
@@ -200,10 +196,11 @@ module InvokedBeforeFeature = struct
     let results = CausalityChecker.check_trace trace in
     List.filter_map
       (fun result ->
-        match result with 
-        | CausalityChecker.Causing f -> 
-            if function_filter f then Some f else None 
-        | _ -> None)
+        match result with
+        | CausalityChecker.Causing f ->
+            if function_filter f then Some f else None
+        | _ ->
+            None)
       results
 
   let init slices_json_dir dugraphs_dir =
@@ -230,12 +227,17 @@ module InvokedBeforeFeature = struct
     in
     match maybe_caused_dict with
     | Some caused_dict ->
-        let top_caused = CausalityDictionary.top caused_dict !Options.causality_dict_size in
+        let top_caused =
+          CausalityDictionary.top caused_dict !Options.causality_dict_size
+        in
         let assocs =
           List.fold_left
             (fun assocs func_name ->
               let has_func = List.mem func_name results in
-              (func_name, `Bool has_func) :: assocs)
+              let v =
+                if has_func then StringMap.find func_name caused_dict else 0
+              in
+              (func_name, `Int v) :: assocs)
             [] top_caused
         in
         `Assoc assocs
@@ -285,7 +287,9 @@ module InvokedAfterFeature = struct
     in
     match maybe_caused_dict with
     | Some caused_dict ->
-        let top_caused = CausalityDictionary.top caused_dict !Options.causality_dict_size in
+        let top_caused =
+          CausalityDictionary.top caused_dict !Options.causality_dict_size
+        in
         let assocs =
           List.fold_left
             (fun assocs func_name ->
