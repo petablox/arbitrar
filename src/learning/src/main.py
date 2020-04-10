@@ -1,6 +1,8 @@
+import os
 import numpy as np
 import joblib
 import sys
+import json
 
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
@@ -17,6 +19,7 @@ def setup_parser(parser):
   parser.add_argument('-g', '--ground-truth', type=str, help='Ground Truth Label')
   parser.add_argument('-s', '--seed', type=int, default=1234)
   parser.add_argument('-v', '--verbose', action='store_true')
+  parser.add_argument('-i', '--input', type=str)
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -27,17 +30,23 @@ def setup_parser(parser):
 
 
 class Model:
-  def __init__(self, datapoints, x, args):
+  def __init__(self, datapoints, x, clf):
     self.datapoints = datapoints
     self.x = x
-    self.clf = None
+    self.clf = clf
 
   def alarms(self):
     predicted = self.clf.predict(self.x)
     scores = self.clf.score_samples(self.x)
     for (dp, p, s) in zip(self.datapoints, predicted, scores):
-      if p == -1:
+      if p < 0:
         yield (dp, s)
+
+  def results(self):
+    predicted = self.clf.predict(self.x)
+    scores = self.clf.score_samples(self.x)
+    for (dp, p, s) in zip(self.datapoints, predicted, scores):
+      yield (dp, p, s)
 
   def predicted(self):
     return self.clf.predict(self.x)
@@ -46,15 +55,15 @@ class Model:
 # One-Class SVM
 class OCSVM(Model):
   def __init__(self, datapoints, x, args):
-    super().__init__(datapoints, x, args)
-    self.clf = OneClassSVM(kernel=args.kernel, nu=args.nu).fit(x)
+    clf = OneClassSVM(kernel=args.kernel, nu=args.nu).fit(x)
+    super().__init__(datapoints, x, clf)
 
 
 # Isolation Forest
 class IF(Model):
   def __init__(self, datapoints, x, args):
-    super().__init__(datapoints, x, args)
-    self.clf = IsolationForest(contamination=args.contamination).fit(x)
+    clf = IsolationForest(contamination=args.contamination).fit(x)
+    super().__init__(datapoints, x, clf=clf)
 
 
 models = {"ocsvm": OCSVM, "isolation-forest": IF}
@@ -62,17 +71,73 @@ models = {"ocsvm": OCSVM, "isolation-forest": IF}
 
 def main(args):
   np.random.seed(args.seed)
+  if args.input:
+    test(args)
+  else:
+    train_and_test(args)
 
+
+def test(args):
+  db = args.db
+
+  input_exp_dir = os.path.join(os.getcwd(), args.input)
+  clf_dir = f"{input_exp_dir}/model.joblib"
+  clf = joblib.load(clf_dir)
+
+  unified_dir = f"{input_exp_dir}/unified.json"
+  with open(unified_dir) as f:
+    unified = json.load(f)
+
+  datapoints = list(db.function_datapoints(args.function))
+  features = unify_features_with_sample(datapoints, unified)
+  x = np.array([encode_feature(feature) for feature in features])
+  model = Model(datapoints, x, clf)
+
+  exp_dir = db.new_learning_dir(args.function)
+
+  # Dump the command line arguments
+  with open(f"{exp_dir}/log.txt", "w") as f:
+    f.write(str(sys.argv))
+
+  # Dump the raised alarms
+  with open(f"{exp_dir}/alarms.csv", "w") as f:
+    f.write("bc,slice_id,trace_id,alarm,score,alarms\n")
+    for (dp, p, score) in sorted(list(model.results()), key=lambda x: x[1]):
+      s = f"{dp.bc},{dp.slice_id},{dp.trace_id},{p < 0},{score},\"{str(dp.alarms())}\"\n"
+      f.write(s)
+      if args.verbose:
+        print(s, end="")
+
+
+def unify_features_with_sample(datapoints, unified):
+  def unify_feature(datapoint, unified):
+    feature = datapoint.feature()
+    for k in ['invoked_before', 'invoked_after']:
+      feature[k] = { key: feature[k][key] if key in feature[k] else False for key in unified[k] }
+    return feature
+  return [unify_feature(dp, unified) for dp in datapoints]
+
+
+def train_and_test(args):
   db = args.db
 
   # Get the model
   datapoints = list(db.function_datapoints(args.function))
   features = unify_features(datapoints)
   x = np.array([encode_feature(feature) for feature in features])
+  print(x)
   model = models[args.model](datapoints, x, args)
 
   # Get the output directory
   exp_dir = db.new_learning_dir(args.function)
+
+  with open(f"{exp_dir}/unified.json", "w") as f:
+    sample_feature = features[0]
+    j = {
+        'invoked_before': list(sample_feature['invoked_before'].keys()),
+        'invoked_after': list(sample_feature['invoked_after'].keys())
+    }
+    json.dump(j, f)
 
   # Dump the command line arguments
   with open(f"{exp_dir}/log.txt", "w") as f:

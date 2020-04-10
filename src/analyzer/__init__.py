@@ -15,6 +15,7 @@ def setup_parser(parser):
   parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
   parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
+  parser.add_argument('--causality-dict-size', type=int, default=10)
   parser.add_argument('--commit', action='store_true', help='Commit the analysis data to the database')
 
 
@@ -40,7 +41,8 @@ def run_analyzer(db, bc_file, args):
 
   # Clear the files in the analysis/ if we need to redo anything
   if args.redo or args.commit:
-    db.clear_analysis_of_bc(bc_file)
+    pass
+    # db.clear_analysis_of_bc(bc_file)
 
   has_temp_dir = os.path.exists(temp_outdir)
 
@@ -71,7 +73,8 @@ def run_analyzer(db, bc_file, args):
   if args.redo or not analyze_finished:
     cmd = [
         './analyzer', bc_file, '-n',
-        str(args.slice_size), '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse', '-outdir', temp_outdir
+        str(args.slice_size), '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
+        '-causality-dict-size', str(args.causality_dict_size), '-outdir', temp_outdir
     ]
 
     if "min_freq" in args:
@@ -89,13 +92,16 @@ def run_analyzer(db, bc_file, args):
 
   # Only run feature extraction
   elif args.redo_feature:
-    run = subprocess.run(['./analyzer', 'feature', temp_outdir], cwd=this_path)
+    run = subprocess.run([
+        './analyzer', 'feature', '-exclude-fn', '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse',
+        '-causality-dict-size', str(args.causality_dict_size), temp_outdir
+    ], cwd=this_path)
 
   else:
     print(f"Skipping analysis of {bc_name}")
 
   # Check if database commit needs to be done
-  if args.redo or args.commit or not os.path.exists(move_finished_file):
+  if args.redo or args.commit or args.redo_feature or not os.path.exists(move_finished_file):
 
     # Move files over to real location
     # First we move slices
@@ -128,6 +134,10 @@ def run_analyzer(db, bc_file, args):
             for trace_id, dg_json in enumerate(dgs_json):
               with open(f"{dugraphs_dir}/{trace_id}.json", "w") as out:
                 json.dump(dg_json, out)
+        else:
+          with open(f"{temp_outdir}/dugraphs/{callee}-{slice_id}.json") as dgs_file:
+            dgs_json = json.load(dgs_file)
+            num_traces = len(dgs_json)
 
         # We move extracted features
         features_dir = db.func_bc_slice_features_dir(callee, bc_name, index, create=True)

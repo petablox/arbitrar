@@ -130,6 +130,11 @@ module CausalityDictionary = struct
             Some 1)
       dict
 
+  let find dict f = 
+    match StringMap.find_opt f dict with
+    | Some i -> i
+    | None -> 0
+
   let rec sublist b e l =
     match l with
     | [] ->
@@ -142,7 +147,7 @@ module CausalityDictionary = struct
     let ls =
       StringMap.fold (fun func count ls -> (func, count) :: ls) dict []
     in
-    let sorted = List.sort (fun (_, c1) (_, c2) -> c1 - c2) ls in
+    let sorted = List.sort (fun (_, c1) (_, c2) -> c2 - c1) ls in
     let top_sorted = sublist 0 amount sorted in
     List.map fst top_sorted
 end
@@ -167,6 +172,21 @@ module FunctionCausalityDictionary = struct
   let find_opt dict func = StringMap.find_opt func dict
 end
 
+let gen_exc_filter exc : string -> bool =
+  if String.equal exc "" then fun _ -> false
+  else
+    let exc_reg = Str.regexp exc in
+    fun str -> Str.string_match exc_reg str 0
+
+let function_filter =
+  let is_excluding = gen_exc_filter !Options.exclude_func in
+  let invalid_starting_char f = 
+    match String.get f 0 with
+    | '(' | '%' -> true
+    | _ -> false
+  in
+  fun f -> not (invalid_starting_char f) && not (is_excluding f)
+
 module InvokedBeforeFeature = struct
   type dict = FunctionCausalityDictionary.t
 
@@ -176,13 +196,14 @@ module InvokedBeforeFeature = struct
 
   let dictionary = ref FunctionCausalityDictionary.empty
 
-  let amount = 10
-
   let caused_funcs trace : string list =
     let results = CausalityChecker.check_trace trace in
     List.filter_map
       (fun result ->
-        match result with CausalityChecker.Causing f -> Some f | _ -> None)
+        match result with 
+        | CausalityChecker.Causing f -> 
+            if function_filter f then Some f else None 
+        | _ -> None)
       results
 
   let init slices_json_dir dugraphs_dir =
@@ -209,7 +230,7 @@ module InvokedBeforeFeature = struct
     in
     match maybe_caused_dict with
     | Some caused_dict ->
-        let top_caused = CausalityDictionary.top caused_dict amount in
+        let top_caused = CausalityDictionary.top caused_dict !Options.causality_dict_size in
         let assocs =
           List.fold_left
             (fun assocs func_name ->
@@ -232,8 +253,6 @@ module InvokedAfterFeature = struct
   let name = "invoked_after"
 
   let dictionary = ref FunctionCausalityDictionary.empty
-
-  let amount = 10
 
   let caused_funcs trace : string list =
     let results = CausalityChecker.check_trace_backward trace in
@@ -266,7 +285,7 @@ module InvokedAfterFeature = struct
     in
     match maybe_caused_dict with
     | Some caused_dict ->
-        let top_caused = CausalityDictionary.top caused_dict amount in
+        let top_caused = CausalityDictionary.top caused_dict !Options.causality_dict_size in
         let assocs =
           List.fold_left
             (fun assocs func_name ->

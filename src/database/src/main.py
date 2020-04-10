@@ -116,14 +116,12 @@ class SliceQuery(QueryExecutor):
     var_args = vars(args)
     input_bc_file = var_args["bc-file"]
     bc_name = args.db.find_bc_name(input_bc_file)
-    if bc_name:
-      slice = args.db.slice(args.function, bc_name, var_args["slice-id"])
-      if slice:
-        pp.pprint(slice)
-      else:
-        print("Slice does not exist")
+    bc = bc_name if bc_name else input_bc_file
+    slice = args.db.slice(args.function, bc, var_args["slice-id"])
+    if slice:
+      pp.pprint(slice)
     else:
-      print(f"Unknown bc {input_bc_file}")
+      print("Slice does not exist")
 
 
 class NumTracesQuery(QueryExecutor):
@@ -157,17 +155,15 @@ class DUGraphQuery(QueryExecutor):
     var_args = vars(args)
     input_bc_file = var_args["bc-file"]
     bc_name = args.db.find_bc_name(input_bc_file)
+    bc = bc_name if bc_name else input_bc_file
     fn = args.function
     slice_id = var_args["slice-id"]
     trace_id = var_args["trace-id"]
-    if bc_name:
-      dugraph = args.db.dugraph(fn, bc_name, slice_id, trace_id)
-      if dugraph:
-        pp.pprint(dugraph)
-      else:
-        print("DUGraph does not exist")
+    dugraph = args.db.dugraph(fn, bc, slice_id, trace_id)
+    if dugraph:
+      pp.pprint(dugraph)
     else:
-      print(f"Unknown bc {input_bc_file}")
+      print("DUGraph does not exist")
 
 
 class FeatureQuery(QueryExecutor):
@@ -182,17 +178,15 @@ class FeatureQuery(QueryExecutor):
     var_args = vars(args)
     input_bc_file = var_args["bc-file"]
     bc_name = args.db.find_bc_name(input_bc_file)
+    bc = bc_name if bc_name else input_bc_file
     fn = args.function
     slice_id = var_args["slice-id"]
     trace_id = var_args["trace-id"]
-    if bc_name:
-      feature = args.db.feature(fn, bc_name, slice_id, trace_id)
-      if feature:
-        pp.pprint(feature)
-      else:
-        print("Feature does not exist")
+    feature = args.db.feature(fn, bc, slice_id, trace_id)
+    if feature:
+      pp.pprint(feature)
     else:
-      print(f"Unknown bc {input_bc_file}")
+      print("Feature does not exist")
 
 
 class LabelsQuery(QueryExecutor):
@@ -206,8 +200,6 @@ class LabelsQuery(QueryExecutor):
     for dp in db.function_datapoints(args.function):
       if dp.has_alarm(args.alarm):
         if args.alarm_only:
-          print(dp.bc, dp.slice_id, dp.trace_id, dp.alarms())
-        else:
           print(dp.bc, dp.slice_id, dp.trace_id, dp.labels())
 
 

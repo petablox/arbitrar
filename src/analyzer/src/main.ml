@@ -34,6 +34,7 @@ let parse_arg arg =
         Options.options := Options.common_opts ;
         task := CallGraph
     | "feature" ->
+        Options.options := Options.feature_opts ;
         task := Feature
     | _ ->
         input_file := Utils.get_abs_path arg

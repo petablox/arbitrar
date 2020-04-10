@@ -61,6 +61,9 @@ let report_threshold = ref 0.9
 
 let checker = ref "all"
 
+(* Feature Options *)
+let causality_dict_size = ref 10
+
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")
   ; ("-verbose", Arg.Set_int verbose, "Verbose")
@@ -117,6 +120,11 @@ let analyzer_opts_local =
     , Arg.Set_string checker
     , "The checker to run. e.g. argrel, retval" ) ]
 
+let feature_opts_local =
+  [ ( "-causality-dict-size"
+    , Arg.Set_int causality_dict_size
+    , "Causality Dictionary Size" ) ]
+
 let slicer_opts = common_opts_local @ slicer_opts_local
 
 let occurrence_opts =
@@ -132,9 +140,12 @@ let filter_opts = common_opts_local @ filter_opts_local
 
 let analyzer_opts = common_opts_local @ analyzer_opts_local
 
+let feature_opts = common_opts_local @ slicer_opts_local @ feature_opts_local
+
 let all_opts =
   common_opts_local @ slicer_opts_local @ executor_opts_local
   @ extractor_opts_local @ filter_opts_local @ analyzer_opts_local
+  @ feature_opts_local
 
 let common_opts = common_opts_local
 
