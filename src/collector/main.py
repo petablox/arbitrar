@@ -62,7 +62,7 @@ def load_bc_input(args):
   # Setup package meta information
   pkg_src_type = PkgSrcType("precompiled")
   pkg_src = PkgSrc(pkg_src_type)
-  build = Build(BuildType("unknown"), "", BuildResult("success"), libs = libs)
+  build = Build(BuildType("unknown"), "", BuildResult("success"), libs=libs)
   pkg = Pkg(name, pkg_src, True, package_dir, build)
 
   # Dump the meta information to the index file
@@ -105,7 +105,7 @@ def load_folder_input(args):
     shutil.remove(index_json_dir)
   pkg_src_type = PkgSrcType("precompiled")
   pkg_src = PkgSrc(pkg_src_type)
-  build = Build(BuildType("unknown"), "", BuildResult("success"), libs = libs)
+  build = Build(BuildType("unknown"), "", BuildResult("success"), libs=libs)
   pkg = Pkg(name, pkg_src, True, package_dir, build)
   with open(index_json_dir, "w") as f:
     json.dump(Pkg.to_json(pkg), f)

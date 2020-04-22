@@ -145,7 +145,7 @@ def train_and_test(args):
     f.write(str(sys.argv))
 
   # Dump the Xs used to train the model
-  x.dump(f"{exp_dir}/x.dat");
+  x.dump(f"{exp_dir}/x.dat")
 
   # Dump the model
   with open(f"{exp_dir}/model.joblib", "wb") as f:
@@ -232,7 +232,6 @@ def encode_feature(feature_json):
 
 def encode_causality(causality):
   return [int(causality[key]) for key in sorted(causality)]
-
 
 
 def encode_retval(retval):

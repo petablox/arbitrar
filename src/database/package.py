@@ -19,7 +19,7 @@ class PkgSrc:
   def to_json(p):
     return {"src_type": p.src_type.value, "link": p.link}
 
-  def __init__(self, src_type: PkgSrcType, link = None):
+  def __init__(self, src_type: PkgSrcType, link=None):
     self.src_type = src_type
     self.link = link
 
