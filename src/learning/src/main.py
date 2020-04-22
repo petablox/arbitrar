@@ -144,6 +144,9 @@ def train_and_test(args):
   with open(f"{exp_dir}/log.txt", "w") as f:
     f.write(str(sys.argv))
 
+  # Dump the Xs used to train the model
+  x.dump(f"{exp_dir}/x.dat");
+
   # Dump the model
   with open(f"{exp_dir}/model.joblib", "wb") as f:
     joblib.dump(model.clf, f)
@@ -231,30 +234,18 @@ def encode_causality(causality):
   return [int(causality[key]) for key in sorted(causality)]
 
 
+
 def encode_retval(retval):
+  fields = ["check_branch_taken", "branch_is_zero", "branch_not_zero"]
   if retval["has_retval_check"]:
-    return [
-        int(retval["has_retval_check"]) * 10,
-        int(retval["check_branch_taken"]),
-        int(retval["branch_is_zero"]),
-        int(retval["branch_not_zero"])
-    ]
+    return [1] * len(fields) + [retval[f] for f in fields]
   else:
-    return [
-        0,
-        -1,  # Default
-        -1,  # Default
-        -1  # Default
-    ]
+    return [0] * (2 * len(fields))
 
 
 def encode_argval(argval):
+  fields = ["check_branch_taken", "branch_is_zero", "branch_not_zero"]
   if argval["has_argval_check"]:
-    return [
-        int(argval["has_argval_check"]) * 10,
-        int(argval["check_branch_taken"]),
-        int(argval["branch_is_zero"]),
-        int(argval["branch_not_zero"])
-    ]
+    return [1] * len(fields) + [argval[f] for f in fields]
   else:
-    return [0, -1, -1, -1]
+    return [0] * (2 * len(fields))

@@ -13,8 +13,7 @@ __pycache__
 *.out
 
 # Output
-data
-test_data
+*data
 old
 
 # Misc

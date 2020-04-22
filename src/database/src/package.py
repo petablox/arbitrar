@@ -6,6 +6,7 @@ class PkgSrcType(Enum):
   github = "github"
   debian = "debian"
   direct = "direct"
+  precompiled = "precompiled"
 
 
 class PkgSrc:
@@ -18,7 +19,7 @@ class PkgSrc:
   def to_json(p):
     return {"src_type": p.src_type.value, "link": p.link}
 
-  def __init__(self, src_type: PkgSrcType, link: str):
+  def __init__(self, src_type: PkgSrcType, link = None):
     self.src_type = src_type
     self.link = link
 
