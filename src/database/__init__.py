@@ -1,5 +1,6 @@
-from .src.database import Database
-from .src.package import *
-from .src.analysis import *
-from .src.main import *
-from .src.utils import *
+from .database import Database
+from .package import *
+from .analysis import *
+from .main import *
+from .utils import *
+

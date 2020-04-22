@@ -51,7 +51,7 @@ def load_bc_input(args):
   mkdir(package_source_dir)
 
   # Copy the bc file and setup libs
-  libs = [filename]
+  libs = [name]
   shutil.copy(bc_dir, package_source_dir)
 
   # Create index file
