@@ -8,8 +8,6 @@ from . import learning
 
 modules = {'collect': collector, 'analyze': analyzer, 'query': database, 'learn': learning}
 
-default_db = "data"
-
 
 def new_arg_parser():
   parser = ArgumentParser()
