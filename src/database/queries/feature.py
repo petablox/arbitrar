@@ -1,5 +1,6 @@
 from .meta import QueryExecutor, pp
 
+
 class FeatureQuery(QueryExecutor):
   def setup_parser(parser):
     parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")

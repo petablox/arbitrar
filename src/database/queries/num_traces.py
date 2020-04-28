@@ -1,5 +1,6 @@
 from .meta import QueryExecutor
 
+
 class NumTracesQuery(QueryExecutor):
   def setup_parser(parser):
     parser.add_argument('-p', '--package', type=str, help='Only the traces in a package')

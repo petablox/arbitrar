@@ -1,7 +1,6 @@
 from . import utils
 from .queries import *
 
-
 query_executors = {
     'packages': PackagesQuery,
     'bc-files': BCFilesQuery,

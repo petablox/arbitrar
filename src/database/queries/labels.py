@@ -1,5 +1,6 @@
 from .meta import QueryExecutor
 
+
 class LabelsQuery(QueryExecutor):
   def setup_parser(parser):
     parser.add_argument('function', type=str)
