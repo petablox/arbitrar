@@ -1,4 +1,4 @@
-from .meta import QueryExecutor
+from .meta import QueryExecutor, print_counts
 
 
 class OccurrenceQuery(QueryExecutor):
@@ -21,7 +21,7 @@ class OccurrenceQuery(QueryExecutor):
           individual_counts.append((bc_file, n))
       if args.verbose:
         individual_counts.append(("Total", count))
-        utils.print_counts(individual_counts)
+        print_counts(individual_counts)
       else:
         print(count)
     else:
@@ -38,6 +38,6 @@ class OccurrenceQuery(QueryExecutor):
           counts_arr.append((func, count))
       counts_arr = sorted(counts_arr, key=lambda t: -t[1])
       if args.limit:
-        utils.print_counts(counts_arr[0:args.limit])
+        print_counts(counts_arr[0:args.limit])
       else:
-        utils.print_counts(counts_arr)
+        print_counts(counts_arr)

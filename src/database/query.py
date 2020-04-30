@@ -7,6 +7,7 @@ query_executors = {
     'occurrence': OccurrenceQuery,
     'num-slices': NumSlicesQuery,
     'slice': SliceQuery,
+    'slices': SlicesQuery,
     'num-traces': NumTracesQuery,
     'dugraph': DUGraphQuery,
     'feature': FeatureQuery,

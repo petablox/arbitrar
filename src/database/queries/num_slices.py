@@ -1,4 +1,4 @@
-from .meta import QueryExecutor
+from .meta import QueryExecutor, print_counts
 
 
 class NumSlicesQuery(QueryExecutor):
@@ -27,6 +27,6 @@ class NumSlicesQuery(QueryExecutor):
 
       if args.verbose:
         individual_count.append(("Total", count))
-        utils.print_counts(individual_count)
+        print_counts(individual_count)
       else:
         print(count)

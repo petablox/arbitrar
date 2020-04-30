@@ -7,3 +7,4 @@ from .num_traces import NumTracesQuery
 from .occurrence import OccurrenceQuery
 from .packages import PackagesQuery
 from .slice import SliceQuery
+from .slices import SlicesQuery

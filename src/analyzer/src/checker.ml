@@ -310,20 +310,20 @@ module CausalityChecker = struct
   let check_trace (trace : Trace.t) : t list =
     let explored = NodeSet.singleton trace.target_node in
     let fringe =
-      NodeSet.of_list (NodeGraph.succ trace.dugraph trace.target_node)
+      NodeSet.of_list (NodeGraph.succ trace.cfgraph trace.target_node)
     in
     let results =
-      check_helper NodeGraph.succ trace.dugraph explored fringe []
+      check_helper NodeGraph.succ trace.cfgraph explored fringe []
     in
     match results with [] -> [None] | _ -> results
 
   let check_trace_backward (trace : Trace.t) : t list =
     let explored = NodeSet.singleton trace.target_node in
     let fringe =
-      NodeSet.of_list (NodeGraph.pred trace.dugraph trace.target_node)
+      NodeSet.of_list (NodeGraph.pred trace.cfgraph trace.target_node)
     in
     let results =
-      check_helper NodeGraph.pred trace.dugraph explored fringe []
+      check_helper NodeGraph.pred trace.cfgraph explored fringe []
     in
     match results with [] -> [None] | _ -> results
 

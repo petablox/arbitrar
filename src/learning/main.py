@@ -126,7 +126,6 @@ def train_and_test(args):
   datapoints = list(db.function_datapoints(args.function))
   features = unify_features(datapoints)
   x = np.array([encode_feature(feature) for feature in features])
-  print(x)
   model = models[args.model](datapoints, x, args)
 
   # Get the output directory

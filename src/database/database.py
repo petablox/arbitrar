@@ -281,6 +281,18 @@ class Database:
     with open(self.feature_dir(func_name, bc, slice_id, trace_id)) as f:
       return json.load(f)
 
+  def function_slices(self, func_name: str):
+    # Check if the function is there
+    func_slices_dir = self.func_slices_dir(func_name, create=False)
+    if not os.path.exists(func_slices_dir):
+      raise Exception(f"No function {func_name} in database")
+
+    for bc in os.listdir(func_slices_dir):
+      bc_dir = self.func_bc_slices_dir(func_name, bc)
+      for slice_name in os.listdir(bc_dir):
+        slice_id = int(os.path.splitext(slice_name)[0])
+        yield slice_id, self.slice(func_name, bc, slice_id)
+
   def function_datapoints(self, func_name: str):
     # Check if the function is there
     func_slices_dir = self.func_slices_dir(func_name, create=False)

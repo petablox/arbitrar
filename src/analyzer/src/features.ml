@@ -168,6 +168,17 @@ module FunctionCausalityDictionary = struct
   let find dict func = StringMap.find func dict
 
   let find_opt dict func = StringMap.find_opt func dict
+
+  let print dict =
+    StringMap.iter
+      (fun func caused_func ->
+        Printf.printf "=======\n" ;
+        Printf.printf "%s" func ;
+        Printf.printf "=======\n" ;
+        StringMap.iter
+          (fun caused count -> Printf.printf "%s: %d\n" caused count)
+          caused_func)
+      dict
 end
 
 let gen_exc_filter exc : string -> bool =
@@ -234,10 +245,7 @@ module InvokedBeforeFeature = struct
           List.fold_left
             (fun assocs func_name ->
               let has_func = List.mem func_name results in
-              let v =
-                if has_func then StringMap.find func_name caused_dict else 0
-              in
-              (func_name, `Int v) :: assocs)
+              (func_name, `Bool has_func) :: assocs)
             [] top_caused
         in
         `Assoc assocs

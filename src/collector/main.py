@@ -57,7 +57,7 @@ def load_bc_input(args):
   # Create index file
   index_json_dir = f"{package_dir}/index.json"
   if os.path.isfile(index_json_dir):
-    shutil.remove(index_json_dir)
+    os.remove(index_json_dir)
 
   # Setup package meta information
   pkg_src_type = PkgSrcType("precompiled")

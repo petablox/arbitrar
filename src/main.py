@@ -6,7 +6,13 @@ from . import database
 from . import analyzer
 from . import learning
 
-modules = {'collect': collector, 'analyze': analyzer, 'query': database, 'learn': learning}
+modules = {
+    'collect': collector,
+    'analyze': analyzer,
+    'query': database.query,
+    'action': database.action,
+    'learn': learning
+}
 
 
 def new_arg_parser():
