@@ -3,6 +3,8 @@ import os
 import ntpath
 import json
 import shutil
+import re
+import string
 
 this_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -34,7 +36,13 @@ def main(args):
 
 def run_analyzer(db, bc_file, args):
   bc_name = ntpath.basename(bc_file)
-  temp_outdir = f"{db.temp_dir(create = True)}/{bc_name}"
+  temp_dir = db.temp_dir(create = True)
+  if args["include_fn"]:
+    pattern = re.compile('[\W_]+')
+    include_fn_str = pattern.sub(args["include_fn"], string.printable)
+    temp_outdir = f"{temp_dir}/{bc_name}_{include_fn_str}"
+  else:
+    temp_outdir = f"{temp_dir}/{bc_name}"
 
   # Marker files
   occurrence_finished_file = f"{temp_outdir}/occur_fin.txt"
@@ -80,7 +88,7 @@ def run_analyzer(db, bc_file, args):
       print(f"Setting min-freq to {args.min_freq}")
       cmd += ['-min-freq', str(args.min_freq)]
 
-    if "include_fn" in args:
+    if "include_fn" in args and args["include_fn"]:
       print(f"Only including functions {args.include_fn}")
       cmd += ['-include-fn', args.include_fn]
 
