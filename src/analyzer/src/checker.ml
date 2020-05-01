@@ -241,9 +241,7 @@ module ArgValChecker (A : ARG_INDEX) = struct
     | Call {args} -> (
         let arg = List.nth args A.index in
         let targets = NodeSet.singleton trace.target_node in
-        let results =
-          check_helper trace.cfgraph arg NodeSet.empty targets []
-        in
+        let results = check_helper trace.cfgraph arg NodeSet.empty targets [] in
         match results with [] -> [NoCheck] | _ -> results )
     | _ ->
         []
@@ -382,9 +380,7 @@ module IcmpBranchChecker = struct
     let succ_func = if succ then NodeGraph.succ else NodeGraph.pred in
     let fringe = NodeSet.of_list (succ_func trace.cfgraph start) in
     let explored = NodeSet.empty in
-    let results =
-      check_helper trace.cfgraph succ_func var explored fringe []
-    in
+    let results = check_helper trace.cfgraph succ_func var explored fringe [] in
     List.filter (( <> ) NoCheck) results
 
   let check_retval (trace : Trace.t) : t list =

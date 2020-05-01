@@ -18,6 +18,28 @@ let mkdir dirname =
     exit 1
   else Unix.mkdir dirname 0o755
 
+let ll_func_name : Llvm.llvalue -> string option =
+  let extract =
+    let at_reg = Str.regexp "@" in
+    let perc_reg = Str.regexp "%" in
+    let with_at_reg = Str.regexp "@\\([A-Za-z0-9_]+\\)\\.?" in
+    let without_at_reg = Str.regexp "\\([A-Za-z0-9_]+\\)\\.?" in
+    fun str ->
+      if Str.string_match perc_reg str 0 then None
+      else
+        try
+          let _ = Str.search_forward at_reg str 0 in
+          Printf.printf "Has @ in str" ;
+          let _ = Str.search_forward with_at_reg str 0 in
+          Some (Str.matched_group 1 str)
+        with Not_found -> (
+          try
+            let _ = Str.string_match without_at_reg str 0 in
+            Some (Str.matched_group 1 str)
+          with Not_found -> None )
+  in
+  fun f -> Llvm.value_name f |> extract
+
 let initialize_output_directories outdir =
   List.iter mkdir
     [outdir; outdir ^ "/dugraphs"; outdir ^ "/dots"; outdir ^ "/traces"]
@@ -175,8 +197,9 @@ let string_of_exp exp =
       "0"
   | ConstantStruct | ConstantVector ->
       string_of_llvalue_cache exp
-  | Function ->
-      Llvm.value_name exp
+  | Function -> (
+      let maybe_name = ll_func_name exp in
+      match maybe_name with Some name -> name | None -> "unknown" )
   | GlobalIFunc | GlobalAlias ->
       string_of_llvalue_cache exp
   | GlobalVariable ->
@@ -463,8 +486,7 @@ let json_of_instr instr =
           []
           (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
       in
-      `Assoc
-        [opcode; ("result", result); ("func", callee); ("args", `List args)]
+      `Assoc [opcode; ("result", result); ("func", callee); ("args", `List args)]
   | Select ->
       json_of_opcode "select"
   | UserOp1 ->

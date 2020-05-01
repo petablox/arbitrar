@@ -607,8 +607,7 @@ and finish_execution llctx env state =
     Traces.length env.Environment.traces >= !Options.max_traces
   in
   let out_of_explored = env.metadata.num_explored > !Options.max_trials in
-  if Worklist.is_empty env.worklist || out_of_traces || out_of_explored then
-    env
+  if Worklist.is_empty env.worklist || out_of_traces || out_of_explored then env
   else
     let (blk, state), wl = Worklist.pop env.worklist in
     execute_block llctx blk {env with worklist= wl} state

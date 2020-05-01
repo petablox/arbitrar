@@ -532,10 +532,7 @@ end
 
 module Node = struct
   type t =
-    { stmt: Stmt.t
-    ; id: int
-    ; mutable is_target: bool
-    ; semantic_sig: Yojson.Safe.t }
+    {stmt: Stmt.t; id: int; mutable is_target: bool; semantic_sig: Yojson.Safe.t}
 
   let compare n1 n2 = compare n1.id n2.id
 
@@ -632,11 +629,7 @@ module DUGraph = struct
   let vertex_attributes v =
     let common = `Label (Node.label v) in
     if v.Node.is_target then
-      [ common
-      ; `Color 0x0000FF
-      ; `Style `Bold
-      ; `Style `Filled
-      ; `Fontcolor max_int ]
+      [common; `Color 0x0000FF; `Style `Bold; `Style `Filled; `Fontcolor max_int]
     else [common]
 
   let default_vertex_attributes g = [`Shape `Box]

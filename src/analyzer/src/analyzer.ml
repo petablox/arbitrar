@@ -124,8 +124,8 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
       fold_traces_with_filter dug_dir slcs_dir filter
         (fun ((stats, idset) : M.stats * IdSet.t)
              ((func_name, func_type), trace) ->
-          Printf.printf "%d slices loaded (trace_id: %d)\r"
-            (trace.slice_id + 1) trace.trace_id ;
+          Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
+            trace.trace_id ;
           flush stdout ;
           let new_stats = M.add_trace stats (func_name, func_type) trace in
           let new_idset =
@@ -162,8 +162,8 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
     let bugs, _ =
       fold_traces_with_filter dug_dir slcs_dir filter
         (fun (bugs, last_slice) (func, trace) ->
-          Printf.printf "%d slices loaded (trace_id: %d)\r"
-            (trace.slice_id + 1) trace.trace_id ;
+          Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
+            trace.trace_id ;
           flush stdout ;
           let result, score = M.eval stats func trace in
           let csv_row =
@@ -174,8 +174,7 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
           in
           Printf.fprintf results_oc "%s" csv_row ;
           if
-            M.Checker.is_problematic result
-            && score > !Options.report_threshold
+            M.Checker.is_problematic result && score > !Options.report_threshold
           then (
             Printf.fprintf bugs_oc "%s" csv_row ;
             let bugs =

@@ -427,14 +427,7 @@ module Trace = struct
       Utils.get_field_opt trace_json "labels"
       |> Utils.option_map_default Utils.string_list_from_json []
     in
-    { slice_id
-    ; trace_id
-    ; entry
-    ; dugraph
-    ; cfgraph
-    ; target_node
-    ; call_edge
-    ; labels }
+    {slice_id; trace_id; entry; dugraph; cfgraph; target_node; call_edge; labels}
 end
 
 let callee_name_from_slice_json slice_json : string =

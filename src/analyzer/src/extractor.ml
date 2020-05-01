@@ -1,8 +1,8 @@
 open Semantics
 module Metadata = Executor.Metadata
 
-let run_one_slice lc outdir llctx llm initial_state idx
-    (slice : Slicer.Slice.t) : Executor.Environment.t =
+let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
+    : Executor.Environment.t =
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
@@ -18,18 +18,25 @@ let run_one_slice lc outdir llctx llm initial_state idx
     Printf.printf "\n%d traces starting from %s\n"
       (Executor.Traces.length env.Executor.Environment.traces)
       (Llvm.value_name entry) ;
-  let target_name =
-    Llvm.operand target (Llvm.num_operands target - 1) |> Llvm.value_name
+  let maybe_target_name =
+    Llvm.operand target (Llvm.num_operands target - 1) |> Utils.ll_func_name
   in
-  let file_prefix = target_name ^ "-" ^ string_of_int idx in
-  let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
-  let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
-  let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
-  if !Options.verbose > 0 then Executor.print_report lc env ;
-  if !Options.output_trace then Executor.dump_traces ~prefix:traces_prefix env ;
-  if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
-  Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
-  env
+  match maybe_target_name with
+  | Some target_name ->
+      let file_prefix = target_name ^ "-" ^ string_of_int idx in
+      let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
+      let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
+      let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
+      if !Options.verbose > 0 then Executor.print_report lc env ;
+      if !Options.output_trace then
+        Executor.dump_traces ~prefix:traces_prefix env ;
+      if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
+      Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
+      env
+  | None ->
+      env
+
+(* This should never happen *)
 
 let log_command log_channel : unit =
   Printf.fprintf log_channel "Command:\n# " ;
@@ -53,9 +60,7 @@ let slice lc outdir llctx llm : Slicer.Slices.t =
   let slices = Slicer.slice llctx llm !Options.slice_depth in
   Slicer.Slices.dump_json ~prefix:outdir llm slices ;
   (* Log and print *)
-  let str =
-    Printf.sprintf "Slicing complete in %f sec\n" (Sys.time () -. t0)
-  in
+  let str = Printf.sprintf "Slicing complete in %f sec\n" (Sys.time () -. t0) in
   Printf.printf "%s" str ;
   flush stdout ;
   Printf.fprintf lc "%s" str ;
@@ -80,8 +85,7 @@ let execute lc outdir llctx llm slices =
   let metadata =
     List.fold_left
       (fun (metadata, idx) slice ->
-        Printf.printf "%d/%d slices processing\r" (idx + 1)
-          (List.length slices) ;
+        Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
         flush stdout ;
         let env = run_one_slice lc outdir llctx llm initial_state idx slice in
         (Metadata.merge metadata env.metadata, idx + 1))

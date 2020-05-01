@@ -83,9 +83,7 @@ let occurrence_opts_local =
   [("-json", Arg.Set occ_output_json, "Output .json file")]
 
 let executor_opts_local =
-  [ ( "-max-traces"
-    , Arg.Set_int max_traces
-    , "Maximum number of traces per slice" )
+  [ ("-max-traces", Arg.Set_int max_traces, "Maximum number of traces per slice")
   ; ("-max-length", Arg.Set_int max_length, "Maximum length of a trace")
   ; ("-max-trials", Arg.Set_int max_trials, "Maximum number of trials")
   ; ( "-no-filter-duplication"

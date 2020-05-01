@@ -123,11 +123,7 @@ module CausalityDictionary = struct
   let add dict caused =
     StringMap.update caused
       (fun maybe_count ->
-        match maybe_count with
-        | Some count ->
-            Some (count + 1)
-        | None ->
-            Some 1)
+        match maybe_count with Some count -> Some (count + 1) | None -> Some 1)
       dict
 
   let find dict f =
@@ -143,7 +139,12 @@ module CausalityDictionary = struct
 
   let top dict amount =
     let ls =
-      StringMap.fold (fun func count ls -> (func, count) :: ls) dict []
+      StringMap.fold
+        (fun func count ls ->
+          if func = "unknown" then ls
+            (* No unknown function in the dictionary *)
+          else (func, count) :: ls)
+        dict []
     in
     let sorted = List.sort (fun (_, c1) (_, c2) -> c2 - c1) ls in
     let top_sorted = sublist 0 amount sorted in
@@ -227,6 +228,7 @@ module InvokedBeforeFeature = struct
         FunctionCausalityDictionary.empty
     in
     dictionary := dict ;
+    FunctionCausalityDictionary.print dict ;
     ()
 
   let filter _ = true
@@ -374,8 +376,7 @@ let main input_directory =
   let _ =
     fold_traces dugraphs_dir slices_json_dir
       (fun _ (func, trace) ->
-        Printf.printf "Extracting trace #%d/#%d\r" trace.slice_id
-          trace.trace_id ;
+        Printf.printf "Extracting trace #%d/#%d\r" trace.slice_id trace.trace_id ;
         flush stdout ;
         process_trace features_dir func trace)
       ()

@@ -7,12 +7,17 @@ module CallEdge = struct
 
   let create caller callee instr location = {caller; callee; instr; location}
 
-  let to_json llm ce =
-    `Assoc
-      [ ("caller", `String (Llvm.value_name ce.caller))
-      ; ("callee", `String (Llvm.value_name ce.callee))
-      ; ("instr", `String (Llvm.string_of_llvalue ce.instr))
-      ; ("location", `String ce.location) ]
+  let to_json llm ce : Yojson.Safe.t option =
+    match (Utils.ll_func_name ce.caller, Utils.ll_func_name ce.callee) with
+    | Some caller_name, Some callee_name ->
+        Some
+          (`Assoc
+            [ ("caller", `String caller_name)
+            ; ("callee", `String callee_name)
+            ; ("instr", `String (Llvm.string_of_llvalue ce.instr))
+            ; ("location", `String ce.location) ])
+    | _ ->
+        None
 
   let get_function_of_field llm field_name json : Llvm.llvalue =
     let field = Utils.get_field json field_name in
@@ -279,15 +284,22 @@ module Slice = struct
     let target_type = FunctionType.from_llvalue callee in
     {functions; entry; call_edge; target_type}
 
-  let to_json llm slice =
-    `Assoc
-      [ ( "functions"
-        , `List
-            (List.map (fun f -> `String (Llvm.value_name f)) slice.functions)
-        )
-      ; ("entry", `String (Llvm.value_name slice.entry))
-      ; ("target_type", FunctionType.to_json slice.target_type)
-      ; ("call_edge", CallEdge.to_json llm slice.call_edge) ]
+  let to_json llm slice : Yojson.Safe.t option =
+    match CallEdge.to_json llm slice.call_edge with
+    | Some ce_json ->
+        Some
+          (`Assoc
+            [ ( "functions"
+              , `List
+                  (List.filter_map
+                     (fun f ->
+                       Option.map (fun s -> `String s) (Utils.ll_func_name f))
+                     slice.functions) )
+            ; ("entry", `String (Llvm.value_name slice.entry))
+            ; ("target_type", FunctionType.to_json slice.target_type)
+            ; ("call_edge", ce_json) ])
+    | None ->
+        None
 
   let get_functions_from_json llm json =
     match Utils.get_field json "functions" with
@@ -325,10 +337,12 @@ module Slices = struct
   type t = Slice.t list
 
   let to_json llm slices =
+    let count = ref 0 in
     `List
-      (List.mapi
-         (fun i slice ->
-           Printf.printf "Converting slice #%d to json...\r" i ;
+      (List.filter_map
+         (fun slice ->
+           Printf.printf "Converting slice #%d to json...\r" !count ;
+           count := !count + 1 ;
            flush stdout ;
            Slice.to_json llm slice)
          slices)
@@ -362,8 +376,8 @@ module Slices = struct
         let instr_str = Llvm.string_of_llvalue slice.call_edge.instr in
         let call_str = Printf.sprintf "(%s -> %s)" caller_name callee_name in
         Printf.fprintf oc
-          "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n"
-          entry_name func_names_str call_str instr_str)
+          "Slice { Entry: %s, Functions: %s, Call: %s, Instr: %s }\n" entry_name
+          func_names_str call_str instr_str)
       slices
 end
 
@@ -527,8 +541,7 @@ let slice llctx llm depth : Slices.t =
               let entry_set = LlvalueSet.singleton entry in
               let callees =
                 let all_callees =
-                  find_callees (2 * depth) call_graph callee entry_set
-                    entry_set
+                  find_callees (2 * depth) call_graph callee entry_set entry_set
                 in
                 LlvalueSet.filter
                   (fun callee -> not (is_excluding (Llvm.value_name callee)))
