@@ -582,7 +582,12 @@ let occurrence input_file =
   in
   let func_count_list =
     FunctionCounter.fold
-      (fun func count ls -> (Llvm.value_name func, count) :: ls)
+      (fun func count ls ->
+        match Utils.ll_func_name func with
+        | Some fname ->
+            (fname, count) :: ls
+        | None ->
+            ls)
       func_counter []
   in
   let sorted_func_count_list =
