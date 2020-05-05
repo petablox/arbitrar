@@ -2,12 +2,14 @@ from .meta import QueryExecutor, pp
 
 
 class FeatureQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
     parser.add_argument('function', type=str, help="The function that the trace is about")
     parser.add_argument('slice-id', type=int, help='The slice id')
     parser.add_argument('trace-id', type=int, help='The trace id')
 
+  @staticmethod
   def execute(args):
     db = args.db
     var_args = vars(args)

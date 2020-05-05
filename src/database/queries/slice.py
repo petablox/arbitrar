@@ -2,11 +2,13 @@ from .meta import QueryExecutor, pp
 
 
 class SliceQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('bc-file', type=str, help='The bc-file that the slice belongs to')
     parser.add_argument('function', type=str, help='The function that the slice contain')
     parser.add_argument('slice-id', type=int, help='The slice id')
 
+  @staticmethod
   def execute(args):
     db = args.db
     var_args = vars(args)

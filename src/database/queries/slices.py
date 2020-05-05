@@ -3,10 +3,12 @@ from .meta import QueryExecutor, pp
 
 
 class SlicesQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('function', type=str)
     parser.add_argument('--location', type=str)
 
+  @staticmethod
   def execute(args):
     db = args.db
     for slice_id, slice in db.function_slices(args.function):

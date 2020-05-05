@@ -3,7 +3,7 @@ import pprint
 pp = pprint.PrettyPrinter(indent=2)
 
 
-def print_counts(data) -> str:
+def print_counts(data):
   max_len = 0
   for key, _ in data:
     max_len = max(max_len, len(key))
@@ -13,8 +13,10 @@ def print_counts(data) -> str:
 
 
 class QueryExecutor:
+  @staticmethod
   def setup_parser(parser):
     pass
 
+  @staticmethod
   def execute(args):
     pass

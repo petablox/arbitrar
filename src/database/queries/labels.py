@@ -2,11 +2,13 @@ from .meta import QueryExecutor
 
 
 class LabelsQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('function', type=str)
     parser.add_argument('-a', '--alarm', type=str)
     parser.add_argument('--alarm-only', action='store_true')
 
+  @staticmethod
   def execute(args):
     db = args.db
     for dp in db.function_datapoints(args.function):

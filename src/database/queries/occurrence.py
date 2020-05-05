@@ -2,6 +2,7 @@ from .meta import QueryExecutor, print_counts
 
 
 class OccurrenceQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('-f', '--function', type=str, help="The function name")
     parser.add_argument('-p', '--package', type=str, help="The package")
@@ -10,6 +11,7 @@ class OccurrenceQuery(QueryExecutor):
     parser.add_argument('-t', '--threshold', type=int, help="Occurred at least [threshold] times")
     parser.add_argument('-l', '--limit', type=int, help="Only output top [limit] results")
 
+  @staticmethod
   def execute(args):
     if args.function:
       count = 0

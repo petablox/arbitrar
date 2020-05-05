@@ -2,6 +2,7 @@ from .meta import QueryExecutor
 
 
 class PackagesQuery(QueryExecutor):
+  @staticmethod
   def execute(args):
     db = args.db
     print("Name\t\tFetch Status\tBuild Status")

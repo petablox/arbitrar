@@ -2,12 +2,14 @@ from .meta import QueryExecutor, print_counts
 
 
 class NumSlicesQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('-p', '--package', type=str, help='Only the slices in a package')
     parser.add_argument('-b', '--bc', type=str, help='Only the slices in a bc-file')
     parser.add_argument('-f', '--function', type=str, help='Only the slices around a function')
     parser.add_argument('-v', '--verbose', action='store_true', help='Verbose')
 
+  @staticmethod
   def execute(args):
     db = args.db
     if args.bc:

@@ -2,11 +2,13 @@ from .meta import QueryExecutor
 
 
 class NumTracesQuery(QueryExecutor):
+  @staticmethod
   def setup_parser(parser):
     parser.add_argument('-p', '--package', type=str, help='Only the traces in a package')
     parser.add_argument('-b', '--bc', type=str, help='Only the traces in a bc-file')
     parser.add_argument('-f', '--function', type=str, help='Only the traces around a function')
 
+  @staticmethod
   def execute(args):
     db = args.db
     count = 0
