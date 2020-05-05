@@ -127,7 +127,9 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
           Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
             trace.trace_id ;
           flush stdout ;
-          let new_stats = M.add_trace stats (func_name, func_type, num_traces) trace in
+          let new_stats =
+            M.add_trace stats (func_name, func_type, num_traces) trace
+          in
           let new_idset =
             IdSet.add idset func_name trace.slice_id trace.trace_id
           in

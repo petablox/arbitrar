@@ -439,7 +439,8 @@ let func_type_from_slice_json slice_json : FunctionType.t =
   let func_type_json = Utils.get_field slice_json "target_type" in
   FunctionType.of_yojson_exn func_type_json
 
-let fold_traces dugraphs_dir slices_json_dir (f : 'a -> (Function.t * Trace.t) -> 'a) (base : 'a) =
+let fold_traces dugraphs_dir slices_json_dir
+    (f : 'a -> Function.t * Trace.t -> 'a) (base : 'a) =
   let slices_json = Yojson.Safe.from_file slices_json_dir in
   let slice_json_list = Utils.list_from_json slices_json in
   let result, _ =

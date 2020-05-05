@@ -118,13 +118,18 @@ module CausalityDictionary = struct
 
   let empty : t = StringMap.empty
 
-  let singleton (normalization : int) caused = StringMap.singleton caused (1.0 /. (float_of_int normalization))
+  let singleton (normalization : int) caused =
+    StringMap.singleton caused (1.0 /. float_of_int normalization)
 
   let add dict (normalization : int) caused =
-    let normalized = 1.0 /. (float_of_int normalization) in
+    let normalized = 1.0 /. float_of_int normalization in
     StringMap.update caused
       (fun maybe_count ->
-        match maybe_count with Some count -> Some (count +. normalized) | None -> Some normalized)
+        match maybe_count with
+        | Some count ->
+            Some (count +. normalized)
+        | None ->
+            Some normalized)
       dict
 
   let find dict f =
@@ -139,9 +144,7 @@ module CausalityDictionary = struct
         if b > 0 then tail else h :: tail
 
   let sign_of_float (f : float) : int =
-    if f > 0.0 then 1
-    else if f = 0.0 then 0
-    else -1
+    if f > 0.0 then 1 else if f = 0.0 then 0 else -1
 
   let top (dict : t) (amount : int) =
     let ls =
@@ -152,7 +155,9 @@ module CausalityDictionary = struct
           else (func, count) :: ls)
         dict []
     in
-    let sorted = List.sort (fun (_, c1) (_, c2) -> sign_of_float (c2 -. c1)) ls in
+    let sorted =
+      List.sort (fun (_, c1) (_, c2) -> sign_of_float (c2 -. c1)) ls
+    in
     let top_sorted = sublist 0 amount sorted in
     List.map fst top_sorted
 end
@@ -229,7 +234,8 @@ module InvokedBeforeFeature = struct
           let results = caused_funcs trace in
           List.fold_left
             (fun dict caused_func_name ->
-              FunctionCausalityDictionary.add dict num_traces func_name caused_func_name)
+              FunctionCausalityDictionary.add dict num_traces func_name
+                caused_func_name)
             dict results)
         FunctionCausalityDictionary.empty
     in
@@ -287,7 +293,8 @@ module InvokedAfterFeature = struct
           let results = caused_funcs trace in
           List.fold_left
             (fun dict caused_func_name ->
-              FunctionCausalityDictionary.add dict num_traces func_name caused_func_name)
+              FunctionCausalityDictionary.add dict num_traces func_name
+                caused_func_name)
             dict results)
         FunctionCausalityDictionary.empty
     in
