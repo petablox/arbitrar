@@ -18,27 +18,26 @@ let mkdir dirname =
     exit 1
   else Unix.mkdir dirname 0o755
 
-let ll_func_name : Llvm.llvalue -> string option =
-  let extract =
-    let at_reg = Str.regexp "@" in
-    let perc_reg = Str.regexp "%" in
-    let with_at_reg = Str.regexp "@\\([A-Za-z0-9_]+\\)\\.?" in
-    let without_at_reg = Str.regexp "\\([A-Za-z0-9_]+\\)\\.?" in
-    fun str ->
-      if Str.string_match perc_reg str 0 then None
-      else
+let exp_func_nam : string -> string option =
+  let at_reg = Str.regexp "@" in
+  let perc_reg = Str.regexp "%" in
+  let with_at_reg = Str.regexp "@\\([A-Za-z0-9_]+\\)\\.?" in
+  let without_at_reg = Str.regexp "\\([A-Za-z0-9_]+\\)\\.?" in
+  fun str ->
+    if Str.string_match perc_reg str 0 then None
+    else
+      try
+        let _ = Str.search_forward at_reg str 0 in
+        let _ = Str.search_forward with_at_reg str 0 in
+        Some (Str.matched_group 1 str)
+      with Not_found -> (
         try
-          let _ = Str.search_forward at_reg str 0 in
-          Printf.printf "Has @ in str" ;
-          let _ = Str.search_forward with_at_reg str 0 in
+          let _ = Str.string_match without_at_reg str 0 in
           Some (Str.matched_group 1 str)
-        with Not_found -> (
-          try
-            let _ = Str.string_match without_at_reg str 0 in
-            Some (Str.matched_group 1 str)
-          with Not_found -> None )
-  in
-  fun f -> Llvm.value_name f |> extract
+        with Not_found -> None )
+
+let ll_func_name (f : Llvm.llvalue) : string option =
+  Llvm.value_name f |> exp_func_nam
 
 let initialize_output_directories outdir =
   List.iter mkdir
@@ -468,7 +467,7 @@ let json_of_instr instr =
         |> List.map (fun x -> `String (fst x |> string_of_exp))
       in
       `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
-  | Call ->
+  | Call -> (
       let opcode = ("opcode", `String "call") in
       let result =
         match Llvm.type_of instr |> Llvm.classify_type with
@@ -477,8 +476,8 @@ let json_of_instr instr =
         | _ ->
             `String (string_of_lhs instr)
       in
-      let callee =
-        `String (Llvm.operand instr (num_of_operands - 1) |> string_of_exp)
+      let callee_exp =
+        Llvm.operand instr (num_of_operands - 1) |> string_of_exp
       in
       let args =
         List.fold_left
@@ -486,7 +485,19 @@ let json_of_instr instr =
           []
           (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
       in
-      `Assoc [opcode; ("result", result); ("func", callee); ("args", `List args)]
+      match exp_func_nam callee_exp with
+      | Some callee ->
+          `Assoc
+            [ opcode
+            ; ("result", result)
+            ; ("func", `String callee)
+            ; ("args", `List args) ]
+      | None ->
+          `Assoc
+            [ opcode
+            ; ("result", result)
+            ; ("func", `String callee_exp)
+            ; ("args", `List args) ] )
   | Select ->
       json_of_opcode "select"
   | UserOp1 ->

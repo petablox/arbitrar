@@ -178,7 +178,8 @@ module TypeKind = Slicer.TypeKind
 module FunctionType = Slicer.FunctionType
 
 module Function = struct
-  type t = string * FunctionType.t
+  (* Function name, Function Type, Num Traces *)
+  type t = string * FunctionType.t * int
 end
 
 module Location = struct
@@ -438,7 +439,7 @@ let func_type_from_slice_json slice_json : FunctionType.t =
   let func_type_json = Utils.get_field slice_json "target_type" in
   FunctionType.of_yojson_exn func_type_json
 
-let fold_traces dugraphs_dir slices_json_dir f base =
+let fold_traces dugraphs_dir slices_json_dir (f : 'a -> (Function.t * Trace.t) -> 'a) (base : 'a) =
   let slices_json = Yojson.Safe.from_file slices_json_dir in
   let slice_json_list = Utils.list_from_json slices_json in
   let result, _ =
@@ -446,13 +447,14 @@ let fold_traces dugraphs_dir slices_json_dir f base =
       (fun (acc, slice_id) slice_json ->
         let target_func_name = callee_name_from_slice_json slice_json in
         let func_type = func_type_from_slice_json slice_json in
-        let func = (target_func_name, func_type) in
         let dugraph_json_dir =
           Printf.sprintf "%s/%s-%d.json" dugraphs_dir target_func_name slice_id
         in
         try
           let dugraph_json = Yojson.Safe.from_file dugraph_json_dir in
           let trace_json_list = Utils.list_from_json dugraph_json in
+          let num_traces = List.length trace_json_list in
+          let func = (target_func_name, func_type, num_traces) in
           let next_acc, _ =
             List.fold_left
               (fun (acc, trace_id) trace_json ->

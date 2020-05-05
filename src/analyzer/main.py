@@ -8,7 +8,7 @@ import string
 
 this_path = os.path.dirname(os.path.realpath(__file__))
 
-exclude_fn = '^__\|^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
+exclude_fn = '^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
 
 
 def setup_parser(parser):
@@ -17,6 +17,7 @@ def setup_parser(parser):
   parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
   parser.add_argument('-i', '--input', type=str, help="Given an input bc file")
   parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
+  parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
   parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
   parser.add_argument('--causality-dict-size', type=int, default=10)
@@ -34,12 +35,15 @@ def main(args):
         run_analyzer(db, bc_file, args)
 
 
+def alpha_num(s):
+  return "".join([c for c in s if c.isalnum() or c == '_'])
+
+
 def run_analyzer(db, bc_file, args):
   bc_name = ntpath.basename(bc_file)
-  temp_dir = db.temp_dir(create = True)
-  if args["include_fn"]:
-    pattern = re.compile('[\W_]+')
-    include_fn_str = pattern.sub(args["include_fn"], string.printable)
+  temp_dir = db.temp_dir(create=True)
+  if "include_fn" in args and args.include_fn:
+    include_fn_str = alpha_num(args.include_fn)
     temp_outdir = f"{temp_dir}/{bc_name}_{include_fn_str}"
   else:
     temp_outdir = f"{temp_dir}/{bc_name}"
@@ -50,9 +54,8 @@ def run_analyzer(db, bc_file, args):
   move_finished_file = f"{temp_outdir}/move_fin.txt"
 
   # Clear the files in the analysis/ if we need to redo anything
-  if args.redo or args.commit:
-    pass
-    # db.clear_analysis_of_bc(bc_file)
+  # if args.redo or args.commit:
+  #   db.clear_analysis_of_bc(bc_file)
 
   has_temp_dir = os.path.exists(temp_outdir)
 
@@ -88,9 +91,13 @@ def run_analyzer(db, bc_file, args):
       print(f"Setting min-freq to {args.min_freq}")
       cmd += ['-min-freq', str(args.min_freq)]
 
-    if "include_fn" in args and args["include_fn"]:
+    if "include_fn" in args and args.include_fn:
       print(f"Only including functions {args.include_fn}")
       cmd += ['-include-fn', args.include_fn]
+
+    if args.no_reduction:
+      print(f"No reduction of DUGraph")
+      cmd += ['-no-reduction']
 
     run = subprocess.run(cmd, cwd=this_path)
 

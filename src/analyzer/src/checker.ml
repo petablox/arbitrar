@@ -50,7 +50,7 @@ module RetValChecker = struct
 
   let is_problematic r = match r with NoCheck -> true | _ -> false
 
-  let filter (_, (ret_ty, _)) =
+  let filter (_, (ret_ty, _), _) =
     match ret_ty with TypeKind.Pointer _ -> true | _ -> false
 
   let rec check_helper cfgraph ret explored fringe result =
@@ -196,7 +196,7 @@ module ArgValChecker (A : ARG_INDEX) = struct
 
   let to_string = IcmpResult.to_string
 
-  let filter (_, (_, arg_types)) =
+  let filter (_, (_, arg_types), _) =
     if List.length arg_types > A.index then
       match List.nth arg_types A.index with
       | TypeKind.Pointer _ ->
@@ -283,6 +283,14 @@ module CausalityChecker = struct
 
   let is_problematic r = match r with None -> true | _ -> false
 
+  let func_filter =
+    let asm_reg = Str.regexp " asm " in
+    fun s ->
+      try
+        let _ = Str.search_forward asm_reg s 0 in
+        false
+      with _ -> if s = "llvm" then false else true
+
   let rec check_helper succ dugraph explored fringe result =
     match NodeSet.choose_opt fringe with
     | Some hd ->
@@ -297,7 +305,7 @@ module CausalityChecker = struct
           let new_result =
             match hd.stmt with
             | Call {func} ->
-                Causing func :: result
+                if func_filter func then Causing func :: result else result
             | _ ->
                 result
           in
@@ -417,7 +425,7 @@ module FOpenChecker = struct
 
   let regex = Str.regexp ".*fopen.*"
 
-  let filter (func_name, _) = Str.string_match regex func_name 0
+  let filter (func_name, _, _) = Str.string_match regex func_name 0
 
   let is_problematic t = match t with Alarm -> true | _ -> false
 

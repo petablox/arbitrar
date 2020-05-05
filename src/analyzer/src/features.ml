@@ -114,16 +114,17 @@ end
 module StringMap = Map.Make (String)
 
 module CausalityDictionary = struct
-  type t = int StringMap.t
+  type t = float StringMap.t
 
   let empty : t = StringMap.empty
 
-  let singleton caused = StringMap.singleton caused 1
+  let singleton (normalization : int) caused = StringMap.singleton caused (1.0 /. (float_of_int normalization))
 
-  let add dict caused =
+  let add dict (normalization : int) caused =
+    let normalized = 1.0 /. (float_of_int normalization) in
     StringMap.update caused
       (fun maybe_count ->
-        match maybe_count with Some count -> Some (count + 1) | None -> Some 1)
+        match maybe_count with Some count -> Some (count +. normalized) | None -> Some normalized)
       dict
 
   let find dict f =
@@ -137,7 +138,12 @@ module CausalityDictionary = struct
         let tail = if e = 0 then [] else sublist (b - 1) (e - 1) t in
         if b > 0 then tail else h :: tail
 
-  let top dict amount =
+  let sign_of_float (f : float) : int =
+    if f > 0.0 then 1
+    else if f = 0.0 then 0
+    else -1
+
+  let top (dict : t) (amount : int) =
     let ls =
       StringMap.fold
         (fun func count ls ->
@@ -146,7 +152,7 @@ module CausalityDictionary = struct
           else (func, count) :: ls)
         dict []
     in
-    let sorted = List.sort (fun (_, c1) (_, c2) -> c2 - c1) ls in
+    let sorted = List.sort (fun (_, c1) (_, c2) -> sign_of_float (c2 -. c1)) ls in
     let top_sorted = sublist 0 amount sorted in
     List.map fst top_sorted
 end
@@ -156,14 +162,14 @@ module FunctionCausalityDictionary = struct
 
   let empty : t = StringMap.empty
 
-  let add dict func caused_func =
+  let add dict (num_traces : int) func caused_func =
     StringMap.update func
       (fun maybe_caused_dict ->
         match maybe_caused_dict with
         | Some caused_dict ->
-            Some (CausalityDictionary.add caused_dict caused_func)
+            Some (CausalityDictionary.add caused_dict num_traces caused_func)
         | None ->
-            Some (CausalityDictionary.singleton caused_func))
+            Some (CausalityDictionary.singleton num_traces caused_func))
       dict
 
   let find dict func = StringMap.find func dict
@@ -177,7 +183,7 @@ module FunctionCausalityDictionary = struct
         Printf.printf "%s" func ;
         Printf.printf "=======\n" ;
         StringMap.iter
-          (fun caused count -> Printf.printf "%s: %d\n" caused count)
+          (fun caused count -> Printf.printf "%s: %f\n" caused count)
           caused_func)
       dict
 end
@@ -218,12 +224,12 @@ module InvokedBeforeFeature = struct
   let init slices_json_dir dugraphs_dir =
     let dict =
       fold_traces slices_json_dir dugraphs_dir
-        (fun dict ((func_name, _), trace) ->
+        (fun dict ((func_name, _, num_traces), trace) ->
           Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
           let results = caused_funcs trace in
           List.fold_left
             (fun dict caused_func_name ->
-              FunctionCausalityDictionary.add dict func_name caused_func_name)
+              FunctionCausalityDictionary.add dict num_traces func_name caused_func_name)
             dict results)
         FunctionCausalityDictionary.empty
     in
@@ -233,7 +239,7 @@ module InvokedBeforeFeature = struct
 
   let filter _ = true
 
-  let extract (func_name, _) trace =
+  let extract (func_name, _, _) trace =
     let results = caused_funcs trace in
     let maybe_caused_dict =
       FunctionCausalityDictionary.find_opt !dictionary func_name
@@ -276,12 +282,12 @@ module InvokedAfterFeature = struct
   let init slices_json_dir dugraphs_dir =
     let dict =
       fold_traces slices_json_dir dugraphs_dir
-        (fun dict ((func_name, _), trace) ->
+        (fun dict ((func_name, _, num_traces), trace) ->
           Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
           let results = caused_funcs trace in
           List.fold_left
             (fun dict caused_func_name ->
-              FunctionCausalityDictionary.add dict func_name caused_func_name)
+              FunctionCausalityDictionary.add dict num_traces func_name caused_func_name)
             dict results)
         FunctionCausalityDictionary.empty
     in
@@ -290,7 +296,7 @@ module InvokedAfterFeature = struct
 
   let filter _ = true
 
-  let extract (func_name, _) trace =
+  let extract (func_name, _, num_traces) trace =
     let results = caused_funcs trace in
     let maybe_caused_dict =
       FunctionCausalityDictionary.find_opt !dictionary func_name
@@ -332,7 +338,7 @@ let feature_extractors : (module FEATURE) list =
     end) ) ]
 
 let process_trace features_dir func trace =
-  let func_name, func_type = func in
+  let func_name, func_type, num_traces = func in
   (* Iterate through all feature extractors to generate features *)
   let features =
     List.fold_left
