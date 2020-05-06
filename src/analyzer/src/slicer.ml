@@ -291,9 +291,8 @@ module Slice = struct
           (`Assoc
             [ ( "functions"
               , `List
-                  (List.filter_map
-                     (fun f ->
-                       Option.map (fun s -> `String s) (Utils.ll_func_name f))
+                  (List.map
+                     (fun f -> `String (Llvm.value_name f))
                      slice.functions) )
             ; ("entry", `String (Llvm.value_name slice.entry))
             ; ("target_type", FunctionType.to_json slice.target_type)

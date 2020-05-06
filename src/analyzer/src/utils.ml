@@ -18,10 +18,9 @@ let mkdir dirname =
     exit 1
   else Unix.mkdir dirname 0o755
 
-let exp_func_nam : string -> string option =
+let exp_func_name : string -> string option =
   let asm_reg = Str.regexp " asm " in
-  let at_reg = Str.regexp "@" in
-  let perc_reg = Str.regexp "%[0-9]+" in
+  let perc_reg = Str.regexp "%\\d+" in
   let with_at_reg = Str.regexp "@\\([A-Za-z0-9_]+\\)\\.?" in
   let without_at_reg = Str.regexp "\\([A-Za-z0-9_]+\\)\\.?" in
   fun str ->
@@ -35,19 +34,19 @@ let exp_func_nam : string -> string option =
         let _ = Str.search_forward perc_reg str 0 in
         None
       with _ -> (
-        try
-          (* let _ = Printf.printf "%s\n" str in *)
-          let _ = Str.search_forward at_reg str 0 in
-          let _ = Str.search_forward with_at_reg str 0 in
-          Some (Str.matched_group 1 str)
-        with Not_found -> (
+        if String.contains str '@' then
+          try
+            let _ = Str.search_forward with_at_reg str 0 in
+            Some (Str.matched_group 1 str)
+          with _ -> None
+        else
           try
             let _ = Str.string_match without_at_reg str 0 in
             Some (Str.matched_group 1 str)
-          with Not_found -> None ) ) )
+          with _ -> None ) )
 
 let ll_func_name (f : Llvm.llvalue) : string option =
-  Llvm.value_name f |> exp_func_nam
+  Llvm.value_name f |> exp_func_name
 
 let initialize_output_directories outdir =
   List.iter mkdir
@@ -495,7 +494,7 @@ let json_of_instr instr =
           []
           (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
       in
-      match exp_func_nam callee_exp with
+      match exp_func_name callee_exp with
       | Some callee ->
           `Assoc
             [ opcode
