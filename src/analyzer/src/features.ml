@@ -193,60 +193,88 @@ module FunctionCausalityDictionary = struct
       dict
 end
 
-let gen_exc_filter exc : string -> bool =
-  if String.equal exc "" then fun _ -> false
-  else
-    let exc_reg = Str.regexp exc in
-    fun str -> Str.string_match exc_reg str 0
+module type DICTIONARY_HOLDER = sig
+  val dictionary : FunctionCausalityDictionary.t ref
+end
 
-let function_filter =
-  let is_excluding = gen_exc_filter !Options.exclude_func in
-  let invalid_starting_char f =
-    match f.[0] with '(' | '%' -> true | _ -> false
-  in
-  fun f -> (not (invalid_starting_char f)) && not (is_excluding f)
+module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
+  type feature =
+    { invoked: bool
+    ; invoked_more_than_once: bool
+    ; share_argument: bool
+    ; share_return_value: bool }
 
-module InvokedBeforeFeature = struct
-  type dict = FunctionCausalityDictionary.t
+  let feature_to_yojson
+      {invoked; invoked_more_than_once; share_argument; share_return_value} =
+    `Assoc
+      [ ("invoked", `Bool invoked)
+      ; ("invoked_more_than_once", `Bool invoked_more_than_once)
+      ; ("share_argument", `Bool share_argument)
+      ; ("share_return_value", `Bool share_return_value) ]
 
   type t = Yojson.Safe.t
 
-  let name = "invoked_before"
-
   let dictionary = ref FunctionCausalityDictionary.empty
 
-  let caused_funcs trace : string list =
-    let results = CausalityChecker.check_trace trace in
+  let new_feature =
+    { invoked= false
+    ; invoked_more_than_once= false
+    ; share_argument= false
+    ; share_return_value= false }
+
+  let gen_exc_filter exc : string -> bool =
+    if String.equal exc "" then fun _ -> false
+    else
+      let exc_reg = Str.regexp exc in
+      fun str -> Str.string_match exc_reg str 0
+
+  let function_filter =
+    let is_excluding = gen_exc_filter !Options.exclude_func in
+    let invalid_starting_char f =
+      match f.[0] with '(' | '%' -> true | _ -> false
+    in
+    fun f -> (not (invalid_starting_char f)) && not (is_excluding f)
+
+  let caused_funcs_helper trace checker : (string * int) list =
+    let results = checker trace in
     List.filter_map
-      (fun result ->
-        match result with
-        | CausalityChecker.Causing f ->
-            if function_filter f then Some f else None
-        | _ ->
-            None)
+      (fun (f, id) -> if function_filter f then Some (f, id) else None)
       results
 
-  let init slices_json_dir dugraphs_dir =
+  let init_helper checker slices_json_dir dugraphs_dir =
     let dict =
       fold_traces slices_json_dir dugraphs_dir
         (fun dict ((func_name, _, num_traces), trace) ->
           Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
-          let results = caused_funcs trace in
+          let results = caused_funcs_helper trace checker in
           List.fold_left
             (fun dict caused_func_name ->
               FunctionCausalityDictionary.add dict num_traces func_name
                 caused_func_name)
-            dict results)
+            dict (List.map fst results))
         FunctionCausalityDictionary.empty
     in
     dictionary := dict ;
-    FunctionCausalityDictionary.print dict ;
     ()
 
   let filter _ = true
 
-  let extract (func_name, _, _) trace =
-    let results = caused_funcs trace in
+  let share_value (v1s : Value.t list) (v2s : Value.t list) : bool =
+    List.fold_left (fun acc v1 -> acc || List.mem v1 v2s) false v1s
+
+  let share_value_opt (ret : Value.t option) (vs : Value.t list) : bool =
+    match ret with Some ret -> List.mem ret vs | None -> false
+
+  let res_and_args (node : Node.t) : Value.t option * Value.t list =
+    match node.stmt with
+    | Statement.Call {result; args} ->
+        (result, args)
+    | _ ->
+        failwith "[res_and_args] Node should be a call statement"
+
+  let extract_helper checker (func_name, _, _) (trace : Trace.t) =
+    let target_result, target_args = res_and_args trace.target_node in
+    let results = caused_funcs_helper trace checker in
     let maybe_caused_dict =
       FunctionCausalityDictionary.find_opt !dictionary func_name
     in
@@ -258,8 +286,28 @@ module InvokedBeforeFeature = struct
         let assocs =
           List.fold_left
             (fun assocs func_name ->
-              let has_func = List.mem func_name results in
-              (func_name, `Bool has_func) :: assocs)
+              let feature =
+                List.fold_left
+                  (fun acc (func, id) ->
+                    if func = func_name then (
+                      let invoked = true in
+                      let invoked_more_than_once = acc.invoked in
+                      let node = Trace.node trace id in
+                      let node_result, node_args = res_and_args node in
+                      let share_argument = share_value target_args node_args in
+                      let share_return_value =
+                        share_value_opt node_result target_args
+                        || share_value_opt target_result node_args
+                      in
+                      { invoked
+                      ; invoked_more_than_once
+                      ; share_argument= acc.share_argument || share_argument
+                      ; share_return_value=
+                          acc.share_return_value || share_return_value } )
+                    else acc)
+                  new_feature results
+              in
+              (func_name, feature_to_yojson feature) :: assocs)
             [] top_caused
         in
         `Assoc assocs
@@ -269,62 +317,28 @@ module InvokedBeforeFeature = struct
   let to_yojson j = j
 end
 
-module InvokedAfterFeature = struct
-  type dict = FunctionCausalityDictionary.t
+module InvokedBeforeFeature = struct
+  include CausalityFeatureHelper (struct
+    let dictionary = ref FunctionCausalityDictionary.empty
+  end)
 
-  type t = Yojson.Safe.t
+  let name = "invoked_before"
+
+  let init = init_helper CausalityChecker.check_trace
+
+  let extract = extract_helper CausalityChecker.check_trace
+end
+
+module InvokedAfterFeature = struct
+  include CausalityFeatureHelper (struct
+    let dictionary = ref FunctionCausalityDictionary.empty
+  end)
 
   let name = "invoked_after"
 
-  let dictionary = ref FunctionCausalityDictionary.empty
+  let init = init_helper CausalityChecker.check_trace_backward
 
-  let caused_funcs trace : string list =
-    let results = CausalityChecker.check_trace_backward trace in
-    List.filter_map
-      (fun result ->
-        match result with CausalityChecker.Causing f -> Some f | _ -> None)
-      results
-
-  let init slices_json_dir dugraphs_dir =
-    let dict =
-      fold_traces slices_json_dir dugraphs_dir
-        (fun dict ((func_name, _, num_traces), trace) ->
-          Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
-          let results = caused_funcs trace in
-          List.fold_left
-            (fun dict caused_func_name ->
-              FunctionCausalityDictionary.add dict num_traces func_name
-                caused_func_name)
-            dict results)
-        FunctionCausalityDictionary.empty
-    in
-    dictionary := dict ;
-    ()
-
-  let filter _ = true
-
-  let extract (func_name, _, num_traces) trace =
-    let results = caused_funcs trace in
-    let maybe_caused_dict =
-      FunctionCausalityDictionary.find_opt !dictionary func_name
-    in
-    match maybe_caused_dict with
-    | Some caused_dict ->
-        let top_caused =
-          CausalityDictionary.top caused_dict !Options.causality_dict_size
-        in
-        let assocs =
-          List.fold_left
-            (fun assocs func_name ->
-              let has_func = List.mem func_name results in
-              (func_name, `Bool has_func) :: assocs)
-            [] top_caused
-        in
-        `Assoc assocs
-    | None ->
-        `Assoc []
-
-  let to_yojson j = j
+  let extract = extract_helper CausalityChecker.check_trace_backward
 end
 
 let feature_extractors : (module FEATURE) list =

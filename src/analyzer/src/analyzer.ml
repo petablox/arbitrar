@@ -60,7 +60,8 @@ module CheckerStats (C : CHECKER) : CHECKER_STATS = struct
       if stats.total = 0 then 0.0
       else
         let count = ResultCountMap.find result stats.map in
-        1.0 -. (float_of_int count /. float_of_int stats.total)
+        if stats.total = 0 then 0.0
+        else 1.0 -. (float_of_int count /. float_of_int stats.total)
 
     let iter f stats = ResultCountMap.iter f stats.map
   end

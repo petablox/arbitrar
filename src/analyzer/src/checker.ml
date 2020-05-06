@@ -305,7 +305,7 @@ module CausalityChecker = struct
           let new_result =
             match hd.stmt with
             | Call {func} ->
-                if func_filter func then Causing func :: result else result
+                if func_filter func then (func, hd.id) :: result else result
             | _ ->
                 result
           in
@@ -313,7 +313,7 @@ module CausalityChecker = struct
     | None ->
         result
 
-  let check_trace (trace : Trace.t) : t list =
+  let check_trace (trace : Trace.t) : (string * int) list =
     let explored = NodeSet.singleton trace.target_node in
     let fringe =
       NodeSet.of_list (NodeGraph.succ trace.cfgraph trace.target_node)
@@ -321,9 +321,9 @@ module CausalityChecker = struct
     let results =
       check_helper NodeGraph.succ trace.cfgraph explored fringe []
     in
-    match results with [] -> [None] | _ -> results
+    results
 
-  let check_trace_backward (trace : Trace.t) : t list =
+  let check_trace_backward (trace : Trace.t) : (string * int) list =
     let explored = NodeSet.singleton trace.target_node in
     let fringe =
       NodeSet.of_list (NodeGraph.pred trace.cfgraph trace.target_node)
@@ -331,9 +331,10 @@ module CausalityChecker = struct
     let results =
       check_helper NodeGraph.pred trace.cfgraph explored fringe []
     in
-    match results with [] -> [None] | _ -> results
+    results
 
-  let check _ = check_trace
+  let check _ trace : t list =
+    check_trace trace |> List.map (fun (func, _) -> Causing func)
 end
 
 module IcmpBranchChecker = struct
@@ -452,7 +453,7 @@ module FOpenChecker = struct
 
   let is_causing trace f : bool =
     let causings = CausalityChecker.check_trace trace in
-    List.mem (CausalityChecker.Causing f) causings
+    List.mem f (List.map fst causings)
 
   let check _ (trace : Trace.t) : t list =
     if retval_checked trace then

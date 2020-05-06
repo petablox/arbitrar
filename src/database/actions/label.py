@@ -1,6 +1,7 @@
 from ..meta import Executor
 import json
 
+
 class LabelAction(Executor):
   @staticmethod
   def setup_parser(parser):

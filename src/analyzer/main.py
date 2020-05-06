@@ -32,7 +32,10 @@ def main(args):
   else:
     for bc_file in db.bc_files():
       if args.bc == '' or args.bc in bc_file:
-        run_analyzer(db, bc_file, args)
+        try:
+          run_analyzer(db, bc_file, args)
+        except:
+          pass
 
 
 def alpha_num(s):
@@ -101,6 +104,10 @@ def run_analyzer(db, bc_file, args):
 
     run = subprocess.run(cmd, cwd=this_path)
 
+    if run.returncode != 0:
+      print(f"Analysis of {bc_name} failed")
+      return
+
     # Save a file indicating the state of analysis
     open(analyze_finished_file, 'a').close()
 
@@ -111,6 +118,10 @@ def run_analyzer(db, bc_file, args):
         str(args.causality_dict_size), temp_outdir
     ],
                          cwd=this_path)
+
+    if run.returncode != 0:
+      print(f"Analysis of {bc_name} failed")
+      return
 
   else:
     print(f"Skipping analysis of {bc_name}")
@@ -157,10 +168,13 @@ def run_analyzer(db, bc_file, args):
         # We move extracted features
         features_dir = db.func_bc_slice_features_dir(callee, bc_name, index, create=True)
         for trace_id in range(num_traces):
-          with open(f"{temp_outdir}/features/{callee}/{slice_id}-{trace_id}.json") as feature_file:
-            feature_json = json.load(feature_file)
-            with open(f"{features_dir}/{trace_id}.json", "w") as out:
-              json.dump(feature_json, out)
+          source = f"{temp_outdir}/features/{callee}/{slice_id}-{trace_id}.json"
+          target = f"{features_dir}/{trace_id}.json"
+          shutil.copyfile(source, target)
 
     # Store the status
     open(move_finished_file, "a").close()
+
+    print(f"\nFinished analysis of {bc_name}")
+  else:
+    print(f"Skipping committing analysis data of {bc_name}")
