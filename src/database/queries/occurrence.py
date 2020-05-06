@@ -1,8 +1,8 @@
-from .meta import QueryExecutor, print_counts
+from ..meta import Executor, print_counts
 import re
 
 
-class OccurrenceQuery(QueryExecutor):
+class OccurrenceQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('-f', '--function', type=str, help="The function name")

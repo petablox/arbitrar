@@ -120,6 +120,25 @@ class Database:
   def feature_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
     return f"{self.func_bc_slice_features_dir(func, bc_name, slice_id)}/{trace_id}.json"
 
+  def dots_dir(self, create=False) -> str:
+    d = f"{self.analysis_dir()}/dots"
+    return mkdir(d) if create else d
+
+  def func_dots_dir(self, func: str, create=False) -> str:
+    d = f"{self.dots_dir(create=create)}/{func}"
+    return mkdir(d) if create else d
+
+  def func_bc_dots_dir(self, func: str, bc_name: str, create=False) -> str:
+    d = f"{self.func_dots_dir(func, create=create)}/{bc_name}"
+    return mkdir(d) if create else d
+
+  def func_bc_slice_dots_dir(self, func: str, bc_name: str, slice_id: int, create=False) -> str:
+    d = f"{self.func_bc_dots_dir(func, bc_name, create=create)}/{slice_id}"
+    return mkdir(d) if create else d
+
+  def dot_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int) -> str:
+    return f"{self.func_bc_slice_dots_dir(func, bc_name, slice_id)}/{trace_id}.dot"
+
   def learning_dir(self, create=False) -> str:
     d = f"{self.directory}/learning"
     return mkdir(d) if create else d
@@ -140,7 +159,7 @@ class Database:
         return True
     return False
 
-  def get_package(self, package_name: str) -> Pkg:
+  def get_package(self, package_name: str) -> Optional[Pkg]:
     for pkg in self.packages:
       if pkg.name == package_name:
         return pkg
@@ -250,8 +269,7 @@ class Database:
     if func_name != None and bc != None:
       count = 0
       for root, dirs, files in os.walk(self.func_bc_dugraphs_dir(func_name, bc)):
-        for f in files:
-          count += 1
+        count += len(files)
       return count
     elif func_name != None:
       count = 0
@@ -272,6 +290,12 @@ class Database:
       for root, _, files in os.walk(self.dugraphs_dir()):
         count += len(files)
       return count
+
+  def num_traces_of_slice(self, func: str, bc: str, slice_id: int):
+    count = 0
+    for _, _, files in os.walk(self.func_bc_slice_dugraphs_dir(func, bc, slice_id)):
+      count += len(files)
+    return count
 
   def dugraph(self, func_name, bc, slice_id, trace_id):
     with open(self.dugraph_dir(func_name, bc, slice_id, trace_id)) as f:

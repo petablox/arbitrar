@@ -12,7 +12,7 @@ def print_counts(data):
     print(f'{key}:{space} {count}')
 
 
-class QueryExecutor:
+class Executor:
   @staticmethod
   def setup_parser(parser):
     pass

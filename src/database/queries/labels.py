@@ -1,7 +1,7 @@
-from .meta import QueryExecutor
+from ..meta import Executor
 
 
-class LabelsQuery(QueryExecutor):
+class LabelsQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('function', type=str)

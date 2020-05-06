@@ -1,7 +1,7 @@
-from .meta import QueryExecutor
+from ..meta import Executor
 
 
-class BCFilesQuery(QueryExecutor):
+class BCFilesQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('-p', '--package', type=str, help="Only the bc files in a package")

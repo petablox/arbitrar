@@ -1,8 +1,8 @@
 from os import system
-from .meta import QueryExecutor, pp
+from ..meta import Executor, pp
 
 
-class SlicesQuery(QueryExecutor):
+class SlicesQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('function', type=str)

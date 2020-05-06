@@ -35,8 +35,8 @@ let exp_func_nam : string -> string option =
         let _ = Str.search_forward perc_reg str 0 in
         None
       with _ -> (
-        (* let _ = Printf.printf "%s\n" str in *)
         try
+          (* let _ = Printf.printf "%s\n" str in *)
           let _ = Str.search_forward at_reg str 0 in
           let _ = Str.search_forward with_at_reg str 0 in
           Some (Str.matched_group 1 str)

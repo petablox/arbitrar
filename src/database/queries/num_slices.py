@@ -1,7 +1,7 @@
-from .meta import QueryExecutor, print_counts
+from ..meta import Executor, print_counts
 
 
-class NumSlicesQuery(QueryExecutor):
+class NumSlicesQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('-p', '--package', type=str, help='Only the slices in a package')

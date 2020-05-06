@@ -1,7 +1,7 @@
-from .meta import QueryExecutor
+from ..meta import Executor
 
 
-class PackagesQuery(QueryExecutor):
+class PackagesQuery(Executor):
   @staticmethod
   def execute(args):
     db = args.db

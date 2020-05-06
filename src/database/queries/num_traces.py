@@ -1,7 +1,7 @@
-from .meta import QueryExecutor
+from ..meta import Executor
 
 
-class NumTracesQuery(QueryExecutor):
+class NumTracesQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('-p', '--package', type=str, help='Only the traces in a package')
