@@ -33,18 +33,17 @@ def dot_of_dugraph(dugraph):
   dot = Digraph()
 
   # First insert all the vertices
-  dot.attr('node', shape='box', style='filled')
+  dot.attr('node', shape='box', style='filled', fillcolor="white")
   for v in dugraph["vertex"]:
     loc = v["location"]
     id = str(v["id"])
     label = f"[{loc}]\n{instr_str(v)}"
     if v["id"] == dugraph["target"]:
-      dot.node(id, label=label, fontcolor="#FFFFFF", color="#0000FF")
+      dot.node(id, label=label, fontcolor="white", fillcolor="blue")
     else:
       dot.node(id, label=label)
 
   # Then insert all the cf_edges
-  dot.attr('edge', color='green')
   for cfe in dugraph["cf_edge"]:
     dot.edge(str(cfe[0]), str(cfe[1]))
 

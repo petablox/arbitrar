@@ -7,6 +7,7 @@ class NumTracesQuery(Executor):
     parser.add_argument('-p', '--package', type=str, help='Only the traces in a package')
     parser.add_argument('-b', '--bc', type=str, help='Only the traces in a bc-file')
     parser.add_argument('-f', '--function', type=str, help='Only the traces around a function')
+    parser.add_argument('--slice-id', type=int)
 
   @staticmethod
   def execute(args):
@@ -17,6 +18,10 @@ class NumTracesQuery(Executor):
         n = db.num_traces(bc=bc_name, func_name=args.function)
         count += n
     else:
-      n = db.num_traces(bc=args.bc, func_name=args.function)
-      count += n
+      bc = db.find_bc_name(args.bc) if args.bc else None
+      if args.slice_id and args.function and bc:
+        count += db.num_traces_of_slice(args.function, bc, args.slice_id)
+      else:
+        n = db.num_traces(bc=bc, func_name=args.function)
+        count += n
     print(count)
