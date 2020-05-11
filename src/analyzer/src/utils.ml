@@ -66,26 +66,29 @@ let initialize_output_directories outdir =
 
 (* LLVM utility functions *)
 
-let string_cache = Hashtbl.create 2048
+let ll_value_string_cache = Hashtbl.create 2048
 
 let string_of_llvalue_cache instr =
-  if Hashtbl.mem string_cache instr then Hashtbl.find string_cache instr
+  if Hashtbl.mem ll_value_string_cache instr then
+    Hashtbl.find ll_value_string_cache instr
   else
     let str = Llvm.string_of_llvalue instr |> String.trim in
-    Hashtbl.add string_cache instr str ;
+    Hashtbl.add ll_value_string_cache instr str ;
     str
 
 let string_of_instr = string_of_llvalue_cache
 
+let lhs_string_cache : (Llvm.llvalue, string) Hashtbl.t = Hashtbl.create 2048
+
+let lhs_counter = ref 0
+
 let string_of_lhs instr =
-  let s = string_of_instr instr in
-  let r = Str.regexp " = " in
-  try
-    let idx = Str.search_forward r s 0 in
-    String.sub s 0 idx
-  with Not_found ->
-    prerr_endline ("Cannot find lhs of" ^ s) ;
-    raise Not_found
+  if Hashtbl.mem lhs_string_cache instr then Hashtbl.find lhs_string_cache instr
+  else
+    let str = "%" ^ (string_of_int !lhs_counter) in
+    lhs_counter := !lhs_counter + 1 ;
+    Hashtbl.add lhs_string_cache instr str ;
+    str
 
 let is_assignment = function
   | Llvm.Opcode.Invoke
@@ -195,6 +198,10 @@ let is_argument exp =
 
 let string_of_exp_cache = Hashtbl.create 2048
 
+let arg_counter = ref 0
+
+let const_counter = ref 0
+
 let string_of_exp exp =
   if Hashtbl.mem string_of_exp_cache exp then Hashtbl.find string_of_exp_cache exp
   else
@@ -213,16 +220,16 @@ let string_of_exp exp =
       | ConstantDataVector
       | ConstantExpr ->
           string_of_llvalue_cache exp
-      | Argument | ConstantFP | ConstantInt ->
-          let s = string_of_instr exp in
-          let r = Str.regexp " " in
-          let idx = Str.search_forward r s 0 in
-          String.sub s (idx + 1) (String.length s - idx - 1)
+      | Argument ->
+          "%arg" ^ (string_of_int !arg_counter)
+      | ConstantFP | ConstantInt ->
+          "%const" ^ (string_of_int !const_counter)
       | ConstantPointerNull ->
           "0"
       | ConstantStruct | ConstantVector ->
           string_of_llvalue_cache exp
-      | Function -> ll_func_name exp |> Option.value ~default:"unknown"
+      | Function ->
+          ll_func_name exp |> Option.value ~default:"unknown"
       | GlobalIFunc | GlobalAlias ->
           string_of_llvalue_cache exp
       | GlobalVariable ->
@@ -236,6 +243,13 @@ let string_of_exp exp =
     in
     Hashtbl.add string_of_exp_cache exp str ;
     str
+
+let clear_llvalue_string_cache _ =
+  lhs_counter := 0 ;
+  arg_counter := 0 ;
+  Hashtbl.clear ll_value_string_cache ;
+  Hashtbl.clear lhs_string_cache ;
+  ()
 
 let fold_left_all_instr f a m =
   Llvm.fold_left_functions
@@ -350,225 +364,242 @@ let json_of_fcmp = function
   | True ->
       `String "true"
 
+let opcode_of_instr_cache = Hashtbl.create 2048
+
+let opcode_of_instr instr =
+  if Hashtbl.mem opcode_of_instr_cache instr then Hashtbl.find opcode_of_instr_cache instr
+  else
+    let opcode = Llvm.instr_opcode instr in
+    Hashtbl.add opcode_of_instr_cache instr opcode ;
+    opcode
+
+let json_of_instr_cache : (Llvm.llvalue, Yojson.Safe.t) Hashtbl.t = Hashtbl.create 2048
+
 let json_of_instr instr =
-  let num_of_operands = Llvm.num_operands instr in
-  match Llvm.instr_opcode instr with
-  | Llvm.Opcode.Invalid ->
-      json_of_opcode "invalid"
-  | Invalid2 ->
-      json_of_opcode "invalid2"
-  | Unreachable ->
-      json_of_opcode "unreachable"
-  | Ret ->
-      let opcode = ("opcode", `String "ret") in
-      let ret =
-        if num_of_operands = 0 then `Null
-        else `String (string_of_exp (Llvm.operand instr 0))
-      in
-      `Assoc [opcode; ("op0", ret)]
-  | Br ->
-      let opcode = ("opcode", `String "br") in
-      let cond =
-        match Llvm.get_branch instr with
-        | Some (`Conditional _) ->
-            `String (string_of_exp (Llvm.operand instr 0))
-        | _ ->
-            `Null
-      in
-      `Assoc [opcode; ("cond", cond)]
-  | Switch ->
-      let opcode = ("opcode", `String "switch") in
-      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-      `Assoc [opcode; ("op0", op0)]
-  | IndirectBr ->
-      json_of_opcode "indirectbr"
-  | Invoke ->
-      json_of_opcode "invoke"
-  | Add ->
-      json_of_binop instr "add"
-  | FAdd ->
-      json_of_binop instr "fadd"
-  | Sub ->
-      json_of_binop instr "sub"
-  | FSub ->
-      json_of_binop instr "fsub"
-  | Mul ->
-      json_of_binop instr "mul"
-  | FMul ->
-      json_of_binop instr "fmul"
-  | UDiv ->
-      json_of_binop instr "udiv"
-  | SDiv ->
-      json_of_binop instr "sdiv"
-  | FDiv ->
-      json_of_binop instr "fdiv"
-  | URem ->
-      json_of_binop instr "urem"
-  | SRem ->
-      json_of_binop instr "srem"
-  | FRem ->
-      json_of_binop instr "frem"
-  | Shl ->
-      json_of_binop instr "shl"
-  | LShr ->
-      json_of_binop instr "lshr"
-  | AShr ->
-      json_of_binop instr "ashr"
-  | And ->
-      json_of_binop instr "and"
-  | Or ->
-      json_of_binop instr "or"
-  | Xor ->
-      json_of_binop instr "xor"
-  | Alloca ->
-      json_of_unop instr "alloca"
-  | Load ->
-      json_of_unop instr "load"
-  | Store ->
-      let opcode = ("opcode", `String "store") in
-      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-      let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
-      `Assoc [opcode; ("op0", op0); ("op1", op1)]
-  | GetElementPtr ->
-      let opcode = ("opcode", `String "getelementptr") in
-      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-      let result = `String (string_of_lhs instr) in
-      `Assoc [opcode; ("op0", op0); ("result", result)]
-  | Trunc ->
-      json_of_unop instr "trunc"
-  | ZExt ->
-      json_of_unop instr "zext"
-  | SExt ->
-      json_of_unop instr "sext"
-  | FPToUI ->
-      json_of_unop instr "fptoui"
-  | FPToSI ->
-      json_of_unop instr "fptosi"
-  | UIToFP ->
-      json_of_unop instr "uitofp"
-  | SIToFP ->
-      json_of_unop instr "sitofp"
-  | FPTrunc ->
-      json_of_unop instr "fptrunc"
-  | FPExt ->
-      json_of_unop instr "fpext"
-  | PtrToInt ->
-      json_of_unop instr "ptrtoint"
-  | IntToPtr ->
-      json_of_unop instr "inttoptr"
-  | BitCast ->
-      json_of_unop instr "bitcast"
-  | ICmp ->
-      let opcode = ("opcode", `String "icmp") in
-      let op =
-        match Llvm.icmp_predicate instr with
-        | Some s ->
-            s
-        | None ->
-            failwith "Stmt.json_of_stmt (icmp)"
-      in
-      let predicate = ("predicate", json_of_icmp op) in
-      let result = `String (string_of_lhs instr) in
-      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-      let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
-      `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
-  | FCmp ->
-      let opcode = ("opcode", `String "fcmp") in
-      let op =
-        match Llvm.fcmp_predicate instr with
-        | Some s ->
-            s
-        | None ->
-            failwith "Stmt.json_of_stmt (fcmp)"
-      in
-      let predicate = ("predicate", json_of_fcmp op) in
-      let result = `String (string_of_lhs instr) in
-      let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-      let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
-      `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
-  | PHI ->
-      let opcode = ("opcode", `String "phi") in
-      let result = `String (string_of_lhs instr) in
-      let incoming =
-        Llvm.incoming instr
-        |> List.map (fun x -> `String (fst x |> string_of_exp))
-      in
-      `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
-  | Call -> (
-      let opcode = ("opcode", `String "call") in
-      let result =
-        match Llvm.type_of instr |> Llvm.classify_type with
-        | Llvm.TypeKind.Void ->
-            `Null
-        | _ ->
-            `String (string_of_lhs instr)
-      in
-      let callee_exp =
-        Llvm.operand instr (num_of_operands - 1) |> string_of_exp
-      in
-      let args =
-        List.fold_left
-          (fun args a -> args @ [`String (string_of_exp a)])
-          []
-          (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
-      in
-      match exp_func_name callee_exp with
-      | Some callee ->
-          `Assoc
-            [ opcode
-            ; ("result", result)
-            ; ("func", `String callee)
-            ; ("args", `List args) ]
-      | None ->
-          `Assoc
-            [ opcode
-            ; ("result", result)
-            ; ("func", `String callee_exp)
-            ; ("args", `List args) ] )
-  | Select ->
-      json_of_opcode "select"
-  | UserOp1 ->
-      json_of_opcode "userop1"
-  | UserOp2 ->
-      json_of_opcode "userop2"
-  | VAArg ->
-      json_of_opcode "vaarg"
-  | ExtractElement ->
-      json_of_opcode "extractelement"
-  | InsertElement ->
-      json_of_opcode "insertelement"
-  | ShuffleVector ->
-      json_of_opcode "shufflevector"
-  | ExtractValue ->
-      json_of_opcode "extractvalue"
-  | InsertValue ->
-      json_of_opcode "insertvalue"
-  | Fence ->
-      json_of_opcode "fence"
-  | AtomicCmpXchg ->
-      json_of_opcode "atomiccmpxchg"
-  | AtomicRMW ->
-      json_of_opcode "atomicrmw"
-  | Resume ->
-      json_of_opcode "resume"
-  | LandingPad ->
-      json_of_opcode "landingpad"
-  | AddrSpaceCast ->
-      json_of_opcode "addrspacecast"
-  | CleanupRet ->
-      json_of_opcode "cleanupret"
-  | CatchRet ->
-      json_of_opcode "catchret"
-  | CatchPad ->
-      json_of_opcode "catchpad"
-  | CleanupPad ->
-      json_of_opcode "cleanuppad"
-  | CatchSwitch ->
-      json_of_opcode "catchswitch"
-  | FNeg ->
-      json_of_opcode "fneg"
-  | CallBr ->
-      json_of_opcode "callbr"
+  if Hashtbl.mem json_of_instr_cache instr then Hashtbl.find json_of_instr_cache instr
+  else
+    let json =
+      let num_of_operands = Llvm.num_operands instr in
+      match opcode_of_instr instr with
+      | Llvm.Opcode.Invalid ->
+          json_of_opcode "invalid"
+      | Invalid2 ->
+          json_of_opcode "invalid2"
+      | Unreachable ->
+          json_of_opcode "unreachable"
+      | Ret ->
+          let opcode = ("opcode", `String "ret") in
+          let ret =
+            if num_of_operands = 0 then `Null
+            else `String (string_of_exp (Llvm.operand instr 0))
+          in
+          `Assoc [opcode; ("op0", ret)]
+      | Br ->
+          let opcode = ("opcode", `String "br") in
+          let cond =
+            match Llvm.get_branch instr with
+            | Some (`Conditional _) ->
+                `String (string_of_exp (Llvm.operand instr 0))
+            | _ ->
+                `Null
+          in
+          `Assoc [opcode; ("cond", cond)]
+      | Switch ->
+          let opcode = ("opcode", `String "switch") in
+          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+          `Assoc [opcode; ("op0", op0)]
+      | IndirectBr ->
+          json_of_opcode "indirectbr"
+      | Invoke ->
+          json_of_opcode "invoke"
+      | Add ->
+          json_of_binop instr "add"
+      | FAdd ->
+          json_of_binop instr "fadd"
+      | Sub ->
+          json_of_binop instr "sub"
+      | FSub ->
+          json_of_binop instr "fsub"
+      | Mul ->
+          json_of_binop instr "mul"
+      | FMul ->
+          json_of_binop instr "fmul"
+      | UDiv ->
+          json_of_binop instr "udiv"
+      | SDiv ->
+          json_of_binop instr "sdiv"
+      | FDiv ->
+          json_of_binop instr "fdiv"
+      | URem ->
+          json_of_binop instr "urem"
+      | SRem ->
+          json_of_binop instr "srem"
+      | FRem ->
+          json_of_binop instr "frem"
+      | Shl ->
+          json_of_binop instr "shl"
+      | LShr ->
+          json_of_binop instr "lshr"
+      | AShr ->
+          json_of_binop instr "ashr"
+      | And ->
+          json_of_binop instr "and"
+      | Or ->
+          json_of_binop instr "or"
+      | Xor ->
+          json_of_binop instr "xor"
+      | Alloca ->
+          json_of_unop instr "alloca"
+      | Load ->
+          json_of_unop instr "load"
+      | Store ->
+          let opcode = ("opcode", `String "store") in
+          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+          let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+          `Assoc [opcode; ("op0", op0); ("op1", op1)]
+      | GetElementPtr ->
+          let opcode = ("opcode", `String "getelementptr") in
+          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+          let result = `String (string_of_lhs instr) in
+          `Assoc [opcode; ("op0", op0); ("result", result)]
+      | Trunc ->
+          json_of_unop instr "trunc"
+      | ZExt ->
+          json_of_unop instr "zext"
+      | SExt ->
+          json_of_unop instr "sext"
+      | FPToUI ->
+          json_of_unop instr "fptoui"
+      | FPToSI ->
+          json_of_unop instr "fptosi"
+      | UIToFP ->
+          json_of_unop instr "uitofp"
+      | SIToFP ->
+          json_of_unop instr "sitofp"
+      | FPTrunc ->
+          json_of_unop instr "fptrunc"
+      | FPExt ->
+          json_of_unop instr "fpext"
+      | PtrToInt ->
+          json_of_unop instr "ptrtoint"
+      | IntToPtr ->
+          json_of_unop instr "inttoptr"
+      | BitCast ->
+          json_of_unop instr "bitcast"
+      | ICmp ->
+          let opcode = ("opcode", `String "icmp") in
+          let op =
+            match Llvm.icmp_predicate instr with
+            | Some s ->
+                s
+            | None ->
+                failwith "Stmt.json_of_stmt (icmp)"
+          in
+          let predicate = ("predicate", json_of_icmp op) in
+          let result = `String (string_of_lhs instr) in
+          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+          let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+          `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+      | FCmp ->
+          let opcode = ("opcode", `String "fcmp") in
+          let op =
+            match Llvm.fcmp_predicate instr with
+            | Some s ->
+                s
+            | None ->
+                failwith "Stmt.json_of_stmt (fcmp)"
+          in
+          let predicate = ("predicate", json_of_fcmp op) in
+          let result = `String (string_of_lhs instr) in
+          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+          let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+          `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+      | PHI ->
+          let opcode = ("opcode", `String "phi") in
+          let result = `String (string_of_lhs instr) in
+          let incoming =
+            Llvm.incoming instr
+            |> List.map (fun x -> `String (fst x |> string_of_exp))
+          in
+          `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
+      | Call -> (
+          let opcode = ("opcode", `String "call") in
+          let result =
+            match Llvm.type_of instr |> Llvm.classify_type with
+            | Llvm.TypeKind.Void ->
+                `Null
+            | _ ->
+                `String (string_of_lhs instr)
+          in
+          let callee_exp =
+            Llvm.operand instr (num_of_operands - 1) |> string_of_exp
+          in
+          let args =
+            List.fold_left
+              (fun args a -> args @ [`String (string_of_exp a)])
+              []
+              (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
+          in
+          match exp_func_name callee_exp with
+          | Some callee ->
+              `Assoc
+                [ opcode
+                ; ("result", result)
+                ; ("func", `String callee)
+                ; ("args", `List args) ]
+          | None ->
+              `Assoc
+                [ opcode
+                ; ("result", result)
+                ; ("func", `String callee_exp)
+                ; ("args", `List args) ] )
+      | Select ->
+          json_of_opcode "select"
+      | UserOp1 ->
+          json_of_opcode "userop1"
+      | UserOp2 ->
+          json_of_opcode "userop2"
+      | VAArg ->
+          json_of_opcode "vaarg"
+      | ExtractElement ->
+          json_of_opcode "extractelement"
+      | InsertElement ->
+          json_of_opcode "insertelement"
+      | ShuffleVector ->
+          json_of_opcode "shufflevector"
+      | ExtractValue ->
+          json_of_opcode "extractvalue"
+      | InsertValue ->
+          json_of_opcode "insertvalue"
+      | Fence ->
+          json_of_opcode "fence"
+      | AtomicCmpXchg ->
+          json_of_opcode "atomiccmpxchg"
+      | AtomicRMW ->
+          json_of_opcode "atomicrmw"
+      | Resume ->
+          json_of_opcode "resume"
+      | LandingPad ->
+          json_of_opcode "landingpad"
+      | AddrSpaceCast ->
+          json_of_opcode "addrspacecast"
+      | CleanupRet ->
+          json_of_opcode "cleanupret"
+      | CatchRet ->
+          json_of_opcode "catchret"
+      | CatchPad ->
+          json_of_opcode "catchpad"
+      | CleanupPad ->
+          json_of_opcode "cleanuppad"
+      | CatchSwitch ->
+          json_of_opcode "catchswitch"
+      | FNeg ->
+          json_of_opcode "fneg"
+      | CallBr ->
+          json_of_opcode "callbr"
+    in
+    Hashtbl.add json_of_instr_cache instr json ;
+    json
 
 let is_llvm_function f : bool =
   let r1 = Str.regexp "llvm\\.dbg\\..+" in

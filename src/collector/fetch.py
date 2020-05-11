@@ -37,7 +37,7 @@ def fetch_debian_repo(db: Database, pkg: Pkg):
       break
 
   if extracted_dir == "":
-    print("error: could not find extracted directory in {}".format(deb_dir))
+    print("error: could not find extracted directory in {}".format(pkg_dir))
     return None
 
   os.rename(f"{pkg_dir}/{extracted_dir}", f"{pkg_dir}/source")

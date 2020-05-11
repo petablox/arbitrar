@@ -14,17 +14,14 @@ module Stmt = struct
     {instr; location}
 
   let to_json s =
-    Printf.printf "4.1.1\n" ; flush stdout ;
     let common = [("location", `String s.location)] in
     let common =
       if !Options.include_instr then
         ("instr", `String (Utils.string_of_instr s.instr)) :: common
       else common
     in
-    Printf.printf "4.1.2\n" ; flush stdout ;
     match Utils.json_of_instr s.instr with
     | `Assoc l ->
-        Printf.printf "4.1.3\n" ; flush stdout ;
         `Assoc (common @ l)
     | _ ->
         failwith "Stmt.to_json"
@@ -638,7 +635,6 @@ module DUGraph = struct
   let default_vertex_attributes g = [`Shape `Box]
 
   let to_json g =
-    Printf.printf "4.1\n" ; flush stdout ;
     let vertices, target_id =
       fold_vertex
         (fun v (l, t) ->
@@ -647,7 +643,6 @@ module DUGraph = struct
           (vertex :: l, t))
         g ([], -1)
     in
-    Printf.printf "4.2\n" ; flush stdout ;
     let du_edges, cf_edges =
       fold_edges_e
         (fun (src, e, dst) (du_edges, cf_edges) ->
@@ -659,7 +654,6 @@ module DUGraph = struct
               (du_edges, edge :: cf_edges))
         g ([], [])
     in
-    Printf.printf "4.3\n" ; flush stdout ;
     `Assoc
       [ ("vertex", `List vertices)
       ; ("du_edge", `List du_edges)
