@@ -1,4 +1,5 @@
 import os
+from termcolor import cprint
 from os import system
 from ..meta import Executor, pp
 
@@ -24,7 +25,7 @@ class SlicesQuery(Executor):
             # Split in
             toks = slice['call_edge']['location'].split(":")
             path, func, line, col = toks[0], toks[1], int(toks[2]), toks[3]
-            print(f"Slice {slice_id} [{path}] [{(slice['call_edge']['instr']).strip()}]")
+            cprint(f"Slice {slice_id} [{path}] [{(slice['call_edge']['instr']).strip()}]")
             path = os.path.join(args.source, path)
             padding = args.padding if args.padding else 5 
             if not os.path.exists(path):
@@ -36,8 +37,10 @@ class SlicesQuery(Executor):
                     lmax = line+padding
                     for l in f.readlines():
                         if lcount >= lmin and lcount <= lmax:
-                            pd = "==>" if lcount == line else "   "
-                            print(f"{pd} {lcount}:{l}", end="")
+                            if lcount == line:
+                                cprint(f"==> {lcount}:{l}", "red", end="")
+                            else:
+                                cprint(f"    {lcount}:{l}", end="")
                         lcount += 1 
 
             print()
