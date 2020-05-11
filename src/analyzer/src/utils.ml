@@ -18,17 +18,25 @@ let mkdir dirname =
     exit 1
   else Unix.mkdir dirname 0o755
 
+let contains s1 s2 =
+  try
+    let len = String.length s2 in
+    for i = 0 to String.length s1 - len do
+      if String.sub s1 i len = s2 then raise Exit
+    done;
+    false
+  with Exit -> true
+
+let ll_func_cache = Hashtbl.create 2048
+
 let exp_func_name : string -> string option =
-  let asm_reg = Str.regexp " asm " in
+  let asm = " asm " in
   let perc_reg = Str.regexp "%\\d+" in
   let with_at_reg = Str.regexp "@\\([A-Za-z0-9_]+\\)\\.?" in
   let without_at_reg = Str.regexp "\\([A-Za-z0-9_]+\\)\\.?" in
   fun str ->
-    try
-      (* Make sure there's no "asm" in the function *)
-      let _ = Str.search_forward asm_reg str 0 in
-      None
-    with _ -> (
+    if contains str asm then None
+    else
       try
         (* Make sure there's no "%\d+" in the function name *)
         let _ = Str.search_forward perc_reg str 0 in
@@ -43,10 +51,14 @@ let exp_func_name : string -> string option =
           try
             let _ = Str.string_match without_at_reg str 0 in
             Some (Str.matched_group 1 str)
-          with _ -> None ) )
+          with _ -> None )
 
 let ll_func_name (f : Llvm.llvalue) : string option =
-  Llvm.value_name f |> exp_func_name
+  if Hashtbl.mem ll_func_cache f then Hashtbl.find ll_func_cache f
+  else
+    let name = Llvm.value_name f |> exp_func_name in
+    Hashtbl.add ll_func_cache f name ;
+    name
 
 let initialize_output_directories outdir =
   List.iter mkdir
@@ -181,43 +193,49 @@ let is_argument exp =
   | _ ->
       false
 
+let string_of_exp_cache = Hashtbl.create 2048
+
 let string_of_exp exp =
-  match Llvm.classify_value exp with
-  | Llvm.ValueKind.NullValue ->
-      "0"
-  | BasicBlock
-  | InlineAsm
-  | MDNode
-  | MDString
-  | BlockAddress
-  | ConstantAggregateZero
-  | ConstantArray
-  | ConstantDataArray
-  | ConstantDataVector
-  | ConstantExpr ->
-      string_of_llvalue_cache exp
-  | Argument | ConstantFP | ConstantInt ->
-      let s = string_of_instr exp in
-      let r = Str.regexp " " in
-      let idx = Str.search_forward r s 0 in
-      String.sub s (idx + 1) (String.length s - idx - 1)
-  | ConstantPointerNull ->
-      "0"
-  | ConstantStruct | ConstantVector ->
-      string_of_llvalue_cache exp
-  | Function -> (
-      let maybe_name = ll_func_name exp in
-      match maybe_name with Some name -> name | None -> "unknown" )
-  | GlobalIFunc | GlobalAlias ->
-      string_of_llvalue_cache exp
-  | GlobalVariable ->
-      Llvm.value_name exp
-  | UndefValue ->
-      "undef"
-  | Instruction i when is_assignment i -> (
-    try string_of_lhs exp with _ -> string_of_instr exp )
-  | Instruction _ ->
-      string_of_instr exp
+  if Hashtbl.mem string_of_exp_cache exp then Hashtbl.find string_of_exp_cache exp
+  else
+    let str =
+      match Llvm.classify_value exp with
+      | Llvm.ValueKind.NullValue ->
+          "0"
+      | BasicBlock
+      | InlineAsm
+      | MDNode
+      | MDString
+      | BlockAddress
+      | ConstantAggregateZero
+      | ConstantArray
+      | ConstantDataArray
+      | ConstantDataVector
+      | ConstantExpr ->
+          string_of_llvalue_cache exp
+      | Argument | ConstantFP | ConstantInt ->
+          let s = string_of_instr exp in
+          let r = Str.regexp " " in
+          let idx = Str.search_forward r s 0 in
+          String.sub s (idx + 1) (String.length s - idx - 1)
+      | ConstantPointerNull ->
+          "0"
+      | ConstantStruct | ConstantVector ->
+          string_of_llvalue_cache exp
+      | Function -> ll_func_name exp |> Option.value ~default:"unknown"
+      | GlobalIFunc | GlobalAlias ->
+          string_of_llvalue_cache exp
+      | GlobalVariable ->
+          Llvm.value_name exp
+      | UndefValue ->
+          "undef"
+      | Instruction i when is_assignment i -> (
+          try string_of_lhs exp with _ -> string_of_instr exp )
+      | Instruction _ ->
+          string_of_instr exp
+    in
+    Hashtbl.add string_of_exp_cache exp str ;
+    str
 
 let fold_left_all_instr f a m =
   Llvm.fold_left_functions

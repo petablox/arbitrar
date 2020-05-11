@@ -9,32 +9,33 @@ let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
   let target = poi.instr in
   let initial_state = State.set_target_instr target initial_state in
   let env = Executor.Environment.empty () in
+  Printf.printf "\n1\n" ; flush stdout ;
   let env =
     Executor.execute_function llctx entry
       {env with boundaries; initial_state}
       initial_state
   in
+  Printf.printf "2\n" ; flush stdout ;
   if !Options.verbose > 0 then
     Printf.printf "\n%d traces starting from %s\n"
       (Executor.Traces.length env.Executor.Environment.traces)
       (Llvm.value_name entry) ;
-  let maybe_target_name =
-    Llvm.operand target (Llvm.num_operands target - 1) |> Utils.ll_func_name
+  let target_name =
+    Llvm.operand target (Llvm.num_operands target - 1) |> Utils.ll_func_name |> Option.get
   in
-  match maybe_target_name with
-  | Some target_name ->
-      let file_prefix = target_name ^ "-" ^ string_of_int idx in
-      let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
-      let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
-      let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
-      if !Options.verbose > 0 then Executor.print_report lc env ;
-      if !Options.output_trace then
-        Executor.dump_traces ~prefix:traces_prefix env ;
-      if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
-      Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
-      env
-  | None ->
-      env
+  Printf.printf "3\n" ; flush stdout ;
+  let file_prefix = target_name ^ "-" ^ string_of_int idx in
+  let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
+  let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
+  let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
+  Printf.printf "4\n" ; flush stdout ;
+  if !Options.verbose > 0 then Executor.print_report lc env ;
+  if !Options.output_trace then
+    Executor.dump_traces ~prefix:traces_prefix env ;
+  if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
+  Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
+  Printf.printf "5\n" ; flush stdout ;
+  env
 
 (* This should never happen *)
 
