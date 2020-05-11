@@ -83,23 +83,20 @@ let get_slices lc outdir llctx llm : Slicer.Slices.t =
 let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
-  let metadata =
-    List.fold_left
-      (fun (metadata, idx) slice ->
-        Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
-        flush stdout ;
-        let env = run_one_slice lc outdir llctx llm initial_state idx slice in
-        (Metadata.merge metadata env.metadata, idx + 1))
-      (Metadata.empty, 0) slices
-    |> fst
+  let _ = List.iteri
+    (fun idx slice ->
+      Printf.printf "%d/%d slices processing\n" (idx + 1) (List.length slices) ;
+      flush stdout ;
+      let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
+      ())
+    slices
   in
   let msg =
     Printf.sprintf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
   in
   Printf.printf "\n%s" msg ;
   flush stdout ;
-  Printf.fprintf lc "%s" msg ;
-  Metadata.print lc metadata
+  Printf.fprintf lc "%s" msg
 
 let main input_file =
   Printf.printf "Running extractor on %s...\n" input_file ;
