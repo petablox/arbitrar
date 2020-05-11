@@ -198,6 +198,7 @@ module Value = struct
     | SymExpr of SymExpr.t
     | Int of Int64.t
     | Location of Location.t
+    | Argument of int
     | Unknown
   [@@deriving yojson {exn= true}]
 

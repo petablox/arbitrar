@@ -202,6 +202,16 @@ let arg_counter = ref 0
 
 let const_counter = ref 0
 
+let arg_cache = Hashtbl.create 2048
+
+let arg_id_of_exp exp =
+  if Hashtbl.mem arg_cache exp then Hashtbl.find arg_cache exp
+  else
+    let arg_id = !arg_counter in
+    arg_counter := !arg_counter + 1 ;
+    Hashtbl.add arg_cache exp arg_id ;
+    arg_id
+
 let string_of_exp exp =
   if Hashtbl.mem string_of_exp_cache exp then Hashtbl.find string_of_exp_cache exp
   else
@@ -221,7 +231,8 @@ let string_of_exp exp =
       | ConstantExpr ->
           string_of_llvalue_cache exp
       | Argument ->
-          "%arg" ^ (string_of_int !arg_counter)
+          let arg_id = arg_id_of_exp exp in
+          "%arg" ^ (string_of_int arg_id)
       | ConstantFP | ConstantInt ->
           "%const" ^ (string_of_int !const_counter)
       | ConstantPointerNull ->

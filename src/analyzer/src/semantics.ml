@@ -284,6 +284,7 @@ module Value = struct
     | SymExpr of SymExpr.t
     | Int of Int64.t
     | Location of Location.t
+    | Argument of int
     | Unknown
   [@@deriving to_yojson]
 
@@ -478,6 +479,8 @@ module Value = struct
         F.fprintf fmt "%s" (Int64.to_string i)
     | Location l ->
         Location.pp fmt l
+    | Argument i ->
+        F.fprintf fmt "Arg%d" i
     | Unknown ->
         F.fprintf fmt "Unknown"
 end
