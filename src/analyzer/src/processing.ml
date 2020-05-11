@@ -245,7 +245,11 @@ module Statement = struct
       |> List.map Value.of_json
     in
     let result =
-      Utils.get_field_not_null json "result_sem" |> Option.map Value.of_json
+      match Utils.get_field_not_null json "result" with
+      | Some _ ->
+          Utils.get_field_not_null json "result_sem" |> Option.map Value.of_json
+      | _ ->
+          None
     in
     Call {func; args; result}
 
@@ -376,6 +380,7 @@ module Trace = struct
     { slice_id: int
     ; trace_id: int
     ; entry: string
+    ; nodes: Nodes.t
     ; dugraph: NodeGraph.t
     ; cfgraph: NodeGraph.t
     ; target_node: Node.t
@@ -428,7 +433,18 @@ module Trace = struct
       Utils.get_field_opt trace_json "labels"
       |> Utils.option_map_default Utils.string_list_from_json []
     in
-    {slice_id; trace_id; entry; dugraph; cfgraph; target_node; call_edge; labels}
+    { slice_id
+    ; trace_id
+    ; entry
+    ; nodes
+    ; dugraph
+    ; cfgraph
+    ; target_node
+    ; call_edge
+    ; labels }
+
+  let node (trace : t) (id : int) : Node.t =
+    Nodes.find_node_by_id trace.nodes id
 end
 
 let callee_name_from_slice_json slice_json : string =
