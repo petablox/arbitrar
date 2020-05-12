@@ -10,7 +10,7 @@ class AlarmQuery(Executor):
   def setup_parser(parser):
     parser.add_argument('learning-dir', type=str, help="learning dir that contains alarms.csv")
     parser.add_argument('--source', type=str)
-    parser.add_argument('--padding', type=str)
+    parser.add_argument('--padding', type=int)
 
   @staticmethod
   def execute(args):
