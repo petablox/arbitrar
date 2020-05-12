@@ -210,7 +210,8 @@ module EnvCache = struct
       str
 
   let arg_id cache exp =
-    if Hashtbl.mem cache.arg_id_cache exp then Hashtbl.find cache.arg_id_cache exp
+    if Hashtbl.mem cache.arg_id_cache exp then
+      Hashtbl.find cache.arg_id_cache exp
     else
       let arg_id = !(cache.arg_counter) in
       cache.arg_counter := !(cache.arg_counter) + 1 ;
@@ -227,7 +228,8 @@ module EnvCache = struct
       const_id
 
   let string_of_lhs cache instr =
-    if Hashtbl.mem cache.lhs_string_cache instr then Hashtbl.find cache.lhs_string_cache instr
+    if Hashtbl.mem cache.lhs_string_cache instr then
+      Hashtbl.find cache.lhs_string_cache instr
     else
       let str = "%" ^ string_of_int !(cache.lhs_counter) in
       cache.lhs_counter := !(cache.lhs_counter) + 1 ;
@@ -308,8 +310,7 @@ module SliceCache = struct
   let const_id_cache = Hashtbl.create 2048
 
   let const_id exp =
-    if Hashtbl.mem const_id_cache exp then
-      Hashtbl.find const_id_cache exp
+    if Hashtbl.mem const_id_cache exp then Hashtbl.find const_id_cache exp
     else
       let const_id = !const_counter in
       const_counter := !const_counter + 1 ;
@@ -321,7 +322,8 @@ module SliceCache = struct
   let lhs_counter = ref 0
 
   let string_of_lhs instr =
-    if Hashtbl.mem lhs_string_cache instr then Hashtbl.find lhs_string_cache instr
+    if Hashtbl.mem lhs_string_cache instr then
+      Hashtbl.find lhs_string_cache instr
     else
       let str = "%" ^ string_of_int !lhs_counter in
       lhs_counter := !lhs_counter + 1 ;
@@ -630,8 +632,7 @@ let json_of_instr cache instr =
       let result = `String (EnvCache.string_of_lhs cache instr) in
       let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
       let op1 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 1)) in
-      `Assoc
-        [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+      `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
   | FCmp ->
       let opcode = ("opcode", `String "fcmp") in
       let op =
@@ -645,8 +646,7 @@ let json_of_instr cache instr =
       let result = `String (EnvCache.string_of_lhs cache instr) in
       let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
       let op1 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 1)) in
-      `Assoc
-        [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+      `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
   | PHI ->
       let opcode = ("opcode", `String "phi") in
       let result = `String (EnvCache.string_of_lhs cache instr) in

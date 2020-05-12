@@ -544,7 +544,9 @@ let slice llctx llm depth : Slices.t =
                 in
                 LlvalueSet.filter
                   (fun callee ->
-                    not (is_excluding (Utils.GlobalCache.ll_func callee |> Option.get)))
+                    not
+                      (is_excluding
+                         (Utils.GlobalCache.ll_func callee |> Option.get)))
                   all_callees
               in
               let location = Utils.string_of_location cache llctx instr in

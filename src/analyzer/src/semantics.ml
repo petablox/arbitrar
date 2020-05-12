@@ -17,7 +17,8 @@ module Stmt = struct
     let common = [("location", `String s.location)] in
     let common =
       if !Options.include_instr then
-        ("instr", `String (Utils.EnvCache.string_of_exp cache s.instr)) :: common
+        ("instr", `String (Utils.EnvCache.string_of_exp cache s.instr))
+        :: common
       else common
     in
     match Utils.json_of_instr cache s.instr with

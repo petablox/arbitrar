@@ -212,7 +212,9 @@ let semantic_sig_of_unop cache result op0 =
   `Assoc [("result_sem", result_json); ("op0_sem", op0_json)]
 
 let semantic_sig_of_libcall cache v args =
-  let ret_json = match v with Some s -> Value.to_json cache s | None -> `Null in
+  let ret_json =
+    match v with Some s -> Value.to_json cache s | None -> `Null
+  in
   let args_json = List.map (Value.to_json cache) args in
   `Assoc [("result_sem", ret_json); ("args_sem", `List args_json)]
 
@@ -324,7 +326,8 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr env state =
-  if !Options.verbose > 1 then prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ;
+  if !Options.verbose > 1 then
+    prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ;
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state
   else
@@ -387,7 +390,9 @@ and transfer llctx instr env state =
         in
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        let semantic_sig = semantic_sig_of_unop env.cache v1 (Value.location lv1) in
+        let semantic_sig =
+          semantic_sig_of_unop env.cache v1 (Value.location lv1)
+        in
         State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
@@ -453,7 +458,8 @@ and transfer_ret llctx instr env state =
       |> execute_instr llctx (Llvm.instr_succ callsite) env
   | None ->
       let semantic_sig =
-        if Llvm.num_operands instr = 0 then semantic_sig_of_return env.cache None
+        if Llvm.num_operands instr = 0 then
+          semantic_sig_of_return env.cache None
         else
           let exp0 = Llvm.operand instr 0 in
           let v, _ = eval env.cache exp0 state.State.memory in
