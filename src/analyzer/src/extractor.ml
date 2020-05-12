@@ -75,6 +75,10 @@ let get_slices lc outdir llctx llm : Slicer.Slices.t =
     load_slices_from_json lc slice_file llm
   else slice lc outdir llctx llm
 
+let loading idx =
+  let i = idx mod 4 in
+  match i with | 0 -> '|' | 1 -> '/' | 2 -> '-' | _ -> '\\'
+
 let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
@@ -85,7 +89,7 @@ let execute lc outdir llctx llm slices =
       (fun idx ->
         let slice = array_slices.(idx) in
         let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
-        Printf.printf "Slice %d finished symbolic execution\n" idx ;
+        Printf.printf "Doing symbolic execution on %d slice %c\r" num_slices (loading idx) ;
         flush stdout)
       (Parmap.L (Utils.range num_slices))
   in
