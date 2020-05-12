@@ -19,7 +19,7 @@ def encode_causality(causality):
 
 
 def encode_causality_dictionary(causality_dict):
-  return [int(causality_dict[key]) for key in sorted(causality_dict)]
+  return [i for key in sorted(causality_dict) for i in encode_causality(causality_dict[key])]
 
 
 def encode_retval(retval):
