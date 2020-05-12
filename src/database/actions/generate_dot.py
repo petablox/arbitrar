@@ -18,13 +18,15 @@ def instr_str(vertex):
     ret += ")"
 
   # Deal with icmp
-  if "predicate" in vertex:
+  if "predicate" in vertex and vertex["predicate"]:
     ret += vertex["predicate"] + " "
-  if "cond" in vertex:
+  if "cond" in vertex and vertex["cond"]:
     ret += vertex["cond"] + " "
+
+  # All ops
   for i in range(10):
     key = f"op{i}"
-    if key in vertex:
+    if key in vertex and vertex[key]:
       ret += vertex[key] + " "
   return ret
 

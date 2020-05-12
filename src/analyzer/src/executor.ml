@@ -98,14 +98,16 @@ module Environment = struct
     ; initial_state: State.t
     ; worklist: Worklist.t
     ; traces: Traces.t
+    ; target: Llvm.llvalue
     ; dugraphs: DUGraph.t list
     ; boundaries: Llvm.llvalue list }
 
-  let empty () =
+  let empty target =
     { metadata= Metadata.empty
     ; initial_state= State.empty
     ; worklist= Worklist.empty ()
     ; traces= Traces.empty
+    ; target
     ; dugraphs= []
     ; boundaries= [] }
 
@@ -138,11 +140,12 @@ let initialize llctx llm state =
       State.add_memory (Location.variable func) (Value.func func) state)
     state llm
 
-let need_step_into_function boundaries f : bool =
+let need_step_into_function boundaries target f : bool =
   let dec_only = Llvm.is_declaration f in
   let in_bound = List.find_opt (( == ) f) boundaries |> Option.is_some in
   let is_debug = Utils.is_llvm_function f in
-  (not dec_only) && in_bound && not is_debug
+  let is_target = f == target in
+  (not dec_only) && in_bound && (not is_debug) && not is_target
 
 let eval exp memory =
   let kind = Llvm.classify_value exp in
@@ -517,7 +520,7 @@ and transfer_call llctx instr env state =
   | Value.Function f when Utils.is_llvm_function f ->
       execute_instr llctx (Llvm.instr_succ instr) env state
   | Value.Function f
-    when need_step_into_function boundaries f
+    when need_step_into_function boundaries env.target f
          && not (FuncSet.mem callee_expr state.visited_funcs) ->
       let state, args, uses, _ =
         Llvm.fold_left_params
@@ -533,6 +536,7 @@ and transfer_call llctx instr env state =
       State.visit_func callee_expr state
       |> State.add_trace llctx instr semantic_sig
       |> State.add_semantic_du_edges uses instr
+      |> add_syntactic_du_edge instr env
       |> State.push_stack instr
       |> execute_function llctx f env
   | Value.Function f
