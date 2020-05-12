@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 
 from src.database import Database, DataPoint
 
+from .encoder import encode_feature
+from .unifier import unify_features, unify_features_with_sample
+
 
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
@@ -109,16 +112,6 @@ def test(args):
         print(s, end="")
 
 
-def unify_features_with_sample(datapoints, unified):
-  def unify_feature(datapoint, unified):
-    feature = datapoint.feature()
-    for k in ['invoked_before', 'invoked_after']:
-      feature[k] = {key: feature[k][key] if key in feature[k] else False for key in unified[k]}
-    return feature
-
-  return [unify_feature(dp, unified) for dp in datapoints]
-
-
 def train_and_test(args):
   db = args.db
 
@@ -188,62 +181,3 @@ def train_and_test(args):
     colors = ['g' if p > 0 else 'r' for p in predicted]
     plt.scatter(x_embedded[:, 0], x_embedded[:, 1], c=colors)
   plt.savefig(f"{exp_dir}/tsne.png")
-
-
-def unify_causality(causalities):
-  d = {}
-  for causality in causalities:
-    for func in causality.keys():
-      d[func] = True
-  return d
-
-
-def unify_features(datapoints):
-  features = [dp.feature() for dp in datapoints]
-  invoked_before = unify_causality([f["invoked_before"] for f in features])
-  invoked_after = unify_causality([f["invoked_after"] for f in features])
-
-  # Unify the features
-  for feature in features:
-    # First invoked before
-    for func in invoked_before.keys():
-      if not func in feature["invoked_before"]:
-        feature["invoked_before"][func] = False
-    # Then invoked after
-    for func in invoked_after.keys():
-      if not func in feature["invoked_after"]:
-        feature["invoked_after"][func] = False
-
-  return features
-
-
-def encode_feature(feature_json):
-  invoked_before_features = encode_causality(feature_json["invoked_before"])
-  invoked_after_features = encode_causality(feature_json["invoked_after"])
-  retval_features = encode_retval(feature_json["retval_check"]) if "retval_check" in feature_json else []
-  argval_0_features = encode_argval(feature_json["argval_0_check"]) if "argval_0_check" in feature_json else []
-  argval_1_features = encode_argval(feature_json["argval_1_check"]) if "argval_1_check" in feature_json else []
-  argval_2_features = encode_argval(feature_json["argval_2_check"]) if "argval_2_check" in feature_json else []
-  argval_3_features = encode_argval(feature_json["argval_3_check"]) if "argval_3_check" in feature_json else []
-  return invoked_before_features + invoked_after_features + retval_features + \
-         argval_0_features + argval_1_features + argval_2_features + argval_3_features
-
-
-def encode_causality(causality):
-  return [int(causality[key]) for key in sorted(causality)]
-
-
-def encode_retval(retval):
-  fields = ["check_branch_taken", "branch_is_zero", "branch_not_zero"]
-  if retval["has_retval_check"]:
-    return [1] * len(fields) + [retval[f] for f in fields]
-  else:
-    return [0] * (2 * len(fields))
-
-
-def encode_argval(argval):
-  fields = ["check_branch_taken", "branch_is_zero", "branch_not_zero"]
-  if argval["has_argval_check"]:
-    return [1] * len(fields) + [argval[f] for f in fields]
-  else:
-    return [0] * (2 * len(fields))
