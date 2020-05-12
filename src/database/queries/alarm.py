@@ -11,6 +11,7 @@ class AlarmQuery(Executor):
     parser.add_argument('learning-dir', type=str, help="learning dir that contains alarms.csv")
     parser.add_argument('--source', type=str)
     parser.add_argument('--padding', type=int)
+    parser.add_argument('--slice', action='store_true')
 
   @staticmethod
   def execute(args):
@@ -20,6 +21,7 @@ class AlarmQuery(Executor):
 
     pd = pandas.read_csv(os.path.join(var_args["learning-dir"], "alarms.csv"))
     nalarms = len(pd)
+    lastslice = -1
     for i in range(nalarms):
       d = pd.iloc[i]
       input_bc_file = d["bc"]
@@ -27,6 +29,10 @@ class AlarmQuery(Executor):
       bc = bc_name if bc_name else input_bc_file
       slice_id = d["slice_id"]
       trace_id = d["trace_id"]
+
+      if lastslice == slice_id and args.slice:
+          continue
+      lastslice = slice_id
 
       dugraph = args.db.dugraph(fn, bc, slice_id, trace_id)
       if dugraph:
@@ -44,7 +50,7 @@ class AlarmQuery(Executor):
           slice = db.slice(fn, bc, slice_id)
           toks = slice['call_edge']['location'].split(":")
           path, func, line, col = toks[0], toks[1], int(toks[2]), toks[3]
-          cprint(f"Slice {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
+          cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
           path = os.path.join(args.source, path)
           padding = args.padding if args.padding else 20
           if not os.path.exists(path):
