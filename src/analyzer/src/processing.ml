@@ -185,6 +185,7 @@ end
 module Location = struct
   type t =
     | Address of string
+    | Argument of int
     | Variable of string
     | SymExpr of SymExpr.t
     | Gep of t

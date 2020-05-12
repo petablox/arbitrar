@@ -410,6 +410,8 @@ and transfer llctx instr env state =
               (Location.gep_of l |> Value.location, state)
           | Value.SymExpr s ->
               (Location.symexpr s |> Location.gep_of |> Value.location, state)
+          | Value.Argument i ->
+              (Location.argument i |> Location.gep_of |> Value.location, state)
           | _ ->
               let l = Location.new_symbol () in
               ( Value.location l

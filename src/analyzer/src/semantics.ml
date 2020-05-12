@@ -231,6 +231,7 @@ end
 module Location = struct
   type t =
     | Address of Address.t
+    | Argument of int
     | Variable of Variable.t
     | SymExpr of SymExpr.t
     | Gep of t
@@ -238,6 +239,8 @@ module Location = struct
   [@@deriving to_yojson]
 
   let compare = compare
+
+  let argument i = Argument i
 
   let variable v = Variable v
 
@@ -258,6 +261,8 @@ module Location = struct
   let rec pp fmt = function
     | Address a ->
         F.fprintf fmt "&%d" a
+    | Argument i ->
+        F.fprintf fmt "Arg%d" i
     | Variable v ->
         let name = Llvm.value_name v in
         if name = "" then F.fprintf fmt "%s" (Utils.string_of_exp v)
