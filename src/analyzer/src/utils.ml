@@ -27,8 +27,6 @@ let contains s1 s2 =
     false
   with Exit -> true
 
-let ll_func_cache = Hashtbl.create 2048
-
 let exp_func_name : string -> string option =
   let asm = " asm " in
   let perc_reg = Str.regexp "%\\d+" in
@@ -53,42 +51,22 @@ let exp_func_name : string -> string option =
             Some (Str.matched_group 1 str)
           with _ -> None )
 
-let ll_func_name (f : Llvm.llvalue) : string option =
-  if Hashtbl.mem ll_func_cache f then Hashtbl.find ll_func_cache f
-  else
-    let name = Llvm.value_name f |> exp_func_name in
-    Hashtbl.add ll_func_cache f name ;
-    name
+module GlobalCache = struct
+  let ll_func_cache = Hashtbl.create 2048
+
+  let ll_func (f : Llvm.llvalue) : string option =
+    if Hashtbl.mem ll_func_cache f then Hashtbl.find ll_func_cache f
+    else
+      let name = Llvm.value_name f |> exp_func_name in
+      Hashtbl.add ll_func_cache f name ;
+      name
+end
 
 let initialize_output_directories outdir =
   List.iter mkdir
     [outdir; outdir ^ "/dugraphs"; outdir ^ "/dots"; outdir ^ "/traces"]
 
 (* LLVM utility functions *)
-
-let ll_value_string_cache = Hashtbl.create 2048
-
-let string_of_llvalue_cache instr =
-  if Hashtbl.mem ll_value_string_cache instr then
-    Hashtbl.find ll_value_string_cache instr
-  else
-    let str = Llvm.string_of_llvalue instr |> String.trim in
-    Hashtbl.add ll_value_string_cache instr str ;
-    str
-
-let string_of_instr = string_of_llvalue_cache
-
-let lhs_string_cache : (Llvm.llvalue, string) Hashtbl.t = Hashtbl.create 2048
-
-let lhs_counter = ref 0
-
-let string_of_lhs instr =
-  if Hashtbl.mem lhs_string_cache instr then Hashtbl.find lhs_string_cache instr
-  else
-    let str = "%" ^ string_of_int !lhs_counter in
-    lhs_counter := !lhs_counter + 1 ;
-    Hashtbl.add lhs_string_cache instr str ;
-    str
 
 let is_assignment = function
   | Llvm.Opcode.Invoke
@@ -196,72 +174,111 @@ let is_argument exp =
   | _ ->
       false
 
-let string_of_exp_cache = Hashtbl.create 2048
+module SliceCache = struct
+  let ll_value_string_cache = Hashtbl.create 2048
 
-let arg_counter = ref 0
+  let ll_value_string instr =
+    if Hashtbl.mem ll_value_string_cache instr then
+      Hashtbl.find ll_value_string_cache instr
+    else
+      let str = Llvm.string_of_llvalue instr |> String.trim in
+      Hashtbl.add ll_value_string_cache instr str ;
+      str
 
-let const_counter = ref 0
+  let arg_counter = ref 0
 
-let arg_cache = Hashtbl.create 2048
+  let arg_id_cache = Hashtbl.create 2048
 
-let arg_id_of_exp exp =
-  if Hashtbl.mem arg_cache exp then Hashtbl.find arg_cache exp
-  else
-    let arg_id = !arg_counter in
-    arg_counter := !arg_counter + 1 ;
-    Hashtbl.add arg_cache exp arg_id ;
-    arg_id
+  let arg_id exp =
+    if Hashtbl.mem arg_id_cache exp then Hashtbl.find arg_id_cache exp
+    else
+      let arg_id = !arg_counter in
+      arg_counter := !arg_counter + 1 ;
+      Hashtbl.add arg_id_cache exp arg_id ;
+      arg_id
 
-let string_of_exp exp =
-  if Hashtbl.mem string_of_exp_cache exp then
-    Hashtbl.find string_of_exp_cache exp
-  else
-    let str =
-      match Llvm.classify_value exp with
-      | Llvm.ValueKind.NullValue ->
-          "0"
-      | BasicBlock
-      | InlineAsm
-      | MDNode
-      | MDString
-      | BlockAddress
-      | ConstantAggregateZero
-      | ConstantArray
-      | ConstantDataArray
-      | ConstantDataVector
-      | ConstantExpr ->
-          string_of_llvalue_cache exp
-      | Argument ->
-          let arg_id = arg_id_of_exp exp in
-          "%arg" ^ string_of_int arg_id
-      | ConstantFP | ConstantInt ->
-          "%const" ^ string_of_int !const_counter
-      | ConstantPointerNull ->
-          "0"
-      | ConstantStruct | ConstantVector ->
-          string_of_llvalue_cache exp
-      | Function ->
-          ll_func_name exp |> Option.value ~default:"unknown"
-      | GlobalIFunc | GlobalAlias ->
-          string_of_llvalue_cache exp
-      | GlobalVariable ->
-          Llvm.value_name exp
-      | UndefValue ->
-          "undef"
-      | Instruction i when is_assignment i -> (
-        try string_of_lhs exp with _ -> string_of_instr exp )
-      | Instruction _ ->
-          string_of_instr exp
-    in
-    Hashtbl.add string_of_exp_cache exp str ;
-    str
+  let const_counter = ref 0
 
-let clear_llvalue_string_cache _ =
-  lhs_counter := 0 ;
-  arg_counter := 0 ;
-  Hashtbl.clear ll_value_string_cache ;
-  Hashtbl.clear lhs_string_cache ;
-  ()
+  let const_id_cache = Hashtbl.create 2048
+
+  let const_id exp =
+    if Hashtbl.mem const_id_cache exp then
+      Hashtbl.find const_id_cache exp
+    else
+      let const_id = !const_counter in
+      const_counter := !const_counter + 1 ;
+      Hashtbl.add const_id_cache exp const_id ;
+      const_id
+
+  let lhs_string_cache : (Llvm.llvalue, string) Hashtbl.t = Hashtbl.create 2048
+
+  let lhs_counter = ref 0
+
+  let string_of_lhs instr =
+    if Hashtbl.mem lhs_string_cache instr then Hashtbl.find lhs_string_cache instr
+    else
+      let str = "%" ^ string_of_int !lhs_counter in
+      lhs_counter := !lhs_counter + 1 ;
+      Hashtbl.add lhs_string_cache instr str ;
+      str
+
+  let string_of_exp_cache = Hashtbl.create 2048
+
+  let string_of_exp exp =
+    if Hashtbl.mem string_of_exp_cache exp then
+      Hashtbl.find string_of_exp_cache exp
+    else
+      let str =
+        match Llvm.classify_value exp with
+        | Llvm.ValueKind.NullValue ->
+            "0"
+        | BasicBlock
+        | InlineAsm
+        | MDNode
+        | MDString
+        | BlockAddress
+        | ConstantAggregateZero
+        | ConstantArray
+        | ConstantDataArray
+        | ConstantDataVector
+        | ConstantExpr ->
+            ll_value_string exp
+        | Argument ->
+            let a = arg_id exp in
+            "%arg" ^ string_of_int a
+        | ConstantFP | ConstantInt ->
+            let c = const_id exp in
+            "%const" ^ string_of_int c
+        | ConstantPointerNull ->
+            "0"
+        | ConstantStruct | ConstantVector ->
+            ll_value_string exp
+        | Function ->
+            GlobalCache.ll_func exp |> Option.value ~default:"unknown"
+        | GlobalIFunc | GlobalAlias ->
+            ll_value_string exp
+        | GlobalVariable ->
+            Llvm.value_name exp
+        | UndefValue ->
+            "undef"
+        | Instruction i when is_assignment i -> (
+          try string_of_lhs exp with _ -> ll_value_string exp )
+        | Instruction _ ->
+            ll_value_string exp
+      in
+      Hashtbl.add string_of_exp_cache exp str ;
+      str
+
+  let clear _ =
+    lhs_counter := 0 ;
+    arg_counter := 0 ;
+    const_counter := 0 ;
+    Hashtbl.clear ll_value_string_cache ;
+    Hashtbl.clear lhs_string_cache ;
+    Hashtbl.clear arg_id_cache ;
+    Hashtbl.clear const_id_cache ;
+    ()
+end
 
 let fold_left_all_instr f a m =
   Llvm.fold_left_functions
@@ -278,11 +295,11 @@ let string_of_location llctx instr =
   let func = Llvm.instr_parent instr |> Llvm.block_parent |> Llvm.value_name in
   match dbg with
   | Some s -> (
-      let str = string_of_llvalue_cache s in
+      let str = SliceCache.ll_value_string s in
       let blk_mdnode = (Llvm.get_mdnode_operands s).(0) in
       let fun_mdnode = (Llvm.get_mdnode_operands blk_mdnode).(0) in
       let file_mdnode = (Llvm.get_mdnode_operands fun_mdnode).(0) in
-      let filename = string_of_llvalue_cache file_mdnode in
+      let filename = SliceCache.ll_value_string file_mdnode in
       let filename = String.sub filename 2 (String.length filename - 3) in
       let r =
         Str.regexp "!DILocation(line: \\([0-9]+\\), column: \\([0-9]+\\)"
@@ -309,15 +326,15 @@ let json_of_opcode name =
 
 let json_of_unop instr name =
   let opcode = ("opcode", `String name) in
-  let result = `String (string_of_lhs instr) in
-  let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+  let result = `String (SliceCache.string_of_exp instr) in
+  let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
   `Assoc [opcode; ("result", result); ("op0", op0)]
 
 let json_of_binop instr name =
   let opcode = ("opcode", `String name) in
-  let result = `String (string_of_lhs instr) in
-  let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-  let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+  let result = `String (SliceCache.string_of_lhs instr) in
+  let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
+  let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
   `Assoc [opcode; ("result", result); ("op0", op0); ("op1", op1)]
 
 let json_of_icmp = function
@@ -406,7 +423,7 @@ let json_of_instr instr =
           let opcode = ("opcode", `String "ret") in
           let ret =
             if num_of_operands = 0 then `Null
-            else `String (string_of_exp (Llvm.operand instr 0))
+            else `String (SliceCache.string_of_exp (Llvm.operand instr 0))
           in
           `Assoc [opcode; ("op0", ret)]
       | Br ->
@@ -414,14 +431,14 @@ let json_of_instr instr =
           let cond =
             match Llvm.get_branch instr with
             | Some (`Conditional _) ->
-                `String (string_of_exp (Llvm.operand instr 0))
+                `String (SliceCache.string_of_exp (Llvm.operand instr 0))
             | _ ->
                 `Null
           in
           `Assoc [opcode; ("cond", cond)]
       | Switch ->
           let opcode = ("opcode", `String "switch") in
-          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
+          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
           `Assoc [opcode; ("op0", op0)]
       | IndirectBr ->
           json_of_opcode "indirectbr"
@@ -469,13 +486,13 @@ let json_of_instr instr =
           json_of_unop instr "load"
       | Store ->
           let opcode = ("opcode", `String "store") in
-          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-          let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
+          let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
           `Assoc [opcode; ("op0", op0); ("op1", op1)]
       | GetElementPtr ->
           let opcode = ("opcode", `String "getelementptr") in
-          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-          let result = `String (string_of_lhs instr) in
+          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
+          let result = `String (SliceCache.string_of_lhs instr) in
           `Assoc [opcode; ("op0", op0); ("result", result)]
       | Trunc ->
           json_of_unop instr "trunc"
@@ -511,9 +528,9 @@ let json_of_instr instr =
                 failwith "Stmt.json_of_stmt (icmp)"
           in
           let predicate = ("predicate", json_of_icmp op) in
-          let result = `String (string_of_lhs instr) in
-          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-          let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+          let result = `String (SliceCache.string_of_lhs instr) in
+          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
+          let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
           `Assoc
             [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
       | FCmp ->
@@ -526,17 +543,17 @@ let json_of_instr instr =
                 failwith "Stmt.json_of_stmt (fcmp)"
           in
           let predicate = ("predicate", json_of_fcmp op) in
-          let result = `String (string_of_lhs instr) in
-          let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
-          let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
+          let result = `String (SliceCache.string_of_lhs instr) in
+          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
+          let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
           `Assoc
             [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
       | PHI ->
           let opcode = ("opcode", `String "phi") in
-          let result = `String (string_of_lhs instr) in
+          let result = `String (SliceCache.string_of_lhs instr) in
           let incoming =
             Llvm.incoming instr
-            |> List.map (fun x -> `String (fst x |> string_of_exp))
+            |> List.map (fun x -> `String (fst x |> SliceCache.string_of_exp))
           in
           `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
       | Call -> (
@@ -546,14 +563,14 @@ let json_of_instr instr =
             | Llvm.TypeKind.Void ->
                 `Null
             | _ ->
-                `String (string_of_lhs instr)
+                `String (SliceCache.string_of_lhs instr)
           in
           let callee_exp =
-            Llvm.operand instr (num_of_operands - 1) |> string_of_exp
+            Llvm.operand instr (num_of_operands - 1) |> SliceCache.string_of_exp
           in
           let args =
             List.fold_left
-              (fun args a -> args @ [`String (string_of_exp a)])
+              (fun args a -> args @ [`String (SliceCache.string_of_exp a)])
               []
               (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
           in

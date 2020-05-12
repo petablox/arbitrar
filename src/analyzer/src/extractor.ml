@@ -3,7 +3,7 @@ module Metadata = Executor.Metadata
 
 let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
     : Executor.Environment.t =
-  Utils.clear_llvalue_string_cache () ;
+  Utils.SliceCache.clear () ;
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
@@ -21,7 +21,7 @@ let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
       (Llvm.value_name entry) ;
   let target_name =
     Llvm.operand target (Llvm.num_operands target - 1)
-    |> Utils.ll_func_name |> Option.get
+    |> Utils.GlobalCache.ll_func |> Option.get
   in
   let file_prefix = target_name ^ "-" ^ string_of_int idx in
   let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in

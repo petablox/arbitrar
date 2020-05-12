@@ -157,7 +157,7 @@ let eval exp memory =
     | None ->
         (Value.Unknown, []) )
   | Argument ->
-      (Value.Argument (Utils.arg_id_of_exp exp), [])
+      (Value.Argument (Utils.SliceCache.arg_id exp), [])
   | NullValue | ConstantPointerNull ->
       (Value.Int Int64.zero, [])
   | Instruction _ (* | Argument *) ->
@@ -320,7 +320,7 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr env state =
-  if !Options.verbose > 1 then prerr_endline (Utils.string_of_instr instr) ;
+  if !Options.verbose > 1 then prerr_endline (Utils.SliceCache.string_of_exp instr) ;
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state
   else

@@ -8,8 +8,8 @@ module CallEdge = struct
   let create caller callee instr location = {caller; callee; instr; location}
 
   let to_json llm ce : Yojson.Safe.t =
-    let caller_name = Utils.ll_func_name ce.caller |> Option.get in
-    let callee_name = Utils.ll_func_name ce.callee |> Option.get in
+    let caller_name = Utils.GlobalCache.ll_func ce.caller |> Option.get in
+    let callee_name = Utils.GlobalCache.ll_func ce.callee |> Option.get in
     let instr = "" in
     (* Utils.string_of_instr ce.instr in *)
     `Assoc
@@ -287,12 +287,12 @@ module Slice = struct
     let functions =
       `List
         (List.map
-           (fun f -> `String (Utils.ll_func_name f |> Option.get))
+           (fun f -> `String (Utils.GlobalCache.ll_func f |> Option.get))
            slice.functions)
     in
     let fn_type = FunctionType.to_json slice.target_type in
     let call_edge = CallEdge.to_json llm slice.call_edge in
-    let entry = `String (Utils.ll_func_name slice.entry |> Option.get) in
+    let entry = `String (Utils.GlobalCache.ll_func slice.entry |> Option.get) in
     `Assoc
       [ ("functions", functions)
       ; ("entry", entry)
@@ -509,7 +509,7 @@ let slice llctx llm depth : Slices.t =
         Printf.printf "Slicing edge #%d...\r" i ;
         flush stdout ;
         let caller, _, callee = edge in
-        if filter (Utils.ll_func_name callee |> Option.get) then
+        if filter (Utils.GlobalCache.ll_func callee |> Option.get) then
           let singleton_caller = LlvalueSet.singleton caller in
           let entries =
             find_entries depth call_graph singleton_caller LlvalueSet.empty
@@ -543,7 +543,7 @@ let slice llctx llm depth : Slices.t =
                 in
                 LlvalueSet.filter
                   (fun callee ->
-                    not (is_excluding (Utils.ll_func_name callee |> Option.get)))
+                    not (is_excluding (Utils.GlobalCache.ll_func callee |> Option.get)))
                   all_callees
               in
               let location = Utils.string_of_location llctx instr in
@@ -582,7 +582,7 @@ let occurrence input_file =
   let func_count_list =
     FunctionCounter.fold
       (fun func count ls ->
-        match Utils.ll_func_name func with
+        match Utils.GlobalCache.ll_func func with
         | Some fname ->
             (fname, count) :: ls
         | None ->

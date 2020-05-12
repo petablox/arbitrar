@@ -17,7 +17,7 @@ module Stmt = struct
     let common = [("location", `String s.location)] in
     let common =
       if !Options.include_instr then
-        ("instr", `String (Utils.string_of_instr s.instr)) :: common
+        ("instr", `String (Utils.SliceCache.string_of_exp s.instr)) :: common
       else common
     in
     match Utils.json_of_instr s.instr with
@@ -26,9 +26,9 @@ module Stmt = struct
     | _ ->
         failwith "Stmt.to_json"
 
-  let to_string s = Utils.string_of_instr s.instr
+  let to_string s = Utils.SliceCache.string_of_exp s.instr
 
-  let pp fmt s = F.fprintf fmt "%s" (Utils.string_of_instr s)
+  let pp fmt s = F.fprintf fmt "%s" (Utils.SliceCache.string_of_exp s)
 end
 
 module Stack = struct
@@ -219,7 +219,7 @@ end
 module Variable = struct
   type t = Llvm.llvalue
 
-  let to_yojson t = `String (Utils.string_of_exp t)
+  let to_yojson t = `String (Utils.SliceCache.string_of_exp t)
 end
 
 module Address = struct
@@ -265,7 +265,7 @@ module Location = struct
         F.fprintf fmt "Arg%d" i
     | Variable v ->
         let name = Llvm.value_name v in
-        if name = "" then F.fprintf fmt "%s" (Utils.string_of_exp v)
+        if name = "" then F.fprintf fmt "%s" (Utils.SliceCache.string_of_exp v)
         else F.fprintf fmt "%s" name
     | SymExpr s ->
         SymExpr.pp fmt s
