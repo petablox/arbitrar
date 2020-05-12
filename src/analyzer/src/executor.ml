@@ -263,8 +263,16 @@ let reduce_dugraph target orig =
         if
           Path.check_path du_checker v target
           || Path.check_path du_checker target v
+          || Stmt.is_control_flow v.stmt
         then g
-        else DUGraph.remove_vertex g v)
+        else
+          (* Add a control flow edge from previous to next node *)
+          let with_cf =
+            match DUGraph.pred_control g v, DUGraph.succ_control g v with
+            | pred :: _, next :: _ -> DUGraph.add_edge g pred next
+            | _ -> g
+          in
+          DUGraph.remove_vertex with_cf v)
       orig orig
   in
   (* add back nodes that are reachable from any current node *)

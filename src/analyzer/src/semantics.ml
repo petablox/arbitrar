@@ -13,6 +13,10 @@ module Stmt = struct
     let location = Utils.string_of_location cache llctx instr in
     {instr; location}
 
+  let opcode stmt = Llvm.instr_opcode stmt.instr
+
+  let is_control_flow stmt = opcode stmt |> Utils.is_control_flow
+
   let to_json cache s =
     let common = [("location", `String s.location)] in
     let common =
