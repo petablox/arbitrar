@@ -20,15 +20,15 @@ let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
       (Executor.Traces.length env.Executor.Environment.traces)
       (Llvm.value_name entry) ;
   let target_name =
-    Llvm.operand target (Llvm.num_operands target - 1) |> Utils.ll_func_name |> Option.get
+    Llvm.operand target (Llvm.num_operands target - 1)
+    |> Utils.ll_func_name |> Option.get
   in
   let file_prefix = target_name ^ "-" ^ string_of_int idx in
   let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
   let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
   let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
   if !Options.verbose > 0 then Executor.print_report lc env ;
-  if !Options.output_trace then
-    Executor.dump_traces ~prefix:traces_prefix env ;
+  if !Options.output_trace then Executor.dump_traces ~prefix:traces_prefix env ;
   if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
   Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
   env
@@ -79,20 +79,19 @@ let get_slices lc outdir llctx llm : Slicer.Slices.t =
 let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
-  let _ = List.iteri
-    (fun idx slice ->
-      Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
-      flush stdout ;
-      let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
-      ())
-    slices
+  let _ =
+    List.iteri
+      (fun idx slice ->
+        Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
+        flush stdout ;
+        let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
+        ())
+      slices
   in
   let msg =
     Printf.sprintf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
   in
-  Printf.printf "\n%s" msg ;
-  flush stdout ;
-  Printf.fprintf lc "%s" msg
+  Printf.printf "\n%s" msg ; flush stdout ; Printf.fprintf lc "%s" msg
 
 let main input_file =
   Printf.printf "Running extractor on %s...\n" input_file ;

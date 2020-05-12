@@ -23,7 +23,7 @@ let contains s1 s2 =
     let len = String.length s2 in
     for i = 0 to String.length s1 - len do
       if String.sub s1 i len = s2 then raise Exit
-    done;
+    done ;
     false
   with Exit -> true
 
@@ -85,7 +85,7 @@ let lhs_counter = ref 0
 let string_of_lhs instr =
   if Hashtbl.mem lhs_string_cache instr then Hashtbl.find lhs_string_cache instr
   else
-    let str = "%" ^ (string_of_int !lhs_counter) in
+    let str = "%" ^ string_of_int !lhs_counter in
     lhs_counter := !lhs_counter + 1 ;
     Hashtbl.add lhs_string_cache instr str ;
     str
@@ -213,7 +213,8 @@ let arg_id_of_exp exp =
     arg_id
 
 let string_of_exp exp =
-  if Hashtbl.mem string_of_exp_cache exp then Hashtbl.find string_of_exp_cache exp
+  if Hashtbl.mem string_of_exp_cache exp then
+    Hashtbl.find string_of_exp_cache exp
   else
     let str =
       match Llvm.classify_value exp with
@@ -232,9 +233,9 @@ let string_of_exp exp =
           string_of_llvalue_cache exp
       | Argument ->
           let arg_id = arg_id_of_exp exp in
-          "%arg" ^ (string_of_int arg_id)
+          "%arg" ^ string_of_int arg_id
       | ConstantFP | ConstantInt ->
-          "%const" ^ (string_of_int !const_counter)
+          "%const" ^ string_of_int !const_counter
       | ConstantPointerNull ->
           "0"
       | ConstantStruct | ConstantVector ->
@@ -248,7 +249,7 @@ let string_of_exp exp =
       | UndefValue ->
           "undef"
       | Instruction i when is_assignment i -> (
-          try string_of_lhs exp with _ -> string_of_instr exp )
+        try string_of_lhs exp with _ -> string_of_instr exp )
       | Instruction _ ->
           string_of_instr exp
     in
@@ -378,16 +379,19 @@ let json_of_fcmp = function
 let opcode_of_instr_cache = Hashtbl.create 2048
 
 let opcode_of_instr instr =
-  if Hashtbl.mem opcode_of_instr_cache instr then Hashtbl.find opcode_of_instr_cache instr
+  if Hashtbl.mem opcode_of_instr_cache instr then
+    Hashtbl.find opcode_of_instr_cache instr
   else
     let opcode = Llvm.instr_opcode instr in
     Hashtbl.add opcode_of_instr_cache instr opcode ;
     opcode
 
-let json_of_instr_cache : (Llvm.llvalue, Yojson.Safe.t) Hashtbl.t = Hashtbl.create 2048
+let json_of_instr_cache : (Llvm.llvalue, Yojson.Safe.t) Hashtbl.t =
+  Hashtbl.create 2048
 
 let json_of_instr instr =
-  if Hashtbl.mem json_of_instr_cache instr then Hashtbl.find json_of_instr_cache instr
+  if Hashtbl.mem json_of_instr_cache instr then
+    Hashtbl.find json_of_instr_cache instr
   else
     let json =
       let num_of_operands = Llvm.num_operands instr in
@@ -510,7 +514,8 @@ let json_of_instr instr =
           let result = `String (string_of_lhs instr) in
           let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
           let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
-          `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+          `Assoc
+            [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
       | FCmp ->
           let opcode = ("opcode", `String "fcmp") in
           let op =
@@ -524,7 +529,8 @@ let json_of_instr instr =
           let result = `String (string_of_lhs instr) in
           let op0 = `String (string_of_exp (Llvm.operand instr 0)) in
           let op1 = `String (string_of_exp (Llvm.operand instr 1)) in
-          `Assoc [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+          `Assoc
+            [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
       | PHI ->
           let opcode = ("opcode", `String "phi") in
           let result = `String (string_of_lhs instr) in

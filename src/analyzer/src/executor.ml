@@ -153,7 +153,8 @@ let eval exp memory =
         (Value.Int i, [])
     | None ->
         (Value.Unknown, []) )
-  | Argument -> (Value.Argument (Utils.arg_id_of_exp exp), [])
+  | Argument ->
+      (Value.Argument (Utils.arg_id_of_exp exp), [])
   | NullValue | ConstantPointerNull ->
       (Value.Int Int64.zero, [])
   | Instruction _ (* | Argument *) ->

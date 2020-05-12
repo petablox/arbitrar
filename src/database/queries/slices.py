@@ -19,29 +19,29 @@ class SlicesQuery(Executor):
       if not args.location or args.location in slice["call_edge"]["location"]:
         system('clear')
         if not args.source:
-            print("Slice", slice_id)
-            pp.pprint(slice)
+          print("Slice", slice_id)
+          pp.pprint(slice)
         else:
-            # Split in
-            toks = slice['call_edge']['location'].split(":")
-            path, func, line, col = toks[0], toks[1], int(toks[2]), toks[3]
-            cprint(f"Slice {slice_id} [{path}] [{(slice['call_edge']['instr']).strip()}]")
-            path = os.path.join(args.source, path)
-            padding = args.padding if args.padding else 5 
-            if not os.path.exists(path):
-                print(f"No file found at {path}") 
-            else:
-                with open(path, "r") as f:
-                    lcount = 1
-                    lmin = max(0, line-padding)
-                    lmax = line+padding
-                    for l in f.readlines():
-                        if lcount >= lmin and lcount <= lmax:
-                            if lcount == line:
-                                cprint(f"==> {lcount}:{l}", "red", end="")
-                            else:
-                                cprint(f"    {lcount}:{l}", end="")
-                        lcount += 1 
+          # Split in
+          toks = slice['call_edge']['location'].split(":")
+          path, func, line, col = toks[0], toks[1], int(toks[2]), toks[3]
+          cprint(f"Slice {slice_id} [{path}] [{(slice['call_edge']['instr']).strip()}]")
+          path = os.path.join(args.source, path)
+          padding = args.padding if args.padding else 5
+          if not os.path.exists(path):
+            print(f"No file found at {path}")
+          else:
+            with open(path, "r") as f:
+              lcount = 1
+              lmin = max(0, line - padding)
+              lmax = line + padding
+              for l in f.readlines():
+                if lcount >= lmin and lcount <= lmax:
+                  if lcount == line:
+                    cprint(f"==> {lcount}:{l}", "red", end="")
+                  else:
+                    cprint(f"    {lcount}:{l}", end="")
+                lcount += 1
 
-            print()
+          print()
         input('Press enter to continue...')

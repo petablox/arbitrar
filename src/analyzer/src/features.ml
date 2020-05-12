@@ -289,7 +289,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
               let feature =
                 List.fold_left
                   (fun acc (func, id) ->
-                    if func = func_name then (
+                    if func = func_name then
                       let invoked = true in
                       let invoked_more_than_once = acc.invoked in
                       let node = Trace.node trace id in
@@ -303,7 +303,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                       ; invoked_more_than_once
                       ; share_argument= acc.share_argument || share_argument
                       ; share_return_value=
-                          acc.share_return_value || share_return_value } )
+                          acc.share_return_value || share_return_value }
                     else acc)
                   new_feature results
               in
