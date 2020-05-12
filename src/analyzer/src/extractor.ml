@@ -77,22 +77,23 @@ let get_slices lc outdir llctx llm : Slicer.Slices.t =
 
 let loading idx =
   let i = idx mod 4 in
-  match i with | 0 -> '|' | 1 -> '/' | 2 -> '-' | _ -> '\\'
+  match i with 0 -> '|' | 1 -> '/' | 2 -> '-' | _ -> '\\'
 
 let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
   let array_slices = Array.of_list slices in
   let num_slices = Array.length array_slices in
-  let _ =
-    Parmap.parmap
-      (fun idx ->
-        let slice = array_slices.(idx) in
-        let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
-        Printf.printf "Doing symbolic execution on %d slice %c\r" num_slices (loading idx) ;
-        flush stdout)
-      (Parmap.L (Utils.range num_slices))
-  in
+  if num_slices > 0 then
+    ignore
+      (Parmap.parmap
+         (fun idx ->
+           let slice = array_slices.(idx) in
+           let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
+           Printf.printf "Doing symbolic execution on %d slice %c\r" num_slices
+             (loading idx) ;
+           flush stdout)
+         (Parmap.L (Utils.range num_slices))) ;
   let msg =
     Printf.sprintf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
   in

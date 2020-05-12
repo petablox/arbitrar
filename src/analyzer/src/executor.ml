@@ -268,9 +268,11 @@ let reduce_dugraph target orig =
         else
           (* Add a control flow edge from previous to next node *)
           let with_cf =
-            match DUGraph.pred_control g v, DUGraph.succ_control g v with
-            | pred :: _, next :: _ -> DUGraph.add_edge g pred next
-            | _ -> g
+            match (DUGraph.pred_control g v, DUGraph.succ_control g v) with
+            | pred :: _, next :: _ ->
+                DUGraph.add_edge g pred next
+            | _ ->
+                g
           in
           DUGraph.remove_vertex with_cf v)
       orig orig

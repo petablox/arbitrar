@@ -75,10 +75,10 @@ let initialize_output_directories outdir =
 (* LLVM utility functions *)
 
 let is_control_flow = function
-  | Llvm.Opcode.Ret
-  | Llvm.Opcode.Br ->
+  | Llvm.Opcode.Ret | Llvm.Opcode.Br ->
       true
-  | _ -> false
+  | _ ->
+      false
 
 let is_assignment = function
   | Llvm.Opcode.Invoke
