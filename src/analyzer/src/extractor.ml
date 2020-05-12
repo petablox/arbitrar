@@ -3,7 +3,6 @@ module Metadata = Executor.Metadata
 
 let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
     : Executor.Environment.t =
-  Utils.SliceCache.clear () ;
   let poi = slice.call_edge in
   let boundaries = slice.functions in
   let entry = slice.entry in
@@ -79,14 +78,16 @@ let get_slices lc outdir llctx llm : Slicer.Slices.t =
 let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
+  let array_slices = Array.of_list slices in
+  let num_slices = Array.length array_slices in
   let _ =
-    List.iteri
-      (fun idx slice ->
-        Printf.printf "%d/%d slices processing\r" (idx + 1) (List.length slices) ;
-        flush stdout ;
+    Parmap.parmap
+      (fun idx ->
+        let slice = array_slices.(idx) in
         let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
-        ())
-      slices
+        Printf.printf "Slice %d finished symbolic execution\n" idx ;
+        flush stdout)
+      (Parmap.L (Utils.range num_slices))
   in
   let msg =
     Printf.sprintf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)

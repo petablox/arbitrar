@@ -11,3 +11,4 @@ PKG ppx_compare
 PKG ppx_deriving.std
 PKG ppx_deriving_yojson
 PKG yojson
+PKG parmap

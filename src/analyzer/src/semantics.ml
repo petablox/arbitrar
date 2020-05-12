@@ -9,18 +9,18 @@ module Stmt = struct
 
   let equal x y = x.instr == y.instr
 
-  let make llctx instr =
-    let location = Utils.string_of_location llctx instr in
+  let make cache llctx instr =
+    let location = Utils.string_of_location cache llctx instr in
     {instr; location}
 
-  let to_json s =
+  let to_json cache s =
     let common = [("location", `String s.location)] in
     let common =
       if !Options.include_instr then
-        ("instr", `String (Utils.SliceCache.string_of_exp s.instr)) :: common
+        ("instr", `String (Utils.EnvCache.string_of_exp cache s.instr)) :: common
       else common
     in
-    match Utils.json_of_instr s.instr with
+    match Utils.json_of_instr cache s.instr with
     | `Assoc l ->
         `Assoc (common @ l)
     | _ ->
@@ -219,7 +219,7 @@ end
 module Variable = struct
   type t = Llvm.llvalue
 
-  let to_yojson t = `String (Utils.SliceCache.string_of_exp t)
+  let to_json cache t = `String (Utils.EnvCache.string_of_exp cache t)
 end
 
 module Address = struct
@@ -236,7 +236,21 @@ module Location = struct
     | SymExpr of SymExpr.t
     | Gep of t
     | Unknown
-  [@@deriving to_yojson]
+
+  let rec to_json cache l =
+    match l with
+    | Address a ->
+        `List [`String "Address"; Address.to_yojson a]
+    | Argument i ->
+        `List [`String "Argument"; `Int i]
+    | Variable v ->
+        `List [`String "Variable"; Variable.to_json cache v]
+    | SymExpr e ->
+        `List [`String "SymExpr"; SymExpr.to_yojson e]
+    | Gep e ->
+        `List [`String "Gep"; to_json cache e]
+    | Unknown ->
+        `List [`String "Unknown"]
 
   let compare = compare
 
@@ -291,7 +305,21 @@ module Value = struct
     | Location of Location.t
     | Argument of int
     | Unknown
-  [@@deriving to_yojson]
+
+  let to_json cache v =
+    match v with
+    | Function f ->
+        `List [`String "Function"; Function.to_yojson f]
+    | SymExpr e ->
+        `List [`String "SymExpr"; SymExpr.to_yojson e]
+    | Int i ->
+        `List [`String "Int"; `Int (Int64.to_int i)]
+    | Location l ->
+        `List [`String "Location"; Location.to_json cache l]
+    | Argument i ->
+        `List [`String "Argument"; `Int i]
+    | Unknown ->
+        `List [`String "Unknown"]
 
   let new_symbol () = SymExpr (SymExpr.new_symbol ())
 
@@ -548,16 +576,16 @@ module Node = struct
 
   let equal = ( = )
 
-  let make llctx instr id is_target semantic_sig =
-    let stmt = Stmt.make llctx instr in
+  let make cache llctx instr id is_target semantic_sig =
+    let stmt = Stmt.make cache llctx instr in
     {stmt; id; is_target; semantic_sig}
 
   let to_string v = string_of_int v.id
 
   let label v = "[" ^ v.stmt.location ^ "]\n" ^ Stmt.to_string v.stmt
 
-  let to_json v =
-    match (Stmt.to_json v.stmt, v.semantic_sig) with
+  let to_json cache v =
+    match (Stmt.to_json cache v.stmt, v.semantic_sig) with
     | `Assoc j, `Assoc k ->
         `Assoc ([("id", `Int v.id)] @ j @ k)
     | _ ->
@@ -577,8 +605,8 @@ module Trace = struct
 
   let length = List.length
 
-  let to_json t =
-    let l = List.fold_left (fun l x -> Node.to_json x :: l) [] t in
+  let to_json cache t =
+    let l = List.fold_left (fun l x -> Node.to_json cache x :: l) [] t in
     `List l
 end
 
@@ -642,12 +670,12 @@ module DUGraph = struct
 
   let default_vertex_attributes g = [`Shape `Box]
 
-  let to_json g =
+  let to_json cache g =
     let vertices, target_id =
       fold_vertex
         (fun v (l, t) ->
           let t = if v.Node.is_target then v.Node.id else t in
-          let vertex = Node.to_json v in
+          let vertex = Node.to_json cache v in
           (vertex :: l, t))
         g ([], -1)
     in
@@ -722,10 +750,10 @@ module State = struct
   let is_target_instr instr s =
     match s.target_instr with Some t -> t = instr | None -> false
 
-  let add_trace llctx instr semantic_sig s =
+  let add_trace cache llctx instr semantic_sig s =
     let new_id = new_instr_count () in
     let is_tgt = is_target_instr instr s in
-    let node = Node.make llctx instr new_id is_tgt semantic_sig in
+    let node = Node.make cache llctx instr new_id is_tgt semantic_sig in
     let instrmap = InstrMap.add instr node s.instrmap in
     let dugraph =
       if !Options.no_control_flow || Trace.is_empty s.trace then s.dugraph

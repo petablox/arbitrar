@@ -25,8 +25,8 @@ module Traces = struct
 
   let length = List.length
 
-  let to_json t =
-    let l = List.map Trace.to_json t in
+  let to_json cache t =
+    let l = List.map (Trace.to_json cache) t in
     `List l
 end
 
@@ -100,7 +100,8 @@ module Environment = struct
     ; traces: Traces.t
     ; target: Llvm.llvalue
     ; dugraphs: DUGraph.t list
-    ; boundaries: Llvm.llvalue list }
+    ; boundaries: Llvm.llvalue list
+    ; cache: Utils.EnvCache.t }
 
   let empty target =
     { metadata= Metadata.empty
@@ -109,7 +110,8 @@ module Environment = struct
     ; traces= Traces.empty
     ; target
     ; dugraphs= []
-    ; boundaries= [] }
+    ; boundaries= []
+    ; cache= Utils.EnvCache.empty () }
 
   let add_trace trace env = {env with traces= Traces.add trace env.traces}
 
@@ -147,7 +149,7 @@ let need_step_into_function boundaries target f : bool =
   let is_target = f == target in
   (not dec_only) && in_bound && (not is_debug) && not is_target
 
-let eval exp memory =
+let eval cache exp memory =
   let kind = Llvm.classify_value exp in
   match kind with
   | Llvm.ValueKind.ConstantInt -> (
@@ -157,7 +159,7 @@ let eval exp memory =
     | None ->
         (Value.Unknown, []) )
   | Argument ->
-      (Value.Argument (Utils.SliceCache.arg_id exp), [])
+      (Value.Argument (Utils.EnvCache.arg_id cache exp), [])
   | NullValue | ConstantPointerNull ->
       (Value.Int Int64.zero, [])
   | Instruction _ (* | Argument *) ->
@@ -192,51 +194,53 @@ let add_syntactic_du_edge instr env state =
   in
   loop 0 state
 
-let semantic_sig_of_binop res v0 v1 =
-  let result_json = Value.to_yojson res in
-  let v0_json = Value.to_yojson v0 in
-  let v1_json = Value.to_yojson v1 in
+let semantic_sig_of_binop cache res v0 v1 =
+  let result_json = Value.to_json cache res in
+  let v0_json = Value.to_json cache v0 in
+  let v1_json = Value.to_json cache v1 in
   `Assoc
     [("result_sem", result_json); ("op0_sem", v0_json); ("op1_sem", v1_json)]
 
-let semantic_sig_of_store v0 v1 =
-  let v0_json = Value.to_yojson v0 in
-  let v1_json = Value.to_yojson v1 in
+let semantic_sig_of_store cache v0 v1 =
+  let v0_json = Value.to_json cache v0 in
+  let v1_json = Value.to_json cache v1 in
   `Assoc [("op0_sem", v0_json); ("op1_sem", v1_json)]
 
-let semantic_sig_of_unop result op0 =
-  let result_json = Value.to_yojson result in
-  let op0_json = Value.to_yojson op0 in
+let semantic_sig_of_unop cache result op0 =
+  let result_json = Value.to_json cache result in
+  let op0_json = Value.to_json cache op0 in
   `Assoc [("result_sem", result_json); ("op0_sem", op0_json)]
 
-let semantic_sig_of_libcall v args =
-  let ret_json = match v with Some s -> Value.to_yojson s | None -> `Null in
-  let args_json = List.map Value.to_yojson args in
+let semantic_sig_of_libcall cache v args =
+  let ret_json = match v with Some s -> Value.to_json cache s | None -> `Null in
+  let args_json = List.map (Value.to_json cache) args in
   `Assoc [("result_sem", ret_json); ("args_sem", `List args_json)]
 
-let semantic_sig_of_call args =
-  let args_json = List.map Value.to_yojson args in
+let semantic_sig_of_call cache args =
+  let args_json = List.map (Value.to_json cache) args in
   `Assoc [("args_sem", `List args_json)]
 
-let semantic_sig_of_return = function
+let semantic_sig_of_return cache i =
+  match i with
   | Some v ->
-      `Assoc [("op0_sem", Value.to_yojson v)]
+      `Assoc [("op0_sem", Value.to_json cache v)]
   | None ->
       `Assoc [("op0_sem", `Null)]
 
-let semantic_sig_of_br = function
+let semantic_sig_of_br cache i =
+  match i with
   | Some (v, br) ->
-      `Assoc [("cond_sem", Value.to_yojson v); ("then_br", `Bool br)]
+      `Assoc [("cond_sem", Value.to_json cache v); ("then_br", `Bool br)]
   | None ->
       `Assoc [("cond_sem", `Null)]
 
-let semantic_sig_of_gep result op0 =
-  let result_json = Value.to_yojson result in
-  let op0_json = Value.to_yojson op0 in
+let semantic_sig_of_gep cache result op0 =
+  let result_json = Value.to_json cache result in
+  let op0_json = Value.to_json cache op0 in
   `Assoc [("result_sem", result_json); ("op0_sem", op0_json)]
 
-let semantic_sig_of_phi ret =
-  let ret_json = Value.to_yojson ret in
+let semantic_sig_of_phi cache ret =
+  let ret_json = Value.to_json cache ret in
   `Assoc [("return_sem", ret_json)]
 
 let rec find_viable_control_succ v orig newg =
@@ -320,7 +324,7 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr env state =
-  if !Options.verbose > 1 then prerr_endline (Utils.SliceCache.string_of_exp instr) ;
+  if !Options.verbose > 1 then prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ;
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state
   else
@@ -331,7 +335,7 @@ and transfer llctx instr env state =
         transfer_br llctx instr env state
     | Switch ->
         let semantic_sig = `Assoc [] in
-        State.add_trace llctx instr semantic_sig state
+        State.add_trace env.Environment.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | Call ->
@@ -339,16 +343,16 @@ and transfer llctx instr env state =
     | Alloca ->
         let var = Location.variable instr in
         let addr = Location.new_address () |> Value.location in
-        let semantic_sig = semantic_sig_of_unop addr Value.unknown in
-        State.add_trace llctx instr semantic_sig state
+        let semantic_sig = semantic_sig_of_unop env.cache addr Value.unknown in
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def var addr instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | Store ->
         let exp0 = Llvm.operand instr 0 in
         let exp1 = Llvm.operand instr 1 in
-        let v0, uses0 = eval exp0 state.State.memory in
-        let v1, uses1 = eval exp1 state.State.memory in
+        let v0, uses0 = eval env.cache exp0 state.State.memory in
+        let v1, uses1 = eval env.cache exp1 state.State.memory in
         let lv, v1, state =
           match v1 with
           | Value.Location l ->
@@ -363,8 +367,8 @@ and transfer llctx instr env state =
                   (eval_lv exp1 state.State.memory)
                   (Value.location l) state )
         in
-        let semantic_sig = semantic_sig_of_store v0 v1 in
-        State.add_trace llctx instr semantic_sig state
+        let semantic_sig = semantic_sig_of_store env.cache v0 v1 in
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
         |> State.add_semantic_du_edges (uses0 @ uses1) instr
@@ -383,8 +387,8 @@ and transfer llctx instr env state =
         in
         let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        let semantic_sig = semantic_sig_of_unop v1 (Value.location lv1) in
-        State.add_trace llctx instr semantic_sig state
+        let semantic_sig = semantic_sig_of_unop env.cache v1 (Value.location lv1) in
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
         |> State.add_semantic_du_edges [lv1] instr
@@ -396,17 +400,17 @@ and transfer llctx instr env state =
     | x when Utils.is_unary_op x ->
         (* Casting operators *)
         let exp0 = Llvm.operand instr 0 in
-        let v0, uses0 = eval exp0 state.State.memory in
+        let v0, uses0 = eval env.cache exp0 state.State.memory in
         let lv = eval_lv instr state.State.memory in
-        let semantic_sig = semantic_sig_of_unop v0 v0 in
-        State.add_trace llctx instr semantic_sig state
+        let semantic_sig = semantic_sig_of_unop env.cache v0 v0 in
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory lv v0
         |> State.add_semantic_du_edges uses0 instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | GetElementPtr ->
         let exp0 = Llvm.operand instr 0 in
-        let v0, uses0 = eval exp0 state.State.memory in
+        let v0, uses0 = eval env.cache exp0 state.State.memory in
         let lv = eval_lv instr state.State.memory in
         let v, state =
           match v0 with
@@ -423,15 +427,15 @@ and transfer llctx instr env state =
                   (eval_lv exp0 state.State.memory)
                   (Value.location l) state )
         in
-        let semantic_sig = semantic_sig_of_gep v v0 in
-        State.add_trace llctx instr semantic_sig state
+        let semantic_sig = semantic_sig_of_gep env.cache v v0 in
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         |> State.add_memory lv v
         |> State.add_semantic_du_edges uses0 instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | x ->
         let semantic_sig = `Assoc [] in
-        State.add_trace llctx instr semantic_sig state
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
         (* Note: Maybe expand *)
         |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -441,21 +445,21 @@ and transfer_ret llctx instr env state =
   | Some (callsite, state) ->
       let lv = eval_lv callsite state.State.memory in
       let exp0 = Llvm.operand instr 0 in
-      let v, _ = eval exp0 state.State.memory in
-      let semantic_sig = semantic_sig_of_return (Some v) in
-      State.add_trace llctx instr semantic_sig state
+      let v, _ = eval env.cache exp0 state.State.memory in
+      let semantic_sig = semantic_sig_of_return env.cache (Some v) in
+      State.add_trace env.cache llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env
       |> State.add_memory_def lv v instr
       |> execute_instr llctx (Llvm.instr_succ callsite) env
   | None ->
       let semantic_sig =
-        if Llvm.num_operands instr = 0 then semantic_sig_of_return None
+        if Llvm.num_operands instr = 0 then semantic_sig_of_return env.cache None
         else
           let exp0 = Llvm.operand instr 0 in
-          let v, _ = eval exp0 state.State.memory in
-          semantic_sig_of_return (Some v)
+          let v, _ = eval env.cache exp0 state.State.memory in
+          semantic_sig_of_return env.cache (Some v)
       in
-      State.add_trace llctx instr semantic_sig state
+      State.add_trace env.cache llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
 
@@ -463,10 +467,10 @@ and transfer_br llctx instr env state =
   let state = {state with State.prev_blk= Some (Llvm.instr_parent instr)} in
   match Llvm.get_branch instr with
   | Some (`Conditional (cond, b1, b2)) ->
-      let v, _ = eval cond state.State.memory in
+      let v, _ = eval env.cache cond state.State.memory in
       let get_state br =
-        let semantic_sig = semantic_sig_of_br (Some (v, br)) in
-        State.add_trace llctx instr semantic_sig state
+        let semantic_sig = semantic_sig_of_br env.cache (Some (v, br)) in
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
       let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
@@ -484,9 +488,9 @@ and transfer_br llctx instr env state =
         let state = State.visit_block b1 (get_state true) in
         execute_block llctx b1 env state
   | Some (`Unconditional b) ->
-      let semantic_sig = semantic_sig_of_br None in
+      let semantic_sig = semantic_sig_of_br env.cache None in
       let state =
-        State.add_trace llctx instr semantic_sig state
+        State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
       let visited = BlockSet.mem b state.State.visited_blocks in
@@ -503,10 +507,10 @@ and transfer_phi llctx instr env state =
   let incoming =
     Llvm.incoming instr |> List.find (fun (v, blk) -> prev_blk == blk) |> fst
   in
-  let v, uses = eval incoming state.State.memory in
+  let v, uses = eval env.cache incoming state.State.memory in
   let lv = eval_lv instr state.State.memory in
-  let semantic_sig = semantic_sig_of_phi v in
-  State.add_trace llctx instr semantic_sig state
+  let semantic_sig = semantic_sig_of_phi env.cache v in
+  State.add_trace env.cache llctx instr semantic_sig state
   |> add_syntactic_du_edge instr env
   |> State.add_memory lv v
   |> State.add_semantic_du_edges uses instr
@@ -526,15 +530,15 @@ and transfer_call llctx instr env state =
         Llvm.fold_left_params
           (fun (state, args, uses, count) param ->
             let arg = Llvm.operand instr count in
-            let v, ul = eval arg state.State.memory in
+            let v, ul = eval env.cache arg state.State.memory in
             let lv = eval_lv param state.State.memory in
             let state = State.add_memory_def lv v instr state in
             (state, args @ [v], uses @ ul, count + 1))
           (state, [], [], 0) f
       in
-      let semantic_sig = semantic_sig_of_call args in
+      let semantic_sig = semantic_sig_of_call env.cache args in
       State.visit_func callee_expr state
-      |> State.add_trace llctx instr semantic_sig
+      |> State.add_trace env.cache llctx instr semantic_sig
       |> State.add_semantic_du_edges uses instr
       |> add_syntactic_du_edge instr env
       |> State.push_stack instr
@@ -547,14 +551,14 @@ and transfer_call llctx instr env state =
           (Llvm.num_operands instr - 1)
           (fun i ->
             let arg = Llvm.operand instr i in
-            eval arg state.State.memory |> fst)
+            eval env.cache arg state.State.memory |> fst)
       in
       let v =
         SymExpr.new_ret (Llvm.value_name f) (List.map Value.to_symexpr args)
         |> Value.of_symexpr
       in
-      let semantic_sig = semantic_sig_of_libcall (Some v) args in
-      State.add_trace llctx instr semantic_sig state
+      let semantic_sig = semantic_sig_of_libcall env.cache (Some v) args in
+      State.add_trace env.cache llctx instr semantic_sig state
       |> State.add_memory lv v
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -564,10 +568,10 @@ and transfer_call llctx instr env state =
           (Llvm.num_operands instr - 1)
           (fun i ->
             let arg = Llvm.operand instr i in
-            eval arg state.State.memory |> fst)
+            eval env.cache arg state.State.memory |> fst)
       in
-      let semantic_sig = semantic_sig_of_libcall None args in
-      State.add_trace llctx instr semantic_sig state
+      let semantic_sig = semantic_sig_of_libcall env.cache None args in
+      State.add_trace env.cache llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | exception Not_found ->
@@ -577,12 +581,12 @@ and transfer_call llctx instr env state =
 and transfer_binop llctx instr env state =
   let exp0 = Llvm.operand instr 0 in
   let exp1 = Llvm.operand instr 1 in
-  let v0, uses0 = eval exp0 state.State.memory in
-  let v1, uses1 = eval exp1 state.State.memory in
+  let v0, uses0 = eval env.cache exp0 state.State.memory in
+  let v1, uses1 = eval env.cache exp1 state.State.memory in
   let res_lv = eval_lv instr state in
   let res = Value.binary_op (Llvm.instr_opcode instr) v0 v1 in
-  let semantic_sig = semantic_sig_of_binop res v0 v1 in
-  State.add_trace llctx instr semantic_sig state
+  let semantic_sig = semantic_sig_of_binop env.cache res v0 v1 in
+  State.add_trace env.cache llctx instr semantic_sig state
   |> State.add_memory res_lv res
   |> add_syntactic_du_edge instr env
   |> State.add_semantic_du_edges (uses0 @ uses1) instr
@@ -653,7 +657,7 @@ let print_report oc env =
   Printf.fprintf oc "# Traces: %d\n" (Traces.length env.Environment.traces)
 
 let dump_traces ?(prefix = "") env =
-  let json = Traces.to_json env.Environment.traces in
+  let json = Traces.to_json env.Environment.cache env.traces in
   let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc json ;
   close_out oc
@@ -666,7 +670,7 @@ let dump_dots ?(prefix = "") env =
     env.Environment.dugraphs
 
 let dump_dugraphs ?(prefix = "") env =
-  let json = List.map DUGraph.to_json env.Environment.dugraphs in
+  let json = List.map (DUGraph.to_json env.Environment.cache) env.dugraphs in
   let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc (`List json) ;
   close_out oc

@@ -526,6 +526,7 @@ let slice llctx llm depth : Slices.t =
   in
   Printf.printf "\nDone creating edge entries map\n" ;
   flush stdout ;
+  let cache = Utils.EnvCache.empty () in
   let num_slices, slices =
     EdgeEntriesMap.fold
       (fun edge entries (num_slices, slices) ->
@@ -546,7 +547,7 @@ let slice llctx llm depth : Slices.t =
                     not (is_excluding (Utils.GlobalCache.ll_func callee |> Option.get)))
                   all_callees
               in
-              let location = Utils.string_of_location llctx instr in
+              let location = Utils.string_of_location cache llctx instr in
               let slice =
                 Slice.create callees entry caller instr callee location
               in

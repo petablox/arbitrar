@@ -27,6 +27,12 @@ let contains s1 s2 =
     false
   with Exit -> true
 
+let range n =
+  let rec aux acc i =
+    if i = 0 then i :: acc else aux ((i - 1) :: acc) (i - 1)
+  in
+  aux [] n
+
 let exp_func_name : string -> string option =
   let asm = " asm " in
   let perc_reg = Str.regexp "%\\d+" in
@@ -174,6 +180,106 @@ let is_argument exp =
   | _ ->
       false
 
+module EnvCache = struct
+  type t =
+    { ll_value_string_cache: (Llvm.llvalue, string) Hashtbl.t
+    ; string_of_exp_cache: (Llvm.llvalue, string) Hashtbl.t
+    ; arg_counter: int ref
+    ; arg_id_cache: (Llvm.llvalue, int) Hashtbl.t
+    ; const_counter: int ref
+    ; const_id_cache: (Llvm.llvalue, int) Hashtbl.t
+    ; lhs_counter: int ref
+    ; lhs_string_cache: (Llvm.llvalue, string) Hashtbl.t }
+
+  let empty () =
+    { ll_value_string_cache= Hashtbl.create 2048
+    ; string_of_exp_cache= Hashtbl.create 2048
+    ; arg_counter= ref 0
+    ; arg_id_cache= Hashtbl.create 2048
+    ; const_counter= ref 0
+    ; const_id_cache= Hashtbl.create 2048
+    ; lhs_counter= ref 0
+    ; lhs_string_cache= Hashtbl.create 2048 }
+
+  let ll_value_string cache instr =
+    if Hashtbl.mem cache.ll_value_string_cache instr then
+      Hashtbl.find cache.ll_value_string_cache instr
+    else
+      let str = Llvm.string_of_llvalue instr |> String.trim in
+      Hashtbl.add cache.ll_value_string_cache instr str ;
+      str
+
+  let arg_id cache exp =
+    if Hashtbl.mem cache.arg_id_cache exp then Hashtbl.find cache.arg_id_cache exp
+    else
+      let arg_id = !(cache.arg_counter) in
+      cache.arg_counter := !(cache.arg_counter) + 1 ;
+      Hashtbl.add cache.arg_id_cache exp arg_id ;
+      arg_id
+
+  let const_id cache exp =
+    if Hashtbl.mem cache.const_id_cache exp then
+      Hashtbl.find cache.const_id_cache exp
+    else
+      let const_id = !(cache.const_counter) in
+      cache.const_counter := !(cache.const_counter) + 1 ;
+      Hashtbl.add cache.const_id_cache exp const_id ;
+      const_id
+
+  let string_of_lhs cache instr =
+    if Hashtbl.mem cache.lhs_string_cache instr then Hashtbl.find cache.lhs_string_cache instr
+    else
+      let str = "%" ^ string_of_int !(cache.lhs_counter) in
+      cache.lhs_counter := !(cache.lhs_counter) + 1 ;
+      Hashtbl.add cache.lhs_string_cache instr str ;
+      str
+
+  let string_of_exp cache exp =
+    if Hashtbl.mem cache.string_of_exp_cache exp then
+      Hashtbl.find cache.string_of_exp_cache exp
+    else
+      let str =
+        match Llvm.classify_value exp with
+        | Llvm.ValueKind.NullValue ->
+            "0"
+        | BasicBlock
+        | InlineAsm
+        | MDNode
+        | MDString
+        | BlockAddress
+        | ConstantAggregateZero
+        | ConstantArray
+        | ConstantDataArray
+        | ConstantDataVector
+        | ConstantExpr ->
+            ll_value_string cache exp
+        | Argument ->
+            let a = arg_id cache exp in
+            "%arg" ^ string_of_int a
+        | ConstantFP | ConstantInt ->
+            let c = const_id cache exp in
+            "%const" ^ string_of_int c
+        | ConstantPointerNull ->
+            "0"
+        | ConstantStruct | ConstantVector ->
+            ll_value_string cache exp
+        | Function ->
+            GlobalCache.ll_func exp |> Option.value ~default:"unknown"
+        | GlobalIFunc | GlobalAlias ->
+            ll_value_string cache exp
+        | GlobalVariable ->
+            Llvm.value_name exp
+        | UndefValue ->
+            "undef"
+        | Instruction i when is_assignment i -> (
+          try string_of_lhs cache exp with _ -> ll_value_string cache exp )
+        | Instruction _ ->
+            ll_value_string cache exp
+      in
+      Hashtbl.add cache.string_of_exp_cache exp str ;
+      str
+end
+
 module SliceCache = struct
   let ll_value_string_cache = Hashtbl.create 2048
 
@@ -290,16 +396,16 @@ let fold_left_all_instr f a m =
           a func)
     a m
 
-let string_of_location llctx instr =
+let string_of_location cache llctx instr =
   let dbg = Llvm.metadata instr (Llvm.mdkind_id llctx "dbg") in
   let func = Llvm.instr_parent instr |> Llvm.block_parent |> Llvm.value_name in
   match dbg with
   | Some s -> (
-      let str = SliceCache.ll_value_string s in
+      let str = EnvCache.ll_value_string cache s in
       let blk_mdnode = (Llvm.get_mdnode_operands s).(0) in
       let fun_mdnode = (Llvm.get_mdnode_operands blk_mdnode).(0) in
       let file_mdnode = (Llvm.get_mdnode_operands fun_mdnode).(0) in
-      let filename = SliceCache.ll_value_string file_mdnode in
+      let filename = EnvCache.ll_value_string cache file_mdnode in
       let filename = String.sub filename 2 (String.length filename - 3) in
       let r =
         Str.regexp "!DILocation(line: \\([0-9]+\\), column: \\([0-9]+\\)"
@@ -324,17 +430,17 @@ let json_of_opcode name =
   let opcode = ("opcode", `String name) in
   `Assoc [opcode]
 
-let json_of_unop instr name =
+let json_of_unop cache instr name =
   let opcode = ("opcode", `String name) in
-  let result = `String (SliceCache.string_of_exp instr) in
-  let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
+  let result = `String (EnvCache.string_of_exp cache instr) in
+  let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
   `Assoc [opcode; ("result", result); ("op0", op0)]
 
-let json_of_binop instr name =
+let json_of_binop cache instr name =
   let opcode = ("opcode", `String name) in
-  let result = `String (SliceCache.string_of_lhs instr) in
-  let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
-  let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
+  let result = `String (EnvCache.string_of_lhs cache instr) in
+  let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
+  let op1 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 1)) in
   `Assoc [opcode; ("result", result); ("op0", op0); ("op1", op1)]
 
 let json_of_icmp = function
@@ -403,237 +509,227 @@ let opcode_of_instr instr =
     Hashtbl.add opcode_of_instr_cache instr opcode ;
     opcode
 
-let json_of_instr_cache : (Llvm.llvalue, Yojson.Safe.t) Hashtbl.t =
-  Hashtbl.create 2048
-
-let json_of_instr instr =
-  if Hashtbl.mem json_of_instr_cache instr then
-    Hashtbl.find json_of_instr_cache instr
-  else
-    let json =
-      let num_of_operands = Llvm.num_operands instr in
-      match opcode_of_instr instr with
-      | Llvm.Opcode.Invalid ->
-          json_of_opcode "invalid"
-      | Invalid2 ->
-          json_of_opcode "invalid2"
-      | Unreachable ->
-          json_of_opcode "unreachable"
-      | Ret ->
-          let opcode = ("opcode", `String "ret") in
-          let ret =
-            if num_of_operands = 0 then `Null
-            else `String (SliceCache.string_of_exp (Llvm.operand instr 0))
-          in
-          `Assoc [opcode; ("op0", ret)]
-      | Br ->
-          let opcode = ("opcode", `String "br") in
-          let cond =
-            match Llvm.get_branch instr with
-            | Some (`Conditional _) ->
-                `String (SliceCache.string_of_exp (Llvm.operand instr 0))
-            | _ ->
-                `Null
-          in
-          `Assoc [opcode; ("cond", cond)]
-      | Switch ->
-          let opcode = ("opcode", `String "switch") in
-          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
-          `Assoc [opcode; ("op0", op0)]
-      | IndirectBr ->
-          json_of_opcode "indirectbr"
-      | Invoke ->
-          json_of_opcode "invoke"
-      | Add ->
-          json_of_binop instr "add"
-      | FAdd ->
-          json_of_binop instr "fadd"
-      | Sub ->
-          json_of_binop instr "sub"
-      | FSub ->
-          json_of_binop instr "fsub"
-      | Mul ->
-          json_of_binop instr "mul"
-      | FMul ->
-          json_of_binop instr "fmul"
-      | UDiv ->
-          json_of_binop instr "udiv"
-      | SDiv ->
-          json_of_binop instr "sdiv"
-      | FDiv ->
-          json_of_binop instr "fdiv"
-      | URem ->
-          json_of_binop instr "urem"
-      | SRem ->
-          json_of_binop instr "srem"
-      | FRem ->
-          json_of_binop instr "frem"
-      | Shl ->
-          json_of_binop instr "shl"
-      | LShr ->
-          json_of_binop instr "lshr"
-      | AShr ->
-          json_of_binop instr "ashr"
-      | And ->
-          json_of_binop instr "and"
-      | Or ->
-          json_of_binop instr "or"
-      | Xor ->
-          json_of_binop instr "xor"
-      | Alloca ->
-          json_of_unop instr "alloca"
-      | Load ->
-          json_of_unop instr "load"
-      | Store ->
-          let opcode = ("opcode", `String "store") in
-          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
-          let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
-          `Assoc [opcode; ("op0", op0); ("op1", op1)]
-      | GetElementPtr ->
-          let opcode = ("opcode", `String "getelementptr") in
-          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
-          let result = `String (SliceCache.string_of_lhs instr) in
-          `Assoc [opcode; ("op0", op0); ("result", result)]
-      | Trunc ->
-          json_of_unop instr "trunc"
-      | ZExt ->
-          json_of_unop instr "zext"
-      | SExt ->
-          json_of_unop instr "sext"
-      | FPToUI ->
-          json_of_unop instr "fptoui"
-      | FPToSI ->
-          json_of_unop instr "fptosi"
-      | UIToFP ->
-          json_of_unop instr "uitofp"
-      | SIToFP ->
-          json_of_unop instr "sitofp"
-      | FPTrunc ->
-          json_of_unop instr "fptrunc"
-      | FPExt ->
-          json_of_unop instr "fpext"
-      | PtrToInt ->
-          json_of_unop instr "ptrtoint"
-      | IntToPtr ->
-          json_of_unop instr "inttoptr"
-      | BitCast ->
-          json_of_unop instr "bitcast"
-      | ICmp ->
-          let opcode = ("opcode", `String "icmp") in
-          let op =
-            match Llvm.icmp_predicate instr with
-            | Some s ->
-                s
-            | None ->
-                failwith "Stmt.json_of_stmt (icmp)"
-          in
-          let predicate = ("predicate", json_of_icmp op) in
-          let result = `String (SliceCache.string_of_lhs instr) in
-          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
-          let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
+let json_of_instr cache instr =
+  let num_of_operands = Llvm.num_operands instr in
+  match opcode_of_instr instr with
+  | Llvm.Opcode.Invalid ->
+      json_of_opcode "invalid"
+  | Invalid2 ->
+      json_of_opcode "invalid2"
+  | Unreachable ->
+      json_of_opcode "unreachable"
+  | Ret ->
+      let opcode = ("opcode", `String "ret") in
+      let ret =
+        if num_of_operands = 0 then `Null
+        else `String (EnvCache.string_of_exp cache (Llvm.operand instr 0))
+      in
+      `Assoc [opcode; ("op0", ret)]
+  | Br ->
+      let opcode = ("opcode", `String "br") in
+      let cond =
+        match Llvm.get_branch instr with
+        | Some (`Conditional _) ->
+            `String (EnvCache.string_of_exp cache (Llvm.operand instr 0))
+        | _ ->
+            `Null
+      in
+      `Assoc [opcode; ("cond", cond)]
+  | Switch ->
+      let opcode = ("opcode", `String "switch") in
+      let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
+      `Assoc [opcode; ("op0", op0)]
+  | IndirectBr ->
+      json_of_opcode "indirectbr"
+  | Invoke ->
+      json_of_opcode "invoke"
+  | Add ->
+      json_of_binop cache instr "add"
+  | FAdd ->
+      json_of_binop cache instr "fadd"
+  | Sub ->
+      json_of_binop cache instr "sub"
+  | FSub ->
+      json_of_binop cache instr "fsub"
+  | Mul ->
+      json_of_binop cache instr "mul"
+  | FMul ->
+      json_of_binop cache instr "fmul"
+  | UDiv ->
+      json_of_binop cache instr "udiv"
+  | SDiv ->
+      json_of_binop cache instr "sdiv"
+  | FDiv ->
+      json_of_binop cache instr "fdiv"
+  | URem ->
+      json_of_binop cache instr "urem"
+  | SRem ->
+      json_of_binop cache instr "srem"
+  | FRem ->
+      json_of_binop cache instr "frem"
+  | Shl ->
+      json_of_binop cache instr "shl"
+  | LShr ->
+      json_of_binop cache instr "lshr"
+  | AShr ->
+      json_of_binop cache instr "ashr"
+  | And ->
+      json_of_binop cache instr "and"
+  | Or ->
+      json_of_binop cache instr "or"
+  | Xor ->
+      json_of_binop cache instr "xor"
+  | Alloca ->
+      json_of_unop cache instr "alloca"
+  | Load ->
+      json_of_unop cache instr "load"
+  | Store ->
+      let opcode = ("opcode", `String "store") in
+      let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
+      let op1 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 1)) in
+      `Assoc [opcode; ("op0", op0); ("op1", op1)]
+  | GetElementPtr ->
+      let opcode = ("opcode", `String "getelementptr") in
+      let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
+      let result = `String (EnvCache.string_of_lhs cache instr) in
+      `Assoc [opcode; ("op0", op0); ("result", result)]
+  | Trunc ->
+      json_of_unop cache instr "trunc"
+  | ZExt ->
+      json_of_unop cache instr "zext"
+  | SExt ->
+      json_of_unop cache instr "sext"
+  | FPToUI ->
+      json_of_unop cache instr "fptoui"
+  | FPToSI ->
+      json_of_unop cache instr "fptosi"
+  | UIToFP ->
+      json_of_unop cache instr "uitofp"
+  | SIToFP ->
+      json_of_unop cache instr "sitofp"
+  | FPTrunc ->
+      json_of_unop cache instr "fptrunc"
+  | FPExt ->
+      json_of_unop cache instr "fpext"
+  | PtrToInt ->
+      json_of_unop cache instr "ptrtoint"
+  | IntToPtr ->
+      json_of_unop cache instr "inttoptr"
+  | BitCast ->
+      json_of_unop cache instr "bitcast"
+  | ICmp ->
+      let opcode = ("opcode", `String "icmp") in
+      let op =
+        match Llvm.icmp_predicate instr with
+        | Some s ->
+            s
+        | None ->
+            failwith "Stmt.json_of_stmt (icmp)"
+      in
+      let predicate = ("predicate", json_of_icmp op) in
+      let result = `String (EnvCache.string_of_lhs cache instr) in
+      let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
+      let op1 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 1)) in
+      `Assoc
+        [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+  | FCmp ->
+      let opcode = ("opcode", `String "fcmp") in
+      let op =
+        match Llvm.fcmp_predicate instr with
+        | Some s ->
+            s
+        | None ->
+            failwith "Stmt.json_of_stmt (fcmp)"
+      in
+      let predicate = ("predicate", json_of_fcmp op) in
+      let result = `String (EnvCache.string_of_lhs cache instr) in
+      let op0 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 0)) in
+      let op1 = `String (EnvCache.string_of_exp cache (Llvm.operand instr 1)) in
+      `Assoc
+        [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
+  | PHI ->
+      let opcode = ("opcode", `String "phi") in
+      let result = `String (EnvCache.string_of_lhs cache instr) in
+      let incoming =
+        Llvm.incoming instr
+        |> List.map (fun x -> `String (fst x |> EnvCache.string_of_exp cache))
+      in
+      `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
+  | Call -> (
+      let opcode = ("opcode", `String "call") in
+      let result =
+        match Llvm.type_of instr |> Llvm.classify_type with
+        | Llvm.TypeKind.Void ->
+            `Null
+        | _ ->
+            `String (EnvCache.string_of_lhs cache instr)
+      in
+      let callee_exp =
+        Llvm.operand instr (num_of_operands - 1) |> EnvCache.string_of_exp cache
+      in
+      let args =
+        List.fold_left
+          (fun args a -> args @ [`String (EnvCache.string_of_exp cache a)])
+          []
+          (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
+      in
+      match exp_func_name callee_exp with
+      | Some callee ->
           `Assoc
-            [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
-      | FCmp ->
-          let opcode = ("opcode", `String "fcmp") in
-          let op =
-            match Llvm.fcmp_predicate instr with
-            | Some s ->
-                s
-            | None ->
-                failwith "Stmt.json_of_stmt (fcmp)"
-          in
-          let predicate = ("predicate", json_of_fcmp op) in
-          let result = `String (SliceCache.string_of_lhs instr) in
-          let op0 = `String (SliceCache.string_of_exp (Llvm.operand instr 0)) in
-          let op1 = `String (SliceCache.string_of_exp (Llvm.operand instr 1)) in
+            [ opcode
+            ; ("result", result)
+            ; ("func", `String callee)
+            ; ("args", `List args) ]
+      | None ->
           `Assoc
-            [opcode; ("result", result); predicate; ("op0", op0); ("op1", op1)]
-      | PHI ->
-          let opcode = ("opcode", `String "phi") in
-          let result = `String (SliceCache.string_of_lhs instr) in
-          let incoming =
-            Llvm.incoming instr
-            |> List.map (fun x -> `String (fst x |> SliceCache.string_of_exp))
-          in
-          `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
-      | Call -> (
-          let opcode = ("opcode", `String "call") in
-          let result =
-            match Llvm.type_of instr |> Llvm.classify_type with
-            | Llvm.TypeKind.Void ->
-                `Null
-            | _ ->
-                `String (SliceCache.string_of_lhs instr)
-          in
-          let callee_exp =
-            Llvm.operand instr (num_of_operands - 1) |> SliceCache.string_of_exp
-          in
-          let args =
-            List.fold_left
-              (fun args a -> args @ [`String (SliceCache.string_of_exp a)])
-              []
-              (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
-          in
-          match exp_func_name callee_exp with
-          | Some callee ->
-              `Assoc
-                [ opcode
-                ; ("result", result)
-                ; ("func", `String callee)
-                ; ("args", `List args) ]
-          | None ->
-              `Assoc
-                [ opcode
-                ; ("result", result)
-                ; ("func", `String callee_exp)
-                ; ("args", `List args) ] )
-      | Select ->
-          json_of_opcode "select"
-      | UserOp1 ->
-          json_of_opcode "userop1"
-      | UserOp2 ->
-          json_of_opcode "userop2"
-      | VAArg ->
-          json_of_opcode "vaarg"
-      | ExtractElement ->
-          json_of_opcode "extractelement"
-      | InsertElement ->
-          json_of_opcode "insertelement"
-      | ShuffleVector ->
-          json_of_opcode "shufflevector"
-      | ExtractValue ->
-          json_of_opcode "extractvalue"
-      | InsertValue ->
-          json_of_opcode "insertvalue"
-      | Fence ->
-          json_of_opcode "fence"
-      | AtomicCmpXchg ->
-          json_of_opcode "atomiccmpxchg"
-      | AtomicRMW ->
-          json_of_opcode "atomicrmw"
-      | Resume ->
-          json_of_opcode "resume"
-      | LandingPad ->
-          json_of_opcode "landingpad"
-      | AddrSpaceCast ->
-          json_of_opcode "addrspacecast"
-      | CleanupRet ->
-          json_of_opcode "cleanupret"
-      | CatchRet ->
-          json_of_opcode "catchret"
-      | CatchPad ->
-          json_of_opcode "catchpad"
-      | CleanupPad ->
-          json_of_opcode "cleanuppad"
-      | CatchSwitch ->
-          json_of_opcode "catchswitch"
-      | FNeg ->
-          json_of_opcode "fneg"
-      | CallBr ->
-          json_of_opcode "callbr"
-    in
-    Hashtbl.add json_of_instr_cache instr json ;
-    json
+            [ opcode
+            ; ("result", result)
+            ; ("func", `String callee_exp)
+            ; ("args", `List args) ] )
+  | Select ->
+      json_of_opcode "select"
+  | UserOp1 ->
+      json_of_opcode "userop1"
+  | UserOp2 ->
+      json_of_opcode "userop2"
+  | VAArg ->
+      json_of_opcode "vaarg"
+  | ExtractElement ->
+      json_of_opcode "extractelement"
+  | InsertElement ->
+      json_of_opcode "insertelement"
+  | ShuffleVector ->
+      json_of_opcode "shufflevector"
+  | ExtractValue ->
+      json_of_opcode "extractvalue"
+  | InsertValue ->
+      json_of_opcode "insertvalue"
+  | Fence ->
+      json_of_opcode "fence"
+  | AtomicCmpXchg ->
+      json_of_opcode "atomiccmpxchg"
+  | AtomicRMW ->
+      json_of_opcode "atomicrmw"
+  | Resume ->
+      json_of_opcode "resume"
+  | LandingPad ->
+      json_of_opcode "landingpad"
+  | AddrSpaceCast ->
+      json_of_opcode "addrspacecast"
+  | CleanupRet ->
+      json_of_opcode "cleanupret"
+  | CatchRet ->
+      json_of_opcode "catchret"
+  | CatchPad ->
+      json_of_opcode "catchpad"
+  | CleanupPad ->
+      json_of_opcode "cleanuppad"
+  | CatchSwitch ->
+      json_of_opcode "catchswitch"
+  | FNeg ->
+      json_of_opcode "fneg"
+  | CallBr ->
+      json_of_opcode "callbr"
 
 let is_llvm_function f : bool =
   let r1 = Str.regexp "llvm\\.dbg\\..+" in
