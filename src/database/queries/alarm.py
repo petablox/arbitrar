@@ -18,6 +18,12 @@ class AlarmQuery(Executor):
   @staticmethod
   def execute(args):
     stdscr = curses.initscr()
+    curses.start_color()
+
+    curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
+
     stdscr.clear()
 
     columns, lines = os.get_terminal_size()
@@ -67,8 +73,8 @@ class AlarmQuery(Executor):
 
           left_window.erase()
           right_window.erase()
-          left_window.addstr(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}\n")
-          right_window.addstr("Features\n")
+          left_window.addstr(f"[{path}] Slice-Id:{slice_id} Trace-Id:{trace_id} Alarm {i}/{nalarms}\n", curses.color_pair(1))
+          right_window.addstr(f"[{path}] Slice-Id:{slice_id} Trace-Id:{trace_id} Features\n", curses.color_pair(1))
 
           #cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
           path = os.path.join(args.source, path)
@@ -83,12 +89,11 @@ class AlarmQuery(Executor):
               for l in f.readlines():
                 if lcount >= lmin and lcount <= lmax:
                   if lcount == line:
-                    left_window.addstr(f"==> {lcount}:{l}")
+                    left_window.addstr(f"==> {lcount}:{l}", curses.color_pair(2))
                     #cprint(f"==> {lcount}:{l}", "red", end="")
                   else:
-                    left_window.addstr(f"    {lcount}:{l}")
-                    #colr = "green" if lcount in used else "white"
-                    #cprint(f"    {lcount}:{l}", colr, end="")
+                    colr = 3 if lcount in used else 0
+                    left_window.addstr(f"    {lcount}:{l}", curses.color_pair(colr))
                 lcount += 1
 
           feature = args.db.feature(fn, bc, slice_id, trace_id)
