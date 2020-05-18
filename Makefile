@@ -4,7 +4,7 @@ all: build
 
 setup:
 	pip3 install mypy yapf pytest python-magic # Utilities
-	pip3 install wllvm graphviz # PL
+	pip3 install wllvm graphviz z3 # PL
 	pip3 install scikit-learn matplotlib # ML
 	pip3 install pandas termcolor
 	opam install ocamlbuild ocamlformat merlin

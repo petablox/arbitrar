@@ -36,7 +36,7 @@ module Metadata = struct
     ; num_target_unvisited: int
     ; num_duplicated: int
     ; num_graph_nodes: int
-    ; num_graph_edges: int 
+    ; num_graph_edges: int
     ; num_rejected: int  }
 
   let empty =
@@ -44,10 +44,10 @@ module Metadata = struct
     ; num_target_unvisited= 0
     ; num_duplicated= 0
     ; num_graph_nodes= 0
-    ; num_graph_edges= 0 
+    ; num_graph_edges= 0
     ; num_rejected= 0}
 
-  let incr_explored meta = {meta with num_explored= meta.num_explored + 1} 
+  let incr_explored meta = {meta with num_explored= meta.num_explored + 1}
 
   let incr_graph g meta =
     { meta with
@@ -69,7 +69,7 @@ module Metadata = struct
     ; num_target_unvisited= m1.num_target_unvisited + m2.num_target_unvisited
     ; num_duplicated= m1.num_duplicated + m2.num_duplicated
     ; num_graph_nodes= m1.num_graph_nodes + m2.num_graph_nodes
-    ; num_graph_edges= m1.num_graph_edges + m2.num_graph_edges 
+    ; num_graph_edges= m1.num_graph_edges + m2.num_graph_edges
     ; num_rejected= m1.num_rejected + m2.num_rejected }
 
   let to_json meta =
@@ -108,8 +108,8 @@ module Environment = struct
     ; target: Llvm.llvalue
     ; dugraphs: DUGraph.t list
     ; boundaries: Llvm.llvalue list
-    ; cache: Utils.EnvCache.t 
-    ; z3_ctx: Z3.context 
+    ; cache: Utils.EnvCache.t
+    ; z3_ctx: Z3.context
     ; discarded: Traces.t }
 
   let empty target =
@@ -120,17 +120,17 @@ module Environment = struct
     ; target
     ; dugraphs= []
     ; boundaries= []
-    ; cache= Utils.EnvCache.empty () 
-    ; z3_ctx= Z3.mk_context [] 
+    ; cache= Utils.EnvCache.empty ()
+    ; z3_ctx= Z3.mk_context []
     ; discarded= Traces.empty }
 
-  let add_trace trace env = {env with traces= Traces.add trace env.traces} 
+  let add_trace trace env = {env with traces= Traces.add trace env.traces}
 
   let add_work work env = {env with worklist= Worklist.push work env.worklist}
 
   let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
 
-  let add_discarded trace env = {env with discarded= Traces.add trace env.discarded} 
+  let add_discarded trace env = {env with discarded= Traces.add trace env.discarded}
 
   let should_include g1 env : bool =
     if not !Options.no_control_flow then true
@@ -149,7 +149,7 @@ module Environment = struct
       |> Option.is_none
 
   let solve path_cons env =
-    try 
+    try
     let solver = PathConstraints.mk_solver env.z3_ctx path_cons in
     let res = Z3.Solver.check solver [] in
     match res with
@@ -507,10 +507,10 @@ and transfer_br llctx instr env state =
   match Llvm.get_branch instr with
   | Some (`Conditional (cond, b1, b2)) ->
       let v, _ = eval env.cache cond state.State.memory in
-      let get_state br = 
+      let get_state br =
         let semantic_sig = semantic_sig_of_br env.cache (Some (v, br)) in
-        State.add_path_cons v br state 
-        |> State.add_trace env.cache llctx instr semantic_sig 
+        State.add_path_cons v br state
+        |> State.add_trace env.cache llctx instr semantic_sig
         |> add_syntactic_du_edge instr env
       in
       let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
@@ -654,7 +654,7 @@ and finish_execution llctx env state =
           { env with
             metadata=
               Metadata.incr_explored env.metadata |> Metadata.incr_graph dug }
-        else 
+        else
           let env = Environment.add_discarded state.State.trace env in
           { env with metadata= Metadata.incr_rejected env.metadata}
       else {env with metadata= Metadata.incr_duplicated env.metadata}
