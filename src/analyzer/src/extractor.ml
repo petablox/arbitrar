@@ -25,9 +25,11 @@ let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
   let file_prefix = target_name ^ "-" ^ string_of_int idx in
   let dugraphs_prefix = outdir ^ "/dugraphs/" ^ file_prefix in
   let traces_prefix = outdir ^ "/traces/" ^ file_prefix in
+  let discarded_prefix = outdir ^ "/discarded/" ^ file_prefix in
   let dots_prefix = outdir ^ "/dots/" ^ file_prefix in
   if !Options.verbose > 0 then Executor.print_report lc env ;
-  if !Options.output_trace then Executor.dump_traces ~prefix:traces_prefix env ;
+  if !Options.output_trace then Executor.dump_traces ~prefix:traces_prefix env ; 
+  if !Options.output_trace then Executor.dump_discarded ~prefix:discarded_prefix env ; 
   if !Options.output_dot then Executor.dump_dots ~prefix:dots_prefix env ;
   Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
   env

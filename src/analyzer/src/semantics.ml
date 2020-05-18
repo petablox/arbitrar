@@ -1,4 +1,6 @@
-module F = Format
+
+
+module F = Format 
 
 module Stmt = struct
   type t = {instr: Llvm.llvalue; location: string}
@@ -86,6 +88,12 @@ module SymExpr = struct
     | Band of t * t
     | Bor of t * t
     | Bxor of t * t
+    | Peq of t * t
+    | Pne  of t * t
+    | Pgt of t * t
+    | Pge of t * t
+    | Plt of t * t
+    | Ple of t * t
   [@@deriving show, yojson {exn= true}]
 
   let new_symbol () = Symbol (Symbol.new_symbol ())
@@ -116,7 +124,12 @@ module SymExpr = struct
       | Ashr (e1, e2)
       | Band (e1, e2)
       | Bor (e1, e2)
-      | Bxor (e1, e2) ->
+      | Bxor (e1, e2) 
+      | Peq (e1, e2)
+      | Pne (e1, e2)
+      | Pgt (e1, e2)
+      | Pge (e1, e2)
+      | Plt (e1, e2) ->
           helper (helper res e1) e2
       | _ ->
           res
@@ -138,7 +151,13 @@ module SymExpr = struct
       | Ashr (e1, e2)
       | Band (e1, e2)
       | Bor (e1, e2)
-      | Bxor (e1, e2) ->
+      | Bxor (e1, e2) 
+      | Peq (e1, e2)
+      | Pne (e1, e2)
+      | Pgt (e1, e2)
+      | Pge (e1, e2)
+      | Plt (e1, e2)
+      | Ple (e1, e2) ->
           helper (helper res e1) e2
       | _ ->
           res
@@ -162,7 +181,13 @@ module SymExpr = struct
     | Ashr (e1, e2)
     | Band (e1, e2)
     | Bor (e1, e2)
-    | Bxor (e1, e2) ->
+    | Bxor (e1, e2) 
+    | Peq (e1, e2)
+    | Pne (e1, e2)
+    | Pgt (e1, e2)
+    | Pge (e1, e2)
+    | Plt (e1, e2)
+    | Ple (e1, e2) ->
         num_of_symbol e1 + num_of_symbol e2
 
   let add se1 se2 =
@@ -219,6 +244,50 @@ module SymExpr = struct
     if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
       new_symbol ()
     else Bxor (se1, se2)
+
+  let peq se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Peq (se1, se2)
+
+  let pne se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Pne (se1, se2)
+
+  let pgt se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Pgt (se1, se2)
+
+  let pge se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Pge (se1, se2)
+
+  let plt se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Plt (se1, se2)
+
+  let ple se1 se2 =
+    if num_of_symbol se1 + num_of_symbol se2 > !Options.max_symbols then
+      new_symbol ()
+    else Ple (se1, se2)
+
+  let icmp pred se1 se2 =
+    match pred with
+    | Llvm.Icmp.Eq -> peq se1 se2
+    | Ne -> pne se1 se2
+    | Ugt -> pgt se1 se2 
+    | Uge -> pge se1 se2 
+    | Ult -> plt se1 se2 
+    | Ule -> ple se1 se2 
+    | Sgt -> pgt se1 se2 
+    | Sge -> pge se1 se2 
+    | Slt -> plt se1 se2 
+    | Sle -> ple se1 se2 
+
 end
 
 module Variable = struct
@@ -477,7 +546,23 @@ module Value = struct
     | _, _ ->
         unknown
 
-  let binary_op op v1 v2 =
+  let icmp instr v1 v2 =
+    let pred = Llvm.icmp_predicate instr in
+    match pred with
+    | (Some p) -> (
+      match (v1, v2) with
+      | SymExpr se1, SymExpr se2 ->
+        SymExpr (SymExpr.icmp p se1 se2)
+      | Int i, SymExpr se | SymExpr se, Int i ->
+        SymExpr (SymExpr.icmp p se (SymExpr.of_int i))
+      | _, _ -> 
+        unknown
+    )
+    | None ->
+        unknown
+
+  let binary_op instr v1 v2 =
+    let op = Llvm.instr_opcode instr in
     match op with
     | Llvm.Opcode.Add ->
         add v1 v2
@@ -505,6 +590,8 @@ module Value = struct
         bor v1 v2
     | Xor ->
         bxor v1 v2
+    | ICmp ->
+        icmp instr v1 v2
     | _ ->
         unknown
 
@@ -710,6 +797,86 @@ end)
 
 module NodeMap = Map.Make (Node)
 
+module PathConstraints = struct
+  type t = (Value.t * bool) list
+
+  let append cond b t = (cond, b) :: t
+
+  let empty = []
+
+  let pp fmt pc =
+    F.fprintf fmt "===== Path =====\n" ;
+    List.iter (fun (v, b) -> F.fprintf fmt "%b = %a\n" b Value.pp v) pc ;
+    F.fprintf fmt "================\n" 
+
+  let mk_solver ctx pc = 
+    let rec to_z3 cond =
+      match cond with
+      | SymExpr.Symbol s -> 
+          let sym = Z3.Symbol.mk_string ctx s in
+          Z3.Arithmetic.Integer.mk_const ctx sym
+      | Ret (id, _, _) -> 
+          let sym = Z3.Symbol.mk_int ctx id in
+          Z3.Arithmetic.Integer.mk_const ctx sym
+      | Int i -> Z3.Arithmetic.Integer.mk_numeral_i ctx (Int64.to_int i)
+      | Add (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_add ctx [e1';e2']
+      | Sub (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_sub ctx [e1';e2']
+      | Mul (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_mul ctx [e1';e2']
+      | Div (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_div ctx e1' e2'
+      | Rem (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.Integer.mk_mod ctx e1' e2'
+      | Peq (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Boolean.mk_eq ctx e1' e2'
+      | Pne (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          let ze = Z3.Boolean.mk_eq ctx e1' e2' in
+          Z3.Boolean.mk_not ctx ze
+      | Pgt (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_gt ctx e1' e2'
+      | Pge (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_ge ctx e1' e2'
+      | Plt (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_lt ctx e1' e2'
+      | Ple (e1, e2) -> 
+          let e1' = to_z3 e1 in
+          let e2' = to_z3 e2 in
+          Z3.Arithmetic.mk_le ctx e1' e2'
+      (* This will likely created a malformed expression *)
+      | _ ->  Z3.Boolean.mk_true ctx
+    in
+    let solver = Z3.Solver.mk_solver ctx None in
+    List.iter (fun (v, b) -> 
+      let sv = Value.to_symexpr v in
+      let ze = to_z3 sv in
+      let cons = if b then ze else Z3.Boolean.mk_not ctx ze in
+      Z3.Solver.add solver [ cons ]) pc ;
+    solver
+    
+end
+
 module State = struct
   type t =
     { stack: Stack.t
@@ -722,7 +889,8 @@ module State = struct
     ; instrmap: Node.t InstrMap.t
     ; target_instr: Llvm.llvalue option
     ; target_node: Node.t option
-    ; prev_blk: Llvm.llbasicblock option }
+    ; prev_blk: Llvm.llbasicblock option 
+    ; path_cons: PathConstraints.t } 
 
   let empty =
     { stack= Stack.empty
@@ -735,7 +903,8 @@ module State = struct
     ; instrmap= InstrMap.empty
     ; target_instr= None
     ; target_node= None
-    ; prev_blk= None }
+    ; prev_blk= None 
+    ; path_cons= PathConstraints.empty}
 
   let instr_count = ref (-1)
 
@@ -806,4 +975,6 @@ module State = struct
     {s with dugraph}
 
   let set_target_instr t s = {s with target_instr= Some t}
+
+  let add_path_cons cons b s = {s with path_cons=PathConstraints.append cons b s.path_cons}
 end
