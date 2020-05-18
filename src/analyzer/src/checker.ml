@@ -369,8 +369,7 @@ module IcmpBranchChecker = struct
                 | Some {stmt= Statement.ConditionalBranch {br}} ->
                     let is_op0_const = Value.is_const op0 in
                     let is_op1_const = Value.is_const op1 in
-                    if is_op0_const && is_op0_const then result
-                    else if is_op0_const && Value.sem_equal op1 var then
+                    if is_op0_const && Value.sem_equal op1 var then
                       Checked (pred, Value.get_const op0, br) :: result
                     else if is_op1_const && Value.sem_equal op0 var then
                       Checked (pred, Value.get_const op1, br) :: result

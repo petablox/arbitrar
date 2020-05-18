@@ -31,7 +31,7 @@ class DataPoint:
 
   def labels(self):
     dugraph = self.dugraph()
-    return dugraph["labels"] if dugraph["labels"] else []
+    return dugraph["labels"] if "labels" in dugraph and dugraph["labels"] else []
 
   def alarms(self):
     return [a for a in self.labels() if "alarm" in a]
