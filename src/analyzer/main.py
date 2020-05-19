@@ -86,7 +86,7 @@ def run_analyzer(db, bc_file, args):
   # Analyze if not finished
   if args.redo or not analyze_finished:
     cmd = [
-        './analyzer', bc_file, '-n',
+        './analyzer', bc_file, '-no-analysis', '-n',
         str(args.slice_size), '-exclude-fn', exclude_fn, '-causality-dict-size',
         str(args.causality_dict_size), '-outdir', temp_outdir
     ]

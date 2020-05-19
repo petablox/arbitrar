@@ -57,6 +57,8 @@ let output_trace = ref true
 let no_reduction = ref false
 
 (* Analyzer Options *)
+let no_analysis = ref false
+
 let report_threshold = ref 0.9
 
 let checker = ref "all"
@@ -111,7 +113,8 @@ let filter_opts_local =
   [("-no-filter", Arg.Set no_filter, "Does not check undersize")]
 
 let analyzer_opts_local =
-  [ ( "-thres"
+  [ ("-no-analysis", Arg.Set no_analysis, "No analysis")
+  ; ( "-thres"
     , Arg.Set_float report_threshold
     , "Score threshold for reporting bugs" )
   ; ( "-checker"

@@ -6,7 +6,8 @@ def iterate_datapoints(db, args):
   if args.filter:
     flt = eval(args.filter)
 
-  bc_files = list(db.bc_files(package=args.package, full=False)) if args.package else [db.find_bc_name(args.bc)] if args.bc else None
+  bc_files = list(db.bc_files(package=args.package,
+                              full=False)) if args.package else [db.find_bc_name(args.bc)] if args.bc else None
 
   for dp in db.function_datapoints(args.function):
     if bc_files == None or dp.bc in bc_files:

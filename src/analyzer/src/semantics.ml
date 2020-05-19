@@ -321,7 +321,7 @@ module Location = struct
     | Argument of int
     | Variable of Variable.t
     | SymExpr of SymExpr.t
-    | Gep of t * (int option list)
+    | Gep of t * int option list
     | Unknown
 
   let rec to_json cache l =
@@ -335,7 +335,10 @@ module Location = struct
     | SymExpr e ->
         `List [`String "SymExpr"; SymExpr.to_yojson e]
     | Gep (e, is) ->
-        `List [`String "Gep"; to_json cache e; `List (List.map (function Some i -> `Int i | None -> `Null) is)]
+        `List
+          [ `String "Gep"
+          ; to_json cache e
+          ; `List (List.map (function Some i -> `Int i | None -> `Null) is) ]
     | Unknown ->
         `List [`String "Unknown"]
 

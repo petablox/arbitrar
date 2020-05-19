@@ -461,10 +461,12 @@ and transfer llctx instr env state =
           List.init
             (Llvm.num_operands instr - 1)
             (fun i -> Llvm.operand instr (i + 1))
-          |> (List.map (fun index ->
-            match eval env.cache index state.State.memory with
-            | (Value.Int i, _) -> Some (Int64.to_int i)
-            | _ -> None))
+          |> List.map (fun index ->
+                 match eval env.cache index state.State.memory with
+                 | Value.Int i, _ ->
+                     Some (Int64.to_int i)
+                 | _ ->
+                     None)
         in
         let lv = eval_lv instr state.State.memory in
         let v, state =
@@ -472,9 +474,11 @@ and transfer llctx instr env state =
           | Value.Location l ->
               (Location.gep_of indices l |> Value.location, state)
           | Value.SymExpr s ->
-              (Location.symexpr s |> Location.gep_of indices |> Value.location, state)
+              ( Location.symexpr s |> Location.gep_of indices |> Value.location
+              , state )
           | Value.Argument i ->
-              (Location.argument i |> Location.gep_of indices |> Value.location, state)
+              ( Location.argument i |> Location.gep_of indices |> Value.location
+              , state )
           | _ ->
               let l = Location.new_symbol () in
               ( Value.location l

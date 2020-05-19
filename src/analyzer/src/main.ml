@@ -72,8 +72,7 @@ let main () =
       Features.main !input_file
   | All ->
       Extractor.main !input_file ;
-      Filter.main outdir ;
-      Analyzer.main outdir ;
+      if !Options.no_analysis then (Filter.main outdir ; Analyzer.main outdir) ;
       Features.main outdir
 
 let _ = main ()
