@@ -195,9 +195,6 @@ let eval cache exp memory =
   | _ ->
       (Value.Unknown, [])
 
-
-
-
 let eval_lv exp memory =
   let kind = Llvm.classify_value exp in
   match kind with
@@ -421,15 +418,20 @@ and transfer llctx instr env state =
         let exp0 = Llvm.operand instr 0 in
         let lv0 = eval_lv exp0 state.State.memory in
         let v0 = Memory.find lv0 state.State.memory in
-        let lv1, state =
+        let lv1, v1, state =
           match v0 with
-          | Value.Location l ->
-              (l, state)
+          | Value.Location l -> (
+            match Memory.find_opt l state.State.memory with
+            | Some v1 ->
+                (l, v1, state)
+            | None ->
+                let v1 = Value.new_symbol () in
+                let new_state = State.add_memory lv0 v1 state in
+                (l, v1, new_state) )
           | _ ->
               let l = Location.new_symbol () in
-              (l, State.add_memory lv0 (Value.location l) state)
+              (l, Value.Unknown, State.add_memory lv0 (Value.location l) state)
         in
-        let v1 = Memory.find lv1 state.State.memory in
         let lv = eval_lv instr state.State.memory in
         let semantic_sig =
           semantic_sig_of_unop env.cache v1 (Value.location lv1)
@@ -693,8 +695,7 @@ and finish_execution llctx env state =
   if !Options.verbose > 2 then (
     Memory.pp F.std_formatter state.State.memory ;
     ReachingDef.pp F.std_formatter state.State.reachingdef ;
-    PathConstraints.pp F.std_formatter state.State.path_cons ;
-          ) ;
+    PathConstraints.pp F.std_formatter state.State.path_cons ) ;
   let out_of_traces =
     Traces.length env.Environment.traces >= !Options.max_traces
   in
