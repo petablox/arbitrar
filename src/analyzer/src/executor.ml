@@ -359,8 +359,9 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr env state =
+  (*
   if !Options.verbose > 1 then
-    prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ;
+    prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state
   else
@@ -656,10 +657,6 @@ and finish_execution llctx env state =
             if !Options.no_reduction then state.dugraph
             else reduce_dugraph target_node state.dugraph
           in
-          (*
-          PathConstraints.pp F.std_formatter state.State.path_cons ;
-          F.print_flush () ;
-          *)
           let env =
             Environment.add_trace state.State.trace env
             |> Environment.add_dugraph dug ;
@@ -674,8 +671,10 @@ and finish_execution llctx env state =
     else {env with metadata= Metadata.incr_target_unvisited env.metadata}
   in
   if !Options.verbose > 2 then (
-    Memory.pp F.err_formatter state.State.memory ;
-    ReachingDef.pp F.err_formatter state.State.reachingdef ) ;
+    Memory.pp F.std_formatter state.State.memory ;
+    ReachingDef.pp F.std_formatter state.State.reachingdef ;
+    PathConstraints.pp F.std_formatter state.State.path_cons ;
+          ) ;
   let out_of_traces =
     Traces.length env.Environment.traces >= !Options.max_traces
   in

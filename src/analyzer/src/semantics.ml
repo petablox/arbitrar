@@ -67,6 +67,10 @@ module Symbol = struct
   let to_string x = x
 
   let pp fmt x = F.fprintf fmt "%s" x
+
+  let arg_symbol arg_id =
+    "$A-" ^ string_of_int arg_id
+
 end
 
 module SymbolSet = Set.Make (Symbol)
@@ -97,6 +101,8 @@ module SymExpr = struct
   [@@deriving show, yojson {exn= true}]
 
   let new_symbol () = Symbol (Symbol.new_symbol ())
+
+  let arg_symbol id = Symbol (Symbol.arg_symbol id)
 
   let of_int i = Int i
 
@@ -410,153 +416,140 @@ module Value = struct
         s
     | Int i ->
         SymExpr.of_int i
+    | Argument id ->
+        SymExpr.arg_symbol id
     | _ ->
         SymExpr.new_symbol ()
+
+  (* Anthony: As we upgrade symbolic engine, I will use this function
+   * to either encode a Value as a SymExpr that we support, or return
+   * None. The following function, bind, will either unwrap the optional
+   * SymExpr (think Maybe monad) or return Value.unknown. Until we fully
+   * encode all Value into SymExpr, this option/bind hack will at least
+   * make the cases for add, sub, etc cleaner *)
+  let to_symexpr_opt = function
+    | SymExpr s ->
+        Some s
+    | Int i ->
+        Some (SymExpr.of_int i)
+    | Argument id ->
+        Some (SymExpr.arg_symbol id)
+    | _ ->
+        None 
+  
+  let bind x f =
+    match x with
+    | Some s -> f s
+    | None -> unknown
+
+  let (>>=) = bind
 
   let add v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.add i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.add se1 se2)
-    | Int i, SymExpr se | SymExpr se, Int i ->
-        SymExpr (SymExpr.add se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.add se1 se2)
 
   let sub v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
-        Int (Int64.add i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.sub se1 se2)
-    | Int i, SymExpr se ->
-        SymExpr (SymExpr.sub (SymExpr.of_int i) se)
-    | SymExpr se, Int i ->
-        SymExpr (SymExpr.sub se (SymExpr.of_int i))
+        Int (Int64.sub i1 i2)
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.sub se1 se2)
 
   let mul v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
-        Int (Int64.add i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.mul se1 se2)
-    | Int i, SymExpr se | SymExpr se, Int i ->
-        SymExpr (SymExpr.mul se (SymExpr.of_int i))
+        Int (Int64.mul i1 i2)
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.mul se1 se2)
 
   let div v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 when i2 <> Int64.zero ->
         Int (Int64.div i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.div se1 se2)
-    | Int i, SymExpr se ->
-        SymExpr (SymExpr.div (SymExpr.of_int i) se)
-    | SymExpr se, Int i ->
-        SymExpr (SymExpr.div se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.div se1 se2)
 
   let rem v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 when i2 <> Int64.zero ->
         Int (Int64.rem i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.rem se1 se2)
-    | Int i, SymExpr se ->
-        SymExpr (SymExpr.rem (SymExpr.of_int i) se)
-    | SymExpr se, Int i ->
-        SymExpr (SymExpr.rem se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.rem se1 se2)
 
   let shl v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.shift_left i1 (Int64.to_int i2))
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.shl se1 se2)
-    | Int i, SymExpr se ->
-        SymExpr (SymExpr.shl (SymExpr.of_int i) se)
-    | SymExpr se, Int i ->
-        SymExpr (SymExpr.shl se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.shl se1 se2)
 
   let lshr v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.shift_right_logical i1 (Int64.to_int i2))
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.lshr se1 se2)
-    | Int i, SymExpr se ->
-        SymExpr (SymExpr.lshr (SymExpr.of_int i) se)
-    | SymExpr se, Int i ->
-        SymExpr (SymExpr.lshr se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.lshr se1 se2)
 
   let ashr v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.shift_right i1 (Int64.to_int i2))
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.ashr se1 se2)
-    | Int i, SymExpr se ->
-        SymExpr (SymExpr.ashr (SymExpr.of_int i) se)
-    | SymExpr se, Int i ->
-        SymExpr (SymExpr.ashr se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.ashr se1 se2)
 
   let band v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.logand i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.band se1 se2)
-    | Int i, SymExpr se | SymExpr se, Int i ->
-        SymExpr (SymExpr.band se (SymExpr.of_int i))
     | _, _ ->
-        unknown
-
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.band se1 se2)
+    
   let bor v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.logor i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.bor se1 se2)
-    | Int i, SymExpr se | SymExpr se, Int i ->
-        SymExpr (SymExpr.bor se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.bor se1 se2)
 
   let bxor v1 v2 =
     match (v1, v2) with
     | Int i1, Int i2 ->
         Int (Int64.logxor i1 i2)
-    | SymExpr se1, SymExpr se2 ->
-        SymExpr (SymExpr.bxor se1 se2)
-    | Int i, SymExpr se | SymExpr se, Int i ->
-        SymExpr (SymExpr.bxor se (SymExpr.of_int i))
     | _, _ ->
-        unknown
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
+        SymExpr (SymExpr.bxor se1 se2)
 
   let icmp instr v1 v2 =
     let pred = Llvm.icmp_predicate instr in
     match pred with
     | (Some p) -> (
-      match (v1, v2) with
-      | SymExpr se1, SymExpr se2 ->
+        to_symexpr_opt v1 >>= fun se1 ->
+        to_symexpr_opt v2 >>= fun se2 ->
         SymExpr (SymExpr.icmp p se1 se2)
-      | Int i, SymExpr se | SymExpr se, Int i ->
-        SymExpr (SymExpr.icmp p se (SymExpr.of_int i))
-      | _, _ -> 
-        unknown
     )
     | None ->
         unknown

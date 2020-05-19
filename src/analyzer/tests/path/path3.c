@@ -13,9 +13,10 @@ static void mutex_unlock(struct lock *l) {
 }
 
 void run(int x, struct lock *l) {
-  void *a = malloc(0); 
+  void *a = malloc(0);
+  x = x + 5;
   if (x != 0)
     mutex_lock(l);
   if (x != 0)
     mutex_unlock(l);
-} 
+}

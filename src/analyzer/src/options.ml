@@ -8,7 +8,7 @@ let outdir_ = ref "llextractor-out"
 
 let outdir () = Utils.get_abs_path !outdir_
 
-let verbose = ref 0
+let verbose = ref 3
 
 let pretty_json = ref false
 
@@ -52,7 +52,7 @@ let include_instr = ref false
 
 let output_dot = ref false
 
-let output_trace = ref false
+let output_trace = ref true
 
 let no_reduction = ref false
 
