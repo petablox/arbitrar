@@ -52,7 +52,7 @@ class AlarmQuery(Executor):
       trace_id = d["trace_id"]
 
       if lastslice == slice_id and args.slice:
-          continue
+        continue
       lastslice = slice_id
 
       dugraph = args.db.dugraph(fn, bc, slice_id, trace_id)
@@ -73,7 +73,8 @@ class AlarmQuery(Executor):
 
           left_window.erase()
           right_window.erase()
-          left_window.addstr(f"[{path}] Slice-Id:{slice_id} Trace-Id:{trace_id} Alarm {i}/{nalarms}\n", curses.color_pair(1))
+          left_window.addstr(f"[{path}] Slice-Id:{slice_id} Trace-Id:{trace_id} Alarm {i}/{nalarms}\n",
+                             curses.color_pair(1))
           right_window.addstr(f"[{path}] Slice-Id:{slice_id} Trace-Id:{trace_id} Features\n", curses.color_pair(1))
 
           #cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
@@ -100,9 +101,9 @@ class AlarmQuery(Executor):
           if feature:
             formatted = pp.pformat(feature).splitlines()
             for l, t in enumerate(formatted):
-                if l >= lines-10:
-                    continue
-                right_window.addstr(t + "\n")
+              if l >= lines - 10:
+                continue
+              right_window.addstr(t + "\n")
           else:
             right_window.addstr("No features")
       else:
@@ -114,12 +115,11 @@ class AlarmQuery(Executor):
       while True:
         key = left_window.getkey()
         if key == "n":
-            right_window.scrollok(True)
-            right_window.scroll(10)
+          right_window.scrollok(True)
+          right_window.scroll(10)
         elif key == "p":
-            right_window.scrollok(True)
-            right_window.scroll(-10)
+          right_window.scrollok(True)
+          right_window.scroll(-10)
         else:
-            break
+          break
         right_window.refresh()
-

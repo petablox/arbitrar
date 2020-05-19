@@ -133,7 +133,7 @@ def train_and_test(args):
   # Get the output directory
   exp_dir = db.new_learning_dir(args.function)
 
-  print("Dumping Training Data...");
+  print("Dumping Training Data...")
 
   with open(f"{exp_dir}/unified.json", "w") as f:
     sample_feature = features[0]
@@ -213,10 +213,10 @@ def train_and_test(args):
       label(p, dp).append(x)
 
     dp_types = [
-      (tn, 'b', ',', 3, 0), # True Negative
-      (fp, 'y', '.', 3, 1), # False Positive
-      (fn, 'r', 'o', 7, 2), # False Negative
-      (tp, 'g', 'o', 5, 3)  # True Positive
+        (tn, 'b', ',', 3, 0),  # True Negative
+        (fp, 'y', '.', 3, 1),  # False Positive
+        (fn, 'r', 'o', 7, 2),  # False Negative
+        (tp, 'g', 'o', 5, 3)  # True Positive
     ]
 
     for arr, color, marker, size, zorder in dp_types:
