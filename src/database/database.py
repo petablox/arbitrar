@@ -305,6 +305,9 @@ class Database:
     with open(self.feature_dir(func_name, bc, slice_id, trace_id)) as f:
       return json.load(f)
 
+  def datapoint(self, func_name, bc, slice_id, trace_id):
+    return DataPoint(self, func_name, bc, slice_id, trace_id)
+
   def function_slices(self, func_name: str):
     # Check if the function is there
     func_slices_dir = self.func_slices_dir(func_name, create=False)
