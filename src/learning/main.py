@@ -24,6 +24,9 @@ def setup_parser(parser):
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-i', '--input', type=str)
 
+  # Feature Settings
+  parser.add_argument('--no-causality', action='store_true')
+
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
   parser.add_argument('--nu', type=float, default=0.01, help='OCSVM nu')
@@ -93,7 +96,7 @@ def test(args):
 
   datapoints = list(db.function_datapoints(args.function))
   features = unify_features_with_sample(datapoints, unified)
-  x = np.array([encode_feature(feature) for feature in features])
+  x = np.array([encode_feature(feature, args) for feature in features])
   model = Model(datapoints, x, clf)
 
   exp_dir = db.new_learning_dir(args.function)
@@ -122,7 +125,7 @@ def train_and_test(args):
   features = unify_features(datapoints)
 
   print("Encoding Features...")
-  x = np.array([encode_feature(feature) for feature in features])
+  x = np.array([encode_feature(feature, args) for feature in features])
 
   print("Training Model...")
   model = models[args.model](datapoints, x, args)
@@ -193,6 +196,10 @@ def train_and_test(args):
     def label(prediction, datapoint):
       pos = prediction < 0
       alarm = datapoint.has_label(label=args.ground_truth)
+
+      if alarm:
+        print(f"{datapoint.slice_id} has alarm")
+
       if pos and alarm:  # True positive
         return tp
       elif not pos and not alarm:  # True negative
@@ -206,15 +213,15 @@ def train_and_test(args):
       label(p, dp).append(x)
 
     dp_types = [
-      (tn, 'b', ',', 0), # True Negative
-      (fp, 'y', '.', 1), # False Positive
-      (fn, 'r', 'o', 2), # False Negative
-      (tp, 'g', 'o', 3)  # True Positive
+      (tn, 'b', ',', 3, 0), # True Negative
+      (fp, 'y', '.', 3, 1), # False Positive
+      (fn, 'r', 'o', 7, 2), # False Negative
+      (tp, 'g', 'o', 5, 3)  # True Positive
     ]
 
-    for arr, color, marker, zorder in dp_types:
+    for arr, color, marker, size, zorder in dp_types:
       nparr = np.array(arr) if len(arr) > 0 else np.empty([0, 2])
-      plt.scatter(nparr[:, 0], nparr[:, 1], c=color, marker=marker, zorder=zorder)
+      plt.scatter(nparr[:, 0], nparr[:, 1], c=color, s=size, marker=marker, zorder=zorder)
 
   else:
     colors = ['g' if p > 0 else 'r' for p in predicted]

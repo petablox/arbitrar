@@ -1,6 +1,6 @@
-def encode_feature(feature_json):
-  invoked_before_features = encode_causality_dictionary(feature_json["invoked_before"])
-  invoked_after_features = encode_causality_dictionary(feature_json["invoked_after"])
+def encode_feature(feature_json, args):
+  invoked_before_features = [] if args.no_causality else encode_causality_dictionary(feature_json["invoked_before"])
+  invoked_after_features = [] if args.no_causality else encode_causality_dictionary(feature_json["invoked_after"])
   retval_features = encode_retval(feature_json["retval_check"]) if "retval_check" in feature_json else []
   argval_0_features = encode_argval(feature_json["argval_0_check"]) if "argval_0_check" in feature_json else []
   argval_1_features = encode_argval(feature_json["argval_1_check"]) if "argval_1_check" in feature_json else []
@@ -11,7 +11,7 @@ def encode_feature(feature_json):
 
 
 def encode_causality(causality):
-  fields = ["invoked_more_than_once", "share_argument", "share_return_value"]
+  fields = ["invoked_more_than_once", "share_argument", "share_return_value", "same_context"]
   if causality["invoked"]:
     return [1] * len(fields) + [causality[f] for f in fields]
   else:
