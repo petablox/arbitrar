@@ -483,7 +483,20 @@ and transfer_ret llctx instr env state =
   | Some (callsite, state) ->
       let lv = eval_lv callsite state.State.memory in
       let exp0 = Llvm.operand instr 0 in
-      let v, _ = eval env.cache exp0 state.State.memory in
+      let v =
+        let evaled_value, _ = eval env.cache exp0 state.State.memory in
+        if evaled_value = Value.Unknown then
+          let callee = Utils.callee_of_call_instr callsite in
+          let args = Utils.args_of_call_instr callsite in
+          SymExpr.new_ret (Llvm.value_name callee)
+            (List.map
+              (fun arg ->
+                eval env.cache arg state.State.memory |> fst |> Value.to_symexpr)
+              args)
+          |> Value.of_symexpr
+        else
+          evaled_value
+      in
       let semantic_sig = semantic_sig_of_return env.cache (Some v) in
       State.add_trace env.cache llctx instr semantic_sig state
       |> add_syntactic_du_edge instr env

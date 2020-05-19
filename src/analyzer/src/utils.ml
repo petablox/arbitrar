@@ -394,6 +394,11 @@ module SliceCache = struct
     ()
 end
 
+let callee_of_call_instr instr = Llvm.operand instr (Llvm.num_operands instr - 1)
+
+let args_of_call_instr instr =
+  List.init (Llvm.num_operands instr - 1) (Llvm.operand instr)
+
 let fold_left_all_instr f a m =
   Llvm.fold_left_functions
     (fun a func ->
