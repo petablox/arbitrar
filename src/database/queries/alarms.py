@@ -3,6 +3,7 @@ import pandas
 from ..meta import Executor, pp
 from ..helpers import SourceFeatureVisualizer
 
+
 class AlarmsQuery(Executor):
   @staticmethod
   def setup_parser(parser):
@@ -39,6 +40,6 @@ class AlarmsQuery(Executor):
       if not args.source:
         pp.pprint(datapoint.dugraph())
       else:
-        result = vis.show(datapoint, args.source, label = f"{i}/{nalarms}")
+        result = vis.show(datapoint, args.source, label=f"{i}/{nalarms}")
         if not result:
           break

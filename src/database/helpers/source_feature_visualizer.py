@@ -5,6 +5,7 @@ from termcolor import cprint
 
 import curses
 
+
 class SourceFeatureVisualizer():
   def __init__(self):
     self.stdscr = curses.initscr()
@@ -24,7 +25,7 @@ class SourceFeatureVisualizer():
     self.left_window = curses.newwin(self.lines, self.half_width)
     self.right_window = curses.newwin(self.lines, self.half_width, 0, self.half_width + 2)
 
-  def show(self, datapoint, source, label = "", padding = 20):
+  def show(self, datapoint, source, label="", padding=20):
 
     # Initialize datapoint data
     bc = datapoint.bc
@@ -48,8 +49,9 @@ class SourceFeatureVisualizer():
     self.left_window.erase()
     self.right_window.erase()
     self.left_window.addstr(f"[{path}:{line}] Slice-Id:{slice_id} Trace-Id:{trace_id} Code {label}\n",
-                        curses.color_pair(1))
-    self.right_window.addstr(f"[{path}:{line}] Slice-Id:{slice_id} Trace-Id:{trace_id} Features\n", curses.color_pair(1))
+                            curses.color_pair(1))
+    self.right_window.addstr(f"[{path}:{line}] Slice-Id:{slice_id} Trace-Id:{trace_id} Features\n",
+                             curses.color_pair(1))
 
     #cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
     path = os.path.join(source, path)
