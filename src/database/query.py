@@ -12,7 +12,7 @@ query_executors = {
     'dugraph': DUGraphQuery,
     'feature': FeatureQuery,
     'labels': LabelsQuery,
-    'alarms': AlarmQuery
+    'alarms': AlarmsQuery
 }
 
 

@@ -8,4 +8,4 @@ from .occurrence import OccurrenceQuery
 from .packages import PackagesQuery
 from .slice import SliceQuery
 from .slices import SlicesQuery
-from .alarm import AlarmQuery
+from .alarms import AlarmsQuery

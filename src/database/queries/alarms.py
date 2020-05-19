@@ -7,7 +7,7 @@ from termcolor import cprint
 import curses
 
 
-class AlarmQuery(Executor):
+class AlarmsQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('learning-dir', type=str, help="learning dir that contains alarms.csv")
