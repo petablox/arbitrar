@@ -338,14 +338,42 @@ module CausalityChecker = struct
 end
 
 module IcmpBranchChecker = struct
-  type t = Checked of Predicate.t * int64 * Branch.t | NoCheck
+  (* Predicate, Compare Against, Branch Taken, Immediate Branch *)
+  (* Note: Immediate branch means the branch happens right after icmp, indicating there's no other
+     variable involved in the branching decision. *)
+  type t = Checked of Predicate.t * int64 * Branch.t * bool | NoCheck
 
-  let rec check_helper cfgraph succ var explored fringe result =
+  let rec find_br dugraph node level fringe : (Branch.t * bool) option =
+    let immediate = level = 0 in
+    let successors = NodeGraph.succ dugraph node in
+    let maybe_branch_instr =
+      List.find_opt
+        (fun (node : Node.t) ->
+          match node.stmt with
+          | Statement.ConditionalBranch _ ->
+              true
+          | _ ->
+              false)
+        successors
+    in
+    match maybe_branch_instr with
+    | Some {stmt= Statement.ConditionalBranch {br}} ->
+        Some (br, immediate)
+    | _ -> (
+        let new_fringe = NodeSet.union (NodeSet.of_list successors) fringe in
+        match NodeSet.choose_opt new_fringe with
+        | Some hd ->
+            let new_fringe = NodeSet.remove hd new_fringe in
+            find_br dugraph hd (level + 1) new_fringe
+        | None ->
+            None )
+
+  let rec check_helper dugraph cfgraph succ var explored fringe result =
     match NodeSet.choose_opt fringe with
     | Some hd ->
         let rst = NodeSet.remove hd fringe in
         if NodeSet.mem hd explored then
-          check_helper cfgraph succ var explored rst result
+          check_helper dugraph cfgraph succ var explored rst result
         else
           let new_explored = NodeSet.add hd explored in
           let new_fringe =
@@ -354,32 +382,22 @@ module IcmpBranchChecker = struct
           let new_result =
             match hd.stmt with
             | Assume {pred; op0; op1} -> (
-                let branch_instrs = NodeGraph.succ cfgraph hd in
-                let maybe_branch_instr =
-                  List.find_opt
-                    (fun (node : Node.t) ->
-                      match node.stmt with
-                      | Statement.ConditionalBranch _ ->
-                          true
-                      | _ ->
-                          false)
-                    branch_instrs
-                in
-                match maybe_branch_instr with
-                | Some {stmt= Statement.ConditionalBranch {br}} ->
-                    let is_op0_const = Value.is_const op0 in
-                    let is_op1_const = Value.is_const op1 in
-                    if is_op0_const && Value.sem_equal op1 var then
-                      Checked (pred, Value.get_const op0, br) :: result
-                    else if is_op1_const && Value.sem_equal op0 var then
-                      Checked (pred, Value.get_const op1, br) :: result
-                    else result
-                | _ ->
-                    result )
+              match find_br dugraph hd 0 NodeSet.empty with
+              | Some (br, immediate) ->
+                  let is_op0_const = Value.is_const op0 in
+                  let is_op1_const = Value.is_const op1 in
+                  if is_op0_const && Value.sem_equal op1 var then
+                    Checked (pred, Value.get_const op0, br, immediate) :: result
+                  else if is_op1_const && Value.sem_equal op0 var then
+                    Checked (pred, Value.get_const op1, br, immediate) :: result
+                  else result
+              | _ ->
+                  result )
             | _ ->
                 result
           in
-          check_helper cfgraph succ var new_explored new_fringe new_result
+          check_helper dugraph cfgraph succ var new_explored new_fringe
+            new_result
     | None ->
         result
 
@@ -388,7 +406,9 @@ module IcmpBranchChecker = struct
     let succ_func = if succ then NodeGraph.succ else NodeGraph.pred in
     let fringe = NodeSet.of_list (succ_func trace.cfgraph start) in
     let explored = NodeSet.empty in
-    let results = check_helper trace.cfgraph succ_func var explored fringe [] in
+    let results =
+      check_helper trace.dugraph trace.cfgraph succ_func var explored fringe []
+    in
     List.filter (( <> ) NoCheck) results
 
   let check_retval (trace : Trace.t) : t list =
@@ -433,11 +453,11 @@ module FOpenChecker = struct
 
   let is_zero retval_check =
     match retval_check with
-    | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Then)
-    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Else) ->
+    | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Then, true)
+    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Else, true) ->
         IsZero
-    | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Else)
-    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then) ->
+    | IcmpBranchChecker.Checked (Predicate.Eq, 0L, Branch.Else, true)
+    | IcmpBranchChecker.Checked (Predicate.Ne, 0L, Branch.Then, true) ->
         NotZero
     | _ ->
         Other

@@ -70,7 +70,11 @@ end
 
 let initialize_output_directories outdir =
   List.iter mkdir
-    [outdir; outdir ^ "/dugraphs"; outdir ^ "/dots"; outdir ^ "/traces" ; outdir ^ "/discarded"]
+    [ outdir
+    ; outdir ^ "/dugraphs"
+    ; outdir ^ "/dots"
+    ; outdir ^ "/traces"
+    ; outdir ^ "/discarded" ]
 
 (* LLVM utility functions *)
 

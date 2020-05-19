@@ -40,12 +40,14 @@ module RetvalFeature = struct
   let extract func trace =
     let results = IcmpBranchChecker.check_retval trace in
     match results with
-    | IcmpBranchChecker.Checked (pred, i, br) :: _ ->
+    | IcmpBranchChecker.Checked (pred, i, br, immediate) :: _ ->
         let is_zero, not_zero =
-          match (pred, i, br) with
-          | Predicate.Eq, 0L, Branch.Then | Predicate.Ne, 0L, Branch.Else ->
+          match (pred, i, br, immediate) with
+          | Predicate.Eq, 0L, Branch.Then, true
+          | Predicate.Ne, 0L, Branch.Else, true ->
               (true, false)
-          | Predicate.Eq, 0L, Branch.Else | Predicate.Ne, 0L, Branch.Then ->
+          | Predicate.Eq, 0L, Branch.Else, true
+          | Predicate.Ne, 0L, Branch.Then, true ->
               (false, true)
           | _ ->
               (false, false)
@@ -86,12 +88,14 @@ module ArgvalFeature (A : ARG_INDEX) = struct
   let extract _ trace =
     let results = IcmpBranchChecker.check_argval trace A.index in
     match results with
-    | IcmpBranchChecker.Checked (pred, i, br) :: _ ->
+    | IcmpBranchChecker.Checked (pred, i, br, immediate) :: _ ->
         let is_zero, not_zero =
-          match (pred, i, br) with
-          | Predicate.Eq, 0L, Branch.Then | Predicate.Ne, 0L, Branch.Else ->
+          match (pred, i, br, immediate) with
+          | Predicate.Eq, 0L, Branch.Then, true
+          | Predicate.Ne, 0L, Branch.Else, true ->
               (true, false)
-          | Predicate.Eq, 0L, Branch.Else | Predicate.Ne, 0L, Branch.Then ->
+          | Predicate.Eq, 0L, Branch.Else, true
+          | Predicate.Ne, 0L, Branch.Then, true ->
               (false, true)
           | _ ->
               (false, false)

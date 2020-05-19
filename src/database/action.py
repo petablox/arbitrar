@@ -1,10 +1,7 @@
 from . import utils
 from .actions import *
 
-action_executors = {
-    'generate-dot': GenerateDotAction,
-    'label': LabelAction
-}
+action_executors = {'generate-dot': GenerateDotAction, 'label': LabelAction}
 
 
 def setup_parser(parser):

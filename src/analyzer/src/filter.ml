@@ -4,7 +4,7 @@ let rec used_in_location (ret : Value.t) (loc : Location.t) : bool =
   match loc with
   | Location.SymExpr e ->
       ret = Value.SymExpr e
-  | Location.Gep l ->
+  | Location.Gep (l, _) ->
       used_in_location ret l
   | _ ->
       false

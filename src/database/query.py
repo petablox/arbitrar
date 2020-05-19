@@ -11,8 +11,9 @@ query_executors = {
     'num-traces': NumTracesQuery,
     'dugraph': DUGraphQuery,
     'feature': FeatureQuery,
+    'features': FeaturesQuery,
     'labels': LabelsQuery,
-    'alarms': AlarmQuery
+    'alarms': AlarmsQuery
 }
 
 

@@ -188,7 +188,7 @@ module Location = struct
     | Argument of int
     | Variable of string
     | SymExpr of SymExpr.t
-    | Gep of t
+    | Gep of t * (int option list)
     | Unknown
   [@@deriving yojson {exn= true}]
 end
