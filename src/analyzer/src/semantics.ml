@@ -374,7 +374,7 @@ module Location = struct
     | SymExpr s ->
         SymExpr.pp fmt s
     | Gep (l, is) ->
-        F.fprintf fmt "Gep(%a, Not implemented)" pp l
+        F.fprintf fmt "Gep(%a, [%s])" pp l (String.concat "," (List.filter_map (Option.map string_of_int) is))
     | Unknown ->
         F.fprintf fmt "Unknown"
 
