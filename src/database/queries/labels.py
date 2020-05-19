@@ -12,6 +12,6 @@ class LabelsQuery(Executor):
   def execute(args):
     db = args.db
     for dp in db.function_datapoints(args.function):
-      if dp.has_alarm(args.alarm):
+      if dp.has_label(args.alarm):
         if args.alarm_only:
           print(dp.bc, dp.slice_id, dp.trace_id, dp.labels())

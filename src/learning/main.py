@@ -192,7 +192,7 @@ def train_and_test(args):
 
     def label(prediction, datapoint):
       pos = prediction < 0
-      alarm = datapoint.has_alarm(alarm=args.ground_truth)
+      alarm = datapoint.has_label(label=args.ground_truth)
       if pos and alarm:  # True positive
         return tp
       elif not pos and not alarm:  # True negative
@@ -205,9 +205,16 @@ def train_and_test(args):
     for x, p, dp in zip(x_embedded, predicted, datapoints):
       label(p, dp).append(x)
 
-    for arr, color, zorder in [(tn, 'b', 0), (fp, 'y', 1), (fn, 'r', 2), (tp, 'g', 3)]:
+    dp_types = [
+      (tn, 'b', ',', 0), # True Negative
+      (fp, 'y', '.', 1), # False Positive
+      (fn, 'r', 'o', 2), # False Negative
+      (tp, 'g', 'o', 3)  # True Positive
+    ]
+
+    for arr, color, marker, zorder in dp_types:
       nparr = np.array(arr) if len(arr) > 0 else np.empty([0, 2])
-      plt.scatter(nparr[:, 0], nparr[:, 1], c=color, zorder=zorder)
+      plt.scatter(nparr[:, 0], nparr[:, 1], c=color, marker=marker, zorder=zorder)
 
   else:
     colors = ['g' if p > 0 else 'r' for p in predicted]

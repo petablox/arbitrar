@@ -10,6 +10,7 @@ class LabelAction(Executor):
     parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
     parser.add_argument('slice-id', type=int, help='The slice id')
     parser.add_argument('trace-id', type=int, help='The trace id', nargs="?")
+    parser.add_argument('-e', '--erase', action="store_true", help='Erase the given label')
 
   @staticmethod
   def execute(args):
@@ -37,17 +38,28 @@ class LabelAction(Executor):
       # Get the dugraph
       dugraph = db.dugraph(fn, bc, slice_id, trace_id)
 
-      # Get its labels
-      if "labels" in dugraph:
+      # Check if erase
+      if args.erase:
 
-        # Check if it already contains the label
-        if not args.label in dugraph["labels"]:
+        # Erase a label if presented
+        if "labels" in dugraph and args.label in dugraph["labels"]:
+          labels = set(dugraph["labels"])
+          labels.discard(args.label)
+          dugraph["labels"] = list(labels)
 
-          # If not, add the label and save the file
-          dugraph["labels"].append(args.label)
-
+      # Add new label
       else:
-        dugraph["labels"] = [args.label]
+        # Get its labels
+        if "labels" in dugraph:
+
+          # Check if it already contains the label
+          if not args.label in dugraph["labels"]:
+
+            # If not, add the label and save the file
+            dugraph["labels"].append(args.label)
+
+        else:
+          dugraph["labels"] = [args.label]
 
       # Dump the updated file
       with open(db.dugraph_dir(fn, bc, slice_id, trace_id), 'w') as f:

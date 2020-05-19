@@ -36,11 +36,11 @@ class DataPoint:
   def alarms(self):
     return [a for a in self.labels() if "alarm" in a]
 
-  def has_alarm(self, alarm=None):
-    if alarm:
-      for a in self.alarms():
-        if alarm in a:
+  def has_label(self, label=None):
+    if label:
+      for l in self.labels():
+        if label in l:
           return True
       return False
     else:
-      return len(self.alarms()) > 0
+      return len(self.labels()) > 0
