@@ -21,7 +21,7 @@ def setup_parser(parser):
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
   parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
   parser.add_argument('--pretty-json', action='store_true', help='Prettify JSON')
-  parser.add_argument('--causality-dict-size', type=int, default=10)
+  parser.add_argument('--causality-dict-size', type=int, default=5)
   parser.add_argument('--commit', action='store_true', help='Commit the analysis data to the database')
 
 

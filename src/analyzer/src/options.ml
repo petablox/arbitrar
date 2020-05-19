@@ -62,7 +62,7 @@ let report_threshold = ref 0.9
 let checker = ref "all"
 
 (* Feature Options *)
-let causality_dict_size = ref 10
+let causality_dict_size = ref 5
 
 let common_opts_local =
   [ ("-debug", Arg.Set debug, "Enable debug mode")

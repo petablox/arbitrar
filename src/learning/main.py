@@ -115,14 +115,22 @@ def test(args):
 def train_and_test(args):
   db = args.db
 
-  # Get the model
+  print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
+
+  print("Unifying Features...")
   features = unify_features(datapoints)
+
+  print("Encoding Features...")
   x = np.array([encode_feature(feature) for feature in features])
+
+  print("Training Model...")
   model = models[args.model](datapoints, x, args)
 
   # Get the output directory
   exp_dir = db.new_learning_dir(args.function)
+
+  print("Dumping Training Data...");
 
   with open(f"{exp_dir}/unified.json", "w") as f:
     sample_feature = features[0]
@@ -151,6 +159,30 @@ def train_and_test(args):
       f.write(s)
       if args.verbose:
         print(s, end="")
+
+  # Dump the raised alarms in a condensed way
+  with open(f"{exp_dir}/alarms_brief.csv", "w") as f:
+    f.write("bc,slice_id,num_traces,score_avg\n")
+
+    # Get average
+    scores_dict = {}
+    for (dp, score) in sorted(list(model.alarms()), key=lambda x: x[1]):
+      key = (dp.bc, dp.slice_id)
+      if key in scores_dict:
+        total, count = scores_dict[key]
+        scores_dict[key] = (total + score, count + 1)
+      else:
+        scores_dict[key] = (score, 1)
+
+    # Dump average
+    for ((bc, slice_id), (total, count)) in sorted(list(scores_dict.items()), key=lambda x: x[1][0] / x[1][1]):
+      avg = total / count
+      s = f"{bc},{slice_id},{count},{avg}"
+      f.write(s)
+      if args.verbose:
+        print(s, end="")
+
+  print("Generating T-SNE Graph")
 
   # Dump t-SNE
   x_embedded = TSNE(n_components=2, verbose=2 if args.verbose else 0).fit_transform(x)

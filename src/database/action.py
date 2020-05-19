@@ -3,6 +3,7 @@ from .actions import *
 
 action_executors = {
     'generate-dot': GenerateDotAction,
+    'label': LabelAction
 }
 
 

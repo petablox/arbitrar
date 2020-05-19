@@ -46,5 +46,9 @@ class LabelAction(Executor):
           # If not, add the label and save the file
           dugraph["labels"].append(args.label)
 
-          # Dump the updated files
-          json.dump(dugraph, db.dugraph_dir(fn, bc, slice_id, trace_id))
+      else:
+        dugraph["labels"] = [args.label]
+
+      # Dump the updated file
+      with open(db.dugraph_dir(fn, bc, slice_id, trace_id), 'w') as f:
+        json.dump(dugraph, f)
