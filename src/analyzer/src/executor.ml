@@ -426,7 +426,7 @@ and transfer llctx instr env state =
                 (l, v1, state)
             | None ->
                 let v1 = Value.new_symbol () in
-                let new_state = State.add_memory lv0 v1 state in
+                let new_state = State.add_memory l v1 state in
                 (l, v1, new_state) )
           | _ ->
               let l = Location.new_symbol () in

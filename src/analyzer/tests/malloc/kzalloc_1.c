@@ -4,6 +4,7 @@
 #define INIT_HLIST_HEAD(e) {}
 #define ERR_PTR(e) 0
 #define _RET_IP_ 100
+#define KMALLOC_MAX_CACHE_SIZE 1000
 #define size_t int
 #define gfp_t int
 
@@ -15,23 +16,24 @@ extern void *__kmalloc_track_caller(size_t, gfp_t, unsigned long);
 #define kmalloc_track_caller(size, flags) \
 	__kmalloc_track_caller(size, flags, _RET_IP_)
 
-static void *__do_kmalloc(size_t size, gfp_t flags, unsigned long caller) {
-	struct kmem_cache *cachep;
+void *__kmalloc_track_caller(size_t size, gfp_t gfpflags, unsigned long caller) {
+	struct kmem_cache *s;
 	void *ret;
 
-	cachep = kmalloc_slab(size, flags);
-	if (unlikely(ZERO_OR_NULL_PTR(cachep)))
-		return cachep;
-	ret = slab_alloc(cachep, flags, caller);
+	if (unlikely(size > KMALLOC_MAX_CACHE_SIZE))
+		return kmalloc_large(size, gfpflags);
 
-	trace_kmalloc(caller, ret,
-		      size, cachep->size, flags);
+	s = kmalloc_slab(size, gfpflags);
+
+	if (unlikely(ZERO_OR_NULL_PTR(s)))
+		return s;
+
+	ret = slab_alloc(s, gfpflags, caller);
+
+	/* Honor the call site pointer we received. */
+	trace_kmalloc(caller, ret, size, s->size, gfpflags);
 
 	return ret;
-}
-
-void *__kmalloc_track_caller(size_t size, gfp_t flags, unsigned long caller) {
-	return __do_kmalloc(size, flags, caller);
 }
 
 void memcpy(void *p, void* src, int len);

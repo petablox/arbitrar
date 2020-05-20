@@ -16,8 +16,8 @@ static void mutex_unlock(struct lock *l) {
 	l->i = 0;
 }
 
-void run(struct foo *a, struct lock *l) {
-  int *b = malloc(0);
+void run(struct lock *l) {
+  struct foo *a = malloc(sizeof(struct foo));
   if (a->x != 0)
     mutex_lock(l);
   if (a->x != 0)
