@@ -16,6 +16,8 @@ def setup_parser(parser):
   parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice size')
   parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
   parser.add_argument('-i', '--input', type=str, help="Given an input bc file")
+  parser.add_argument('-v', '--verbose', type=int, help="Verbose level")
+  parser.add_argument('--output-trace', action="store_true", help="Output trace json")
   parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
@@ -102,6 +104,14 @@ def run_analyzer(db, bc_file, args):
     if args.no_reduction:
       print(f"No reduction of DUGraph")
       cmd += ['-no-reduction']
+
+    if args.output_trace:
+      print(f"Outputting trace")
+      cmd += ['-output-trace']
+
+    if args.verbose != None:
+      print(f"Setting verbose level to {args.verbose}")
+      cmd += ['-verbose', str(args.verbose)]
 
     run = subprocess.run(cmd, cwd=this_path)
 
