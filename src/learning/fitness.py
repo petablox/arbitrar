@@ -1,5 +1,9 @@
 import numpy as np
 import math
+from scipy import spatial
+import sys
+
+sys.setrecursionlimit(10000)
 
 
 class Fitness:
@@ -27,12 +31,17 @@ class MinimumDistanceCluster(Fitness):
     """
     self.x = x
 
+    # Build the KDTree for optimization
+    print(f"Building KDTree...")
+    kdtree = spatial.KDTree(x, leafsize=100)
+
     # Generate edges. All edges (i, j) are strictly i < j
     self.edges = set()
     for i in range(len(self.x)):
-      j = self.get_closest_point_index(i)
-      edge = (i, j) if i < j else (j, i)
-      self.edges.add(edge)
+      print(f"Finding edge for point {i}/{len(self.x)}...", end="\r")
+      p = self.x[i]
+      dist, j = kdtree.query(p)
+      self.edges.add((i, j))
 
     # Generate cluster (without merging)
     clusters = []
@@ -50,11 +59,15 @@ class MinimumDistanceCluster(Fitness):
 
       # If neither is in existing cluster
       if not existed:
-        clusters.append(set(i, j))
+        s = set()
+        s.add(i)
+        s.add(j)
+        clusters.append(s)
 
     # Merge clusters if there are intersections
     self.clusters = []
     for i in range(len(clusters)):
+      print(f"Merging cluster {i}/{len(clusters)}", end="\r")
       c1 = clusters[i]
 
       # Check if c1 is empty
@@ -71,21 +84,6 @@ class MinimumDistanceCluster(Fitness):
       # Store c1 as a cluster
       self.clusters.append(c1)
 
-  def get_closest_point_index(self, p_index: int):
-    """
-    Given an index of a point, get the index of its closest point
-    """
-    p = self.x[p_index]
-    min_i = None
-    min_dist = None
-    for i in range(len(self.x)):
-      if i != p_index:
-        p_other = self.x[i]
-        dist = np.linalg.norm(p - p_other)
-        if min_dist == None or dist < min_dist:
-          min_i = i
-          min_dist = dist
-
   def value(self):
     """
     Calculate the entropy of this dataset based on clusters
@@ -97,5 +95,7 @@ class MinimumDistanceCluster(Fitness):
       count = len(cluster)
       p = count / total
       entropy -= p * math.log(p)
+
+    print(f"Entropy: {entropy}")
 
     return entropy

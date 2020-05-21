@@ -1,3 +1,4 @@
+from typing import Dict, Type
 import os
 import numpy as np
 import joblib
@@ -8,12 +9,12 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
 from src.database import Database, DataPoint
-from .model import OCSVM, IF
+from .model import Model, OCSVM, IF
 from .fitness import MinimumDistanceCluster
 from .encoder import encode_feature
 from .unifier import unify_features, unify_features_with_sample
 
-models = {"ocsvm": OCSVM, "isolation-forest": IF}
+models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
 fitness_functions = {"mdc": MinimumDistanceCluster}
 
 
@@ -31,6 +32,9 @@ def setup_parser(parser):
   parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
   parser.add_argument('--enable-feature-selection', action='store_true')
   parser.add_argument('--fitness-function', type=str, default='mdc')
+  parser.add_argument('--fitness-dimension', type=int, default=2, help='The dimension used to compute fitness')
+  parser.add_argument('--num-features', type=int, default=10)
+  parser.add_argument('--num-features-variant', type=int, default=2)
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -48,8 +52,18 @@ def main(args):
     train_and_test(args)
 
 
+def get_encoder(args):
+  return lambda f: encode_feature(
+      f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
+
+
+def get_model(args) -> Type[Model]:
+  return models[args.model]
+
+
 def test(args):
   db = args.db
+  encode = get_encoder(args)
 
   input_exp_dir = os.path.join(os.getcwd(), args.input)
   clf_dir = f"{input_exp_dir}/model.joblib"
@@ -61,8 +75,8 @@ def test(args):
 
   datapoints = list(db.function_datapoints(args.function))
   features = unify_features_with_sample(datapoints, unified)
-  x = np.array([encode_feature(feature, args) for feature in features])
-  model = Model(datapoints, x, clf)
+  x = np.array([encode(feature) for feature in features])
+  model = get_model(args)(datapoints, x, clf)
 
   exp_dir = db.new_learning_dir(args.function)
 
@@ -82,6 +96,7 @@ def test(args):
 
 def train_and_test(args):
   db = args.db
+  encode = get_encoder(args)
 
   print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
@@ -89,18 +104,19 @@ def train_and_test(args):
   print("Unifying Features...")
   features = unify_features(datapoints)
 
-  print("Encoding Features...")
-  x = np.array([encode_feature(feature, args) for feature in features])
-
-  print("Embedding with TSNE...")
-  x_embedded = TSNE(n_components=2, verbose=2 if args.verbose else 0).fit_transform(x)
+  print("Encoding Features...", end="")
+  x = np.array([encode(feature) for feature in features])
+  print(f"Shape: {np.shape(x)}")
 
   print("Training Model...")
-  model = models[args.model](datapoints, x, args)
+  model = get_model(args)(datapoints, x, args)
+
+  print("Embedding Fitness with TSNE...")
+  x_fitness = TSNE(n_components=args.fitness_dimension, verbose=2 if args.verbose else 0).fit_transform(x)
 
   # Computing Entropy
   print("Computing Fitness Function for the Dataset")
-  fit = fitness_functions[args.fitness_function](x_embedded)
+  fit = fitness_functions[args.fitness_function](x_fitness)
   fitness_score = fit.value()
 
   # Get the output directory
@@ -161,7 +177,14 @@ def train_and_test(args):
       if args.verbose:
         print(s, end="")
 
-  print("Generating T-SNE Graph")
+  print("Generating T-SNE Plot")
+
+  if args.fitness_dimension == 2:
+    # No need to transform again since x_fitness is already 2 dimensional
+    x_embedded = x_fitness
+  else:
+    # Transform to 2 dimensional for visualization
+    x_embedded = TSNE(n_components=2, verbose=2 if args.verbose else 0).fit_transform(x_fitness)
 
   # Dump t-SNE
   predicted = model.predicted()
@@ -171,9 +194,6 @@ def train_and_test(args):
     def label(prediction, datapoint):
       pos = prediction < 0
       alarm = datapoint.has_label(label=args.ground_truth)
-
-      if alarm:
-        print(f"{datapoint.slice_id} has alarm")
 
       if pos and alarm:  # True positive
         return tp

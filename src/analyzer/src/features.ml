@@ -210,13 +210,17 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     ; same_context: bool }
 
   let feature_to_yojson
-      {invoked; invoked_more_than_once; share_argument; share_return_value; same_context} =
+      { invoked
+      ; invoked_more_than_once
+      ; share_argument
+      ; share_return_value
+      ; same_context } =
     `Assoc
       [ ("invoked", `Bool invoked)
       ; ("invoked_more_than_once", `Bool invoked_more_than_once)
       ; ("share_argument", `Bool share_argument)
       ; ("share_return_value", `Bool share_return_value)
-      ; ("same_context", `Bool same_context)]
+      ; ("same_context", `Bool same_context) ]
 
   type t = Yojson.Safe.t
 
