@@ -1,3 +1,6 @@
+from sklearn.svm import OneClassSVM
+from sklearn.ensemble import IsolationForest
+
 class Model:
   def __init__(self, datapoints, x, clf):
     self.datapoints = datapoints

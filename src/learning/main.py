@@ -4,8 +4,6 @@ import joblib
 import sys
 import json
 
-from sklearn.svm import OneClassSVM
-from sklearn.ensemble import IsolationForest
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 

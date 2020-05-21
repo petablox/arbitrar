@@ -25,13 +25,12 @@ class MinimumDistanceCluster(Fitness):
     """
     Initialize the fitness model. Compute all the edges & clusters.
     """
-
     self.x = x
 
     # Generate edges. All edges (i, j) are strictly i < j
     self.edges = set()
     for i in range(len(self.x)):
-      j = get_closest_point_index(i)
+      j = self.get_closest_point_index(i)
       edge = (i, j) if i < j else (j, i)
       self.edges.add(edge)
 
@@ -72,7 +71,7 @@ class MinimumDistanceCluster(Fitness):
       # Store c1 as a cluster
       self.clusters.append(c1)
 
-  def get_closest_point_index(p_index):
+  def get_closest_point_index(self, p_index: int):
     """
     Given an index of a point, get the index of its closest point
     """
