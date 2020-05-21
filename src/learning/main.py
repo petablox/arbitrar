@@ -15,7 +15,6 @@ from .fitness import MinimumDistanceCluster
 from .encoder import encode_feature
 from .unifier import unify_features, unify_features_with_sample
 
-
 models = {"ocsvm": OCSVM, "isolation-forest": IF}
 fitness_functions = {"mdc": MinimumDistanceCluster}
 

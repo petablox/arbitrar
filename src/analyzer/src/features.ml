@@ -206,15 +206,17 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     { invoked: bool
     ; invoked_more_than_once: bool
     ; share_argument: bool
-    ; share_return_value: bool }
+    ; share_return_value: bool
+    ; same_context: bool }
 
   let feature_to_yojson
-      {invoked; invoked_more_than_once; share_argument; share_return_value} =
+      {invoked; invoked_more_than_once; share_argument; share_return_value; same_context} =
     `Assoc
       [ ("invoked", `Bool invoked)
       ; ("invoked_more_than_once", `Bool invoked_more_than_once)
       ; ("share_argument", `Bool share_argument)
-      ; ("share_return_value", `Bool share_return_value) ]
+      ; ("share_return_value", `Bool share_return_value)
+      ; ("same_context", `Bool same_context)]
 
   type t = Yojson.Safe.t
 
@@ -224,7 +226,8 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     { invoked= false
     ; invoked_more_than_once= false
     ; share_argument= false
-    ; share_return_value= false }
+    ; share_return_value= false
+    ; same_context= false }
 
   let gen_exc_filter exc : string -> bool =
     if String.equal exc "" then fun _ -> false
@@ -278,6 +281,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
 
   let extract_helper checker (func_name, _, _) (trace : Trace.t) =
     let target_result, target_args = res_and_args trace.target_node in
+    let target_context = Node.context trace.target_node in
     let results = caused_funcs_helper trace checker in
     let maybe_caused_dict =
       FunctionCausalityDictionary.find_opt !dictionary func_name
@@ -303,11 +307,16 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                         share_value_opt node_result target_args
                         || share_value_opt target_result node_args
                       in
+                      let same_context =
+                        let node_context = Node.context node in
+                        node_context = target_context
+                      in
                       { invoked
                       ; invoked_more_than_once
                       ; share_argument= acc.share_argument || share_argument
                       ; share_return_value=
-                          acc.share_return_value || share_return_value }
+                          acc.share_return_value || share_return_value
+                      ; same_context= acc.same_context || same_context }
                     else acc)
                   new_feature results
               in

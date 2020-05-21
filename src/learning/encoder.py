@@ -21,7 +21,7 @@ def encode_feature(feature_json, enable_causality=True, enable_retval=True, enab
 
 
 def encode_causality(causality):
-  fields = ["invoked_more_than_once", "share_argument", "share_return_value"] #, "same_context"]
+  fields = ["invoked_more_than_once", "share_argument", "share_return_value"]  #, "same_context"]
   if causality["invoked"]:
     return [1] * len(fields) + [causality[f] for f in fields]
   else:

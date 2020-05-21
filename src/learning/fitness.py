@@ -1,6 +1,7 @@
 import numpy as np
 import math
 
+
 class Fitness:
   def __init__(self, x):
     pass
@@ -11,6 +12,7 @@ class Fitness:
   def plot(self):
     pass
 
+
 class MinimumDistanceCluster(Fitness):
   """
   Minimum Distance Cluster + Entropy
@@ -19,7 +21,6 @@ class MinimumDistanceCluster(Fitness):
   the closest points. Then we calculate the entropy ($\Sum p \log p$) of
   the dataset.
   """
-
   def __init__(self, x):
     """
     Initialize the fitness model. Compute all the edges & clusters.
@@ -99,4 +100,3 @@ class MinimumDistanceCluster(Fitness):
       entropy -= p * math.log(p)
 
     return entropy
-

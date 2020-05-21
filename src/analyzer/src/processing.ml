@@ -322,7 +322,7 @@ module Statement = struct
 end
 
 module Node = struct
-  type t = {id: int; stmt: Statement.t}
+  type t = {id: int; stmt: Statement.t; location: string}
 
   let compare n1 n2 = compare n1.id n2.id
 
@@ -333,7 +333,20 @@ module Node = struct
   let from_json (json : Yojson.Safe.t) : t =
     let id = Utils.int_from_json_field json "id" in
     let stmt = Statement.from_json json in
-    {id; stmt}
+    let location = Utils.string_from_json_field json "location" in
+    {id; stmt; location}
+
+  let context n =
+    let loc = n.location in
+    match String.rindex_opt loc ':' with
+    | Some fst_colon -> (
+      match String.rindex_from_opt loc (fst_colon - 1) ':' with
+      | Some scd_colon ->
+          String.sub loc 0 scd_colon
+      | None ->
+          loc )
+    | None ->
+        loc
 end
 
 module Nodes = struct
