@@ -1,17 +1,27 @@
-def encode_feature(feature_json, args):
-  invoked_before_features = [] if args.no_causality else encode_causality_dictionary(feature_json["invoked_before"])
-  invoked_after_features = [] if args.no_causality else encode_causality_dictionary(feature_json["invoked_after"])
-  retval_features = encode_retval(feature_json["retval_check"]) if "retval_check" in feature_json else []
-  argval_0_features = encode_argval(feature_json["argval_0_check"]) if "argval_0_check" in feature_json else []
-  argval_1_features = encode_argval(feature_json["argval_1_check"]) if "argval_1_check" in feature_json else []
-  argval_2_features = encode_argval(feature_json["argval_2_check"]) if "argval_2_check" in feature_json else []
-  argval_3_features = encode_argval(feature_json["argval_3_check"]) if "argval_3_check" in feature_json else []
-  return invoked_before_features + invoked_after_features + retval_features + \
-         argval_0_features + argval_1_features + argval_2_features + argval_3_features
+def encode_feature(feature_json, enable_causality=True, enable_retval=True, enable_argval=True):
+  features = []
+
+  # Causality features
+  if enable_causality:
+    features += encode_causality_dictionary(feature_json["invoked_before"])
+    features += encode_causality_dictionary(feature_json["invoked_after"])
+
+  # Return value features
+  if enable_retval:
+    features += encode_retval(feature_json["retval_check"]) if "retval_check" in feature_json else []
+
+  # Argument value features
+  if enable_argval:
+    features += encode_argval(feature_json["argval_0_check"]) if "argval_0_check" in feature_json else []
+    features += encode_argval(feature_json["argval_1_check"]) if "argval_1_check" in feature_json else []
+    features += encode_argval(feature_json["argval_2_check"]) if "argval_2_check" in feature_json else []
+    features += encode_argval(feature_json["argval_3_check"]) if "argval_3_check" in feature_json else []
+
+  return features
 
 
 def encode_causality(causality):
-  fields = ["invoked_more_than_once", "share_argument", "share_return_value", "same_context"]
+  fields = ["invoked_more_than_once", "share_argument", "share_return_value"] #, "same_context"]
   if causality["invoked"]:
     return [1] * len(fields) + [causality[f] for f in fields]
   else:

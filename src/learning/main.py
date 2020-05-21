@@ -7,13 +7,17 @@ import json
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
 from sklearn.manifold import TSNE
-
 import matplotlib.pyplot as plt
 
 from src.database import Database, DataPoint
-
+from .model import OCSVM, IF
+from .fitness import MinimumDistanceCluster
 from .encoder import encode_feature
 from .unifier import unify_features, unify_features_with_sample
+
+
+models = {"ocsvm": OCSVM, "isolation-forest": IF}
+fitness_functions = {"mdc": MinimumDistanceCluster}
 
 
 def setup_parser(parser):
@@ -25,7 +29,11 @@ def setup_parser(parser):
   parser.add_argument('-i', '--input', type=str)
 
   # Feature Settings
-  parser.add_argument('--no-causality', action='store_true')
+  parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')
+  parser.add_argument('--no-retval', action='store_true', help='Does not include retval features')
+  parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
+  parser.add_argument('--enable-feature-selection', action='store_true')
+  parser.add_argument('--fitness-function', type=str, default='mdc')
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -33,46 +41,6 @@ def setup_parser(parser):
 
   # Isolation Forest Parameters
   parser.add_argument('--contamination', type=float, default=0.01, help="Isolation Forest Contamination")
-
-
-class Model:
-  def __init__(self, datapoints, x, clf):
-    self.datapoints = datapoints
-    self.x = x
-    self.clf = clf
-
-  def alarms(self):
-    predicted = self.clf.predict(self.x)
-    scores = self.clf.score_samples(self.x)
-    for (dp, p, s) in zip(self.datapoints, predicted, scores):
-      if p < 0:
-        yield (dp, s)
-
-  def results(self):
-    predicted = self.clf.predict(self.x)
-    scores = self.clf.score_samples(self.x)
-    for (dp, p, s) in zip(self.datapoints, predicted, scores):
-      yield (dp, p, s)
-
-  def predicted(self):
-    return self.clf.predict(self.x)
-
-
-# One-Class SVM
-class OCSVM(Model):
-  def __init__(self, datapoints, x, args):
-    clf = OneClassSVM(kernel=args.kernel, nu=args.nu).fit(x)
-    super().__init__(datapoints, x, clf)
-
-
-# Isolation Forest
-class IF(Model):
-  def __init__(self, datapoints, x, args):
-    clf = IsolationForest(contamination=args.contamination).fit(x)
-    super().__init__(datapoints, x, clf=clf)
-
-
-models = {"ocsvm": OCSVM, "isolation-forest": IF}
 
 
 def main(args):
@@ -127,14 +95,29 @@ def train_and_test(args):
   print("Encoding Features...")
   x = np.array([encode_feature(feature, args) for feature in features])
 
+  print("Embedding with TSNE...")
+  x_embedded = TSNE(n_components=2, verbose=2 if args.verbose else 0).fit_transform(x)
+
   print("Training Model...")
   model = models[args.model](datapoints, x, args)
+
+  # Computing Entropy
+  print("Computing Fitness Function for the Dataset")
+  fit = fitness_functions[args.fitness_function](x_embedded)
+  fitness_score = fit.value()
 
   # Get the output directory
   exp_dir = db.new_learning_dir(args.function)
 
+  # Dump training data
   print("Dumping Training Data...")
 
+  # Dump the command line arguments
+  with open(f"{exp_dir}/log.txt", "w") as f:
+    f.write(str(sys.argv) + "\n")
+    f.write(f"Fitness Score: {fitness_score}")
+
+  # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
     sample_feature = features[0]
     j = {
@@ -142,10 +125,6 @@ def train_and_test(args):
         'invoked_after': list(sample_feature['invoked_after'].keys())
     }
     json.dump(j, f)
-
-  # Dump the command line arguments
-  with open(f"{exp_dir}/log.txt", "w") as f:
-    f.write(str(sys.argv))
 
   # Dump the Xs used to train the model
   x.dump(f"{exp_dir}/x.dat")
@@ -188,7 +167,6 @@ def train_and_test(args):
   print("Generating T-SNE Graph")
 
   # Dump t-SNE
-  x_embedded = TSNE(n_components=2, verbose=2 if args.verbose else 0).fit_transform(x)
   predicted = model.predicted()
   if args.ground_truth:
     tp, tn, fp, fn = [], [], [], []
