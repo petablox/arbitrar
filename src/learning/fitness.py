@@ -1,20 +1,21 @@
+import sys
 import numpy as np
 import math
+from sklearn import mixture
 from scipy import spatial
-import sys
 
 sys.setrecursionlimit(10000)
 
 
 class Fitness:
-  def __init__(self, x):
+  def __init__(self, x, args):
     pass
 
   def value(self):
     raise NotImplemented()
 
-  def plot(self):
-    pass
+  def visualize(self, ax):
+    raise NotImplemented()
 
 
 class MinimumDistanceCluster(Fitness):
@@ -25,7 +26,7 @@ class MinimumDistanceCluster(Fitness):
   the closest points. Then we calculate the entropy ($\Sum p \log p$) of
   the dataset.
   """
-  def __init__(self, x):
+  def __init__(self, x, args):
     """
     Initialize the fitness model. Compute all the edges & clusters.
     """
@@ -97,5 +98,37 @@ class MinimumDistanceCluster(Fitness):
       entropy -= p * math.log(p)
 
     print(f"Entropy: {entropy}")
+
+    return entropy
+
+
+class GaussianMixtureCluster(Fitness):
+  """
+  Gaussian Mixture Cluster + Entropy
+  """
+
+  def __init__(self, x, args):
+    """
+    Initialize the Gaussian Mixture Model
+    """
+    self.x = x
+    self.n_components = args.gmc_n_components
+
+    # Get the predicted y
+    self.model = mixture.GaussianMixture(n_components=self.n_components).fit(self.x)
+    self.predicted_proba = self.model.predict_proba(self.x)
+
+    # Calculate
+    self.y_counts = np.array([0 for _ in range(self.n_components)])
+    for proba in self.predicted_proba:
+      self.y_counts = np.add(self.y_counts, proba)
+
+  def value(self):
+    total = len(self.x)
+
+    entropy = 0
+    for count in self.y_counts:
+      p = count / total
+      entropy -= p * math.log(p)
 
     return entropy

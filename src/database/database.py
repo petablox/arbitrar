@@ -145,7 +145,7 @@ class Database:
 
   def new_learning_dir(self, label) -> str:
     dt = datetime.datetime.now()
-    prefix = f"{dt.month}-{dt.day}-{dt.year}-{dt.hour}-{dt.minute}"
+    prefix = f"{dt.month}-{dt.day}-{dt.year}-{dt.hour}-{dt.minute}-{dt.second}"
     d = f"{self.learning_dir(create=True)}/{prefix}-{label}"
     return mkdir(d)
 

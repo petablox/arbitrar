@@ -10,12 +10,19 @@ import matplotlib.pyplot as plt
 
 from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
-from .fitness import MinimumDistanceCluster
+from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
 from .encoder import encode_feature
 from .unifier import unify_features, unify_features_with_sample
 
-models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
-fitness_functions = {"mdc": MinimumDistanceCluster}
+models: Dict[str, Type[Model]] = {
+  "ocsvm": OCSVM,
+  "isolation-forest": IF
+}
+
+fitness_functions = {
+  "mdc": MinimumDistanceCluster,
+  "gmc": GaussianMixtureCluster
+}
 
 
 def setup_parser(parser):
@@ -31,10 +38,14 @@ def setup_parser(parser):
   parser.add_argument('--no-retval', action='store_true', help='Does not include retval features')
   parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
   parser.add_argument('--enable-feature-selection', action='store_true')
-  parser.add_argument('--fitness-function', type=str, default='mdc')
+  parser.add_argument('--fitness-function', type=str, default='gmc')
   parser.add_argument('--fitness-dimension', type=int, default=2, help='The dimension used to compute fitness')
+  parser.add_argument('--visualize-fitness', action='store_true', help='Output the fitness function')
   parser.add_argument('--num-features', type=int, default=10)
   parser.add_argument('--num-features-variant', type=int, default=2)
+
+  # Gaussian Mixture Model
+  parser.add_argument('--gmc-n-components', type=int, default=5)
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -50,15 +61,6 @@ def main(args):
     test(args)
   else:
     train_and_test(args)
-
-
-def get_encoder(args):
-  return lambda f: encode_feature(
-      f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
-
-
-def get_model(args) -> Type[Model]:
-  return models[args.model]
 
 
 def test(args):
@@ -104,9 +106,9 @@ def train_and_test(args):
   print("Unifying Features...")
   features = unify_features(datapoints)
 
-  print("Encoding Features...", end="")
+  print("Encoding Features...")
   x = np.array([encode(feature) for feature in features])
-  print(f"Shape: {np.shape(x)}")
+  (num_datapoints, dim) = np.shape(x)
 
   print("Training Model...")
   model = get_model(args)(datapoints, x, args)
@@ -116,19 +118,22 @@ def train_and_test(args):
 
   # Computing Entropy
   print("Computing Fitness Function for the Dataset")
-  fit = fitness_functions[args.fitness_function](x_fitness)
+  fit = fitness_functions[args.fitness_function](x_fitness, args)
   fitness_score = fit.value()
 
   # Get the output directory
   exp_dir = db.new_learning_dir(args.function)
 
+  # Generate alarms
+  alarms = sorted(list(model.alarms()), key=lambda x: x[1])
+
   # Dump training data
   print("Dumping Training Data...")
 
-  # Dump the command line arguments
-  with open(f"{exp_dir}/log.txt", "w") as f:
-    f.write(str(sys.argv) + "\n")
-    f.write(f"Fitness Score: {fitness_score}")
+  # Dump the selection
+  with open(f"{exp_dir}/fitness.txt", "w") as f:
+    f.write(f"Fitness Model: {args.fitness_function}\n")
+    f.write(f"Fitness Score: {fitness_score}\n")
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
@@ -149,19 +154,18 @@ def train_and_test(args):
   # Dump the raised alarms
   with open(f"{exp_dir}/alarms.csv", "w") as f:
     f.write("bc,slice_id,trace_id,score,alarms\n")
-    for (dp, score) in sorted(list(model.alarms()), key=lambda x: x[1]):
+    for (dp, score) in alarms:
       s = f"{dp.bc},{dp.slice_id},{dp.trace_id},{score},\"{str(dp.alarms())}\"\n"
       f.write(s)
-      if args.verbose:
-        print(s, end="")
 
   # Dump the raised alarms in a condensed way
+  num_alarmed_slices = 0
   with open(f"{exp_dir}/alarms_brief.csv", "w") as f:
     f.write("bc,slice_id,num_traces,score_avg\n")
 
     # Get average
     scores_dict = {}
-    for (dp, score) in sorted(list(model.alarms()), key=lambda x: x[1]):
+    for (dp, score) in alarms:
       key = (dp.bc, dp.slice_id)
       if key in scores_dict:
         total, count = scores_dict[key]
@@ -171,11 +175,21 @@ def train_and_test(args):
 
     # Dump average
     for ((bc, slice_id), (total, count)) in sorted(list(scores_dict.items()), key=lambda x: x[1][0] / x[1][1]):
+      num_alarmed_slices += 1
       avg = total / count
-      s = f"{bc},{slice_id},{count},{avg}"
+      s = f"{bc},{slice_id},{count},{avg}\n"
       f.write(s)
-      if args.verbose:
-        print(s, end="")
+
+  # Dump the command line arguments
+  with open(f"{exp_dir}/log.txt", "w") as f:
+    f.write("cmd\n")
+    f.write(str(sys.argv) + "\n")
+    f.write("parsed_args\n")
+    f.write(str(args) + "\n")
+    f.write(f"num_datapoints: {num_datapoints}\n")
+    f.write(f"dim: {dim}\n")
+    f.write(f"num_alarms: {len(alarms)}\n")
+    f.write(f"num_alarmed_slices: {num_alarmed_slices}\n")
 
   print("Generating T-SNE Plot")
 
@@ -222,3 +236,12 @@ def train_and_test(args):
     colors = ['g' if p > 0 else 'r' for p in predicted]
     plt.scatter(x_embedded[:, 0], x_embedded[:, 1], c=colors)
   plt.savefig(f"{exp_dir}/tsne.png")
+
+
+def get_encoder(args):
+  return lambda f: encode_feature(
+      f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
+
+
+def get_model(args) -> Type[Model]:
+  return models[args.model]
