@@ -1,6 +1,9 @@
 import sys
 import numpy as np
 import math
+import itertools
+import matplotlib as mpl
+from scipy import linalg
 from sklearn import mixture
 from scipy import spatial
 
@@ -14,8 +17,8 @@ class Fitness:
   def value(self):
     raise NotImplemented()
 
-  def visualize(self, ax):
-    raise NotImplemented()
+  def plot(self, ax):
+    pass
 
 
 class MinimumDistanceCluster(Fitness):
@@ -106,12 +109,12 @@ class GaussianMixtureCluster(Fitness):
   """
   Gaussian Mixture Cluster + Entropy
   """
-
   def __init__(self, x, args):
     """
     Initialize the Gaussian Mixture Model
     """
     self.x = x
+    self.dim = np.shape(x)[1]
     self.n_components = args.gmc_n_components
 
     # Get the predicted y
@@ -132,3 +135,25 @@ class GaussianMixtureCluster(Fitness):
       entropy -= p * math.log(p)
 
     return entropy
+
+  def plot(self, ax):
+    if self.dim != 2:
+      print("Skipping plot Gaussian Mixture Clusters")
+      return False
+
+    colors = itertools.cycle(['navy', 'c', 'cornflowerblue', 'gold', 'darkorange'])
+    means = self.model.means_
+    covariances = self.model.covariances_
+
+    for i, (mean, covar, color) in enumerate(zip(means, covariances, colors)):
+      v, w = linalg.eigh(covar)
+      v = 2. * np.sqrt(2.) * np.sqrt(v)
+      u = w[0] / linalg.norm(w[0])
+
+      # Plot an ellipse to show the Gaussian component
+      angle = np.arctan(u[1] / u[0])
+      angle = 180. * angle / np.pi  # convert to degrees
+      ell = mpl.patches.Ellipse(mean, v[0], v[1], 180. + angle, color=color)
+      ell.set_clip_box(ax.bbox)
+      ell.set_alpha(0.5)
+      ax.add_artist(ell)

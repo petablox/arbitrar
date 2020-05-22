@@ -14,15 +14,9 @@ from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
 from .encoder import encode_feature
 from .unifier import unify_features, unify_features_with_sample
 
-models: Dict[str, Type[Model]] = {
-  "ocsvm": OCSVM,
-  "isolation-forest": IF
-}
+models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
 
-fitness_functions = {
-  "mdc": MinimumDistanceCluster,
-  "gmc": GaussianMixtureCluster
-}
+fitness_functions = {"mdc": MinimumDistanceCluster, "gmc": GaussianMixtureCluster}
 
 
 def setup_parser(parser):
@@ -99,6 +93,8 @@ def test(args):
 def train_and_test(args):
   db = args.db
   encode = get_encoder(args)
+  model_fn = get_model(args)
+  fit_fn = get_fitness_function(args)
 
   print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
@@ -111,14 +107,14 @@ def train_and_test(args):
   (num_datapoints, dim) = np.shape(x)
 
   print("Training Model...")
-  model = get_model(args)(datapoints, x, args)
+  model = model_fn(datapoints, x, args)
 
   print("Embedding Fitness with TSNE...")
   x_fitness = TSNE(n_components=args.fitness_dimension, verbose=2 if args.verbose else 0).fit_transform(x)
 
   # Computing Entropy
   print("Computing Fitness Function for the Dataset")
-  fit = fitness_functions[args.fitness_function](x_fitness, args)
+  fit = fit_fn(x_fitness, args)
   fitness_score = fit.value()
 
   # Get the output directory
@@ -191,7 +187,11 @@ def train_and_test(args):
     f.write(f"num_alarms: {len(alarms)}\n")
     f.write(f"num_alarmed_slices: {num_alarmed_slices}\n")
 
+  # Generate TSNE
   print("Generating T-SNE Plot")
+
+  tsne_fig, tsne_ax = plt.subplots()
+  fitness_fig, fitness_ax = plt.subplots()
 
   if args.fitness_dimension == 2:
     # No need to transform again since x_fitness is already 2 dimensional
@@ -230,12 +230,19 @@ def train_and_test(args):
 
     for arr, color, marker, size, zorder in dp_types:
       nparr = np.array(arr) if len(arr) > 0 else np.empty([0, 2])
-      plt.scatter(nparr[:, 0], nparr[:, 1], c=color, s=size, marker=marker, zorder=zorder)
+      for ax in tsne_ax, fitness_ax:
+        ax.scatter(nparr[:, 0], nparr[:, 1], c=color, s=size, marker=marker, zorder=zorder)
 
   else:
     colors = ['g' if p > 0 else 'r' for p in predicted]
-    plt.scatter(x_embedded[:, 0], x_embedded[:, 1], c=colors)
-  plt.savefig(f"{exp_dir}/tsne.png")
+    for ax in tsne_ax, fitness_ax:
+      ax.scatter(x_embedded[:, 0], x_embedded[:, 1], c=colors)
+
+  tsne_fig.savefig(f"{exp_dir}/tsne.png")
+
+  # Save fitness function plot
+  if fit.plot(fitness_ax) != False:
+    fitness_fig.savefig(f"{exp_dir}/fitness.png")
 
 
 def get_encoder(args):
@@ -245,3 +252,7 @@ def get_encoder(args):
 
 def get_model(args) -> Type[Model]:
   return models[args.model]
+
+
+def get_fitness_function(args):
+  return fitness_functions[args.fitness_function]
