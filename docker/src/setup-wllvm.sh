@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo rm /usr/bin/x86_64-linux-gnu-gcc
+gudo rm /usr/bin/x86_64-linux-gnu-gcc
 sudo rm /usr/bin/x86_64-linux-gnu-g++
 sudo rm /usr/bin/gcc
 sudo rm /usr/bin/g++

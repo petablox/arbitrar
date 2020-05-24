@@ -2,15 +2,16 @@
 
 all: build
 
+install:
+	ln -s $(HOME)/ll_analyzer/misapi $(HOME)/.local/bin/misapi
+
 setup:
-	pip3 install mypy yapf pytest python-magic # Utilities
-	pip3 install wllvm graphviz z3 # PL
-	pip3 install scikit-learn matplotlib # ML
-	pip3 install pandas termcolor
-	opam install ocamlbuild ocamlformat merlin
-	opam install llvm ctypes ctypes-foreign
-	opam install ocamlgraph
-	opam install yojson ppx_compare ppx_deriving ppx_deriving_yojson
+	pip3 install mypy yapf pytest python-magic termcolor
+	pip3 install graphviz scikit-learn matplotlib pandas
+	pip3 install wllvm
+	opam install ocamlbuild ocamlformat merlin parmap
+	opam install ocamlgraph yojson ppx_compare ppx_deriving ppx_deriving_yojson
+	opam install llvm ctypes ctypes-foreign z3
 
 .PHONY: build
 
