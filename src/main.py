@@ -7,6 +7,7 @@ from . import analyzer
 from . import learning
 
 modules = {
+    'init': database.init,
     'collect': collector,
     'analyze': analyzer,
     'query': database.query,
@@ -40,6 +41,14 @@ def main():
     db_path = os.environ["MISAPI_DB"]
   else:
     db_path = cwd
+
+  # When init, create the init file
+  if args.cmd == "init":
+    database.Database.init(db_path)
+    print(f"Misapi database initialized at {db_path}")
+    return
+
+  # Otherwise, create the database
   db = database.Database(db_path)
   args.db = db
 

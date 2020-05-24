@@ -3,4 +3,4 @@ from .package import *
 from .analysis import *
 from .utils import *
 
-from . import query, action
+from . import init, query, action

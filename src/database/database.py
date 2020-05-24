@@ -18,8 +18,25 @@ class Database:
 
   def __init__(self, directory: str):
     self.directory = directory
-    self.setup_file_system()
-    self.setup_indices()
+    if Database.has_init_file(directory):
+      self.setup_file_system()
+      self.setup_indices()
+    else:
+      raise Exception("Not a misapi database. Please run 'misapi init' first.")
+
+  @staticmethod
+  def init_file_dir(directory: str) -> str:
+    return f"{directory}/.misapi"
+
+  @staticmethod
+  def init(directory: str):
+    file_dir = Database.init_file_dir(directory)
+    open(file_dir, "a").close()
+
+  @staticmethod
+  def has_init_file(directory: str) -> bool:
+    file_dir = Database.init_file_dir(directory)
+    return os.path.exists(file_dir)
 
   def setup_file_system(self):
     # Create the directory if not existed
