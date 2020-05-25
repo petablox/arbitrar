@@ -41,20 +41,22 @@ RUN chown aspire.aspire -R /home/aspire/* /home/aspire/.[a-z]*
 
 USER root
 
-RUN cd /home/aspire/tools/ \
-    && wget https://github.com/llvm/llvm-project/archive/llvmorg-10.0.0.zip \
-    && unzip llvmorg-10.0.0.zip \
-    && rm llvmorg-10.0.0.zip \
-    && cd llvm-project-llvmorg-10.0.0 \
-    && mkdir build \
-    && cd build \
-    && CC=clang CXX=clang++ cmake -DCMAKE_BUILD_TYPE=Release \
-       -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++" \
-       -DLLVM_ENABLE_PROJECTS="clang;lld" \
-       -DLLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN=on \
-       -G "Unix Makefiles" ../llvm \
-    && make -j32 \
-    && make install
+# Download LLVM
+WORKDIR /home/aspire/tools/
+RUN wget --quiet https://github.com/llvm/llvm-project/archive/llvmorg-10.0.0.zip
+RUN unzip -q llvmorg-10.0.0.zip
+RUN rm llvmorg-10.0.0.zip
+
+# Compile LLVM
+WORKDIR /home/aspire/tools/llvm-project-llvmorg-10.0.0
+RUN mkdir build
+WORKDIR /home/aspire/tools/llvm-project-llvmorg-10.0.0/build
+RUN CC=clang CXX=clang++ cmake -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++" \
+    -DLLVM_ENABLE_PROJECTS="clang;lld" \
+    -DLLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN=on \
+    -G "Unix Makefiles" ../llvm
+RUN make -j32 && make install
 
 # RUN echo "alias sudo='sudo LLVM_COMPILER=\$LLVM_COMPILER'" >> /home/aspire/.bashrc
 RUN echo "export LLVM_COMPILER=clang" >> /home/aspire/.bashrc
@@ -71,35 +73,16 @@ RUN python3.7 -m pip install mypy yapf pytest python-magic termcolor \
                      wllvm
 
 ###############################################################################
-# DEPENDENCIES (CONDA)
-###############################################################################
-
-USER root
-
-RUN cd /home/aspire/tools/ \
-    && wget https://repo.anaconda.com/archive/Anaconda3-2020.02-Linux-x86_64.sh \
-    && chmod +x Anaconda3-2020.02-Linux-x86_64.sh \
-    && ./Anaconda3-2020.02-Linux-x86_64.sh -b -p /home/aspire/tools/anaconda3 \
-    && rm ./Anaconda3-2020.02-Linux-x86_64.sh
-
-RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:$PATH\"" >> /home/aspire/.bashrc
-
-# faiss-gpu
-RUN /home/aspire/tools/anaconda3/bin/conda install -y -c pytorch faiss-gpu
-
-# RUN /home/aspire/tools/anaconda3/bin/conda install \
-#     -c rapidsai-nightly -c nvidia -c conda-forge \
-#     -c defaults cuml=0.14 python=3.7
-
-###############################################################################
 # DEPENDENCIES (OCAML)
 ###############################################################################
 
 # Install ocaml with root
 USER root
-RUN curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh > /home/aspire/install-opam.sh
-RUN echo "\n" | sh /home/aspire/install-opam.sh
-RUN rm /home/aspire/install-opam.sh
+
+WORKDIR /home/aspire/tools/
+RUN wget --quiet https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh
+RUN echo "\n" | sh install.sh
+RUN rm install.sh
 
 # Init & Config with aspire
 USER aspire
@@ -112,6 +95,56 @@ RUN opam install -y ocamlbuild ocamlformat merlin parmap \
 
 # Update bashrc
 RUN echo "eval `opam env`" >> /home/aspire/.bashrc
+
+###############################################################################
+# DEPENDENCIES (CUDA)
+###############################################################################
+
+# Install cuda toolkit 10.1 first
+USER root
+
+WORKDIR /home/aspire/tools/
+ENV CUDA_VERSION=10.1.243_418.87.00
+RUN wget --quiet http://developer.download.nvidia.com/compute/cuda/10.1/Prod/local_installers/cuda_${CUDA_VERSION}_linux.run
+RUN sh cuda_${CUDA_VERSION}_linux.run --toolkit --silent
+RUN rm cuda_${CUDA_VERSION}_linux.run
+
+# RUN echo "/usr/local/cuda-10.1/lib64" >> /etc/ld.so.conf && ldconfig
+
+USER aspire
+
+# Setup cuda
+RUN LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
+
+###############################################################################
+# DEPENDENCIES (CONDA)
+###############################################################################
+
+# Then install anaconda3
+USER aspire
+
+WORKDIR /home/aspire/tools/
+RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2020.02-Linux-x86_64.sh
+RUN chmod +x Anaconda3-2020.02-Linux-x86_64.sh
+RUN ./Anaconda3-2020.02-Linux-x86_64.sh -b -p /home/aspire/tools/anaconda3
+RUN rm ./Anaconda3-2020.02-Linux-x86_64.sh
+
+RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:$PATH\"" >> /home/aspire/.bashrc
+
+# Use conda to install other dependencies
+ENV CONDA=/home/aspire/tools/anaconda3/bin/conda
+
+RUN ${CONDA} init bash
+RUN ${CONDA} create --name learning python=3.7
+
+# faiss-gpu (https://github.com/rapidsai/cuml/issues/25)
+# RUN /home/aspire/tools/anaconda3/bin/conda install -y -c pytorch faiss-gpu
+
+# RUN /home/aspire/tools/anaconda3/bin/conda install \
+#     -c rapidsai-nightly -c nvidia -c conda-forge \
+#     -c defaults cuml=0.14 python=3.7 cudatoolkit=10.1
+
+RUN ${CONDA} install -n learning tsnecuda cuda101 -c cannylab
 
 ###############################################################################
 # Setup Compiler
