@@ -1,4 +1,5 @@
-FROM ubuntu:20.04
+# Use 18.04 because cuML uses this
+FROM ubuntu:18.04
 ARG DEBIAN_FRONTEND=noninteractive
 FROM nvidia/cuda:10.0-base
 
@@ -7,9 +8,12 @@ FROM nvidia/cuda:10.0-base
 ###############################################################################
 
 RUN apt-get update
-RUN apt-get install -y curl unzip git vim sudo clang gcc cmake
-RUN apt-get install -y python3 python3-pip pkg-config
-RUN apt-get install -y libgmp-dev m4
+RUN apt-get install -y curl unzip git vim sudo clang gcc cmake m4 \
+                       libgmp-dev python3-pip python3.7 pkg-config
+
+# Use python3.7 to install pip3
+# Note: we choose 3.7 because cuML supports python 3.7
+RUN python3.7 -m pip install pip
 
 ###############################################################################
 # SYSTEM SETUP
@@ -24,10 +28,12 @@ RUN (echo "ai4code"; echo "ai4code") | passwd aspire
 
 # Copy shell files
 COPY src/*.sh /home/aspire/
-RUN chown aspire.aspire -R /home/aspire/* /home/aspire/.[a-z]*
 
 # New tools folder for dependency installation
 RUN mkdir -p /home/aspire/tools
+
+# Chown
+RUN chown aspire.aspire -R /home/aspire/* /home/aspire/.[a-z]*
 
 ###############################################################################
 # DEPENDENCIES (LLVM)
@@ -38,6 +44,7 @@ USER root
 RUN cd /home/aspire/tools/ \
     && wget https://github.com/llvm/llvm-project/archive/llvmorg-10.0.0.zip \
     && unzip llvmorg-10.0.0.zip \
+    && rm llvmorg-10.0.0.zip \
     && cd llvm-project-llvmorg-10.0.0 \
     && mkdir build \
     && cd build \
@@ -49,8 +56,8 @@ RUN cd /home/aspire/tools/ \
     && make -j32 \
     && make install
 
-RUN echo "alias sudo='sudo LLVM_COMPILER=\$LLVM_COMPILER'" >> /home/aspire/.bashrc
-RUN echo 'export LLVM_COMPILER=clang' >> /home/aspire/.bashrc
+# RUN echo "alias sudo='sudo LLVM_COMPILER=\$LLVM_COMPILER'" >> /home/aspire/.bashrc
+RUN echo "export LLVM_COMPILER=clang" >> /home/aspire/.bashrc
 
 ###############################################################################
 # DEPENDENCIES (PYTHON)
@@ -59,13 +66,9 @@ RUN echo 'export LLVM_COMPILER=clang' >> /home/aspire/.bashrc
 USER aspire
 
 # Utilities
-RUN pip3 install mypy yapf pytest python-magic termcolor
-
-# ML Related Dependencies
-RUN pip3 install graphviz scikit-learn matplotlib pandas
-
-# PL Related Dependencies
-RUN pip3 install wllvm
+RUN python3.7 -m pip install mypy yapf pytest python-magic termcolor \
+                     graphviz scikit-learn matplotlib pandas \
+                     wllvm
 
 ###############################################################################
 # DEPENDENCIES (CONDA)
@@ -76,9 +79,17 @@ USER root
 RUN cd /home/aspire/tools/ \
     && wget https://repo.anaconda.com/archive/Anaconda3-2020.02-Linux-x86_64.sh \
     && chmod +x Anaconda3-2020.02-Linux-x86_64.sh \
-    && ./Anaconda3-2020.02-Linux-x86_64.sh -b -p /home/aspire/tools/anaconda3
+    && ./Anaconda3-2020.02-Linux-x86_64.sh -b -p /home/aspire/tools/anaconda3 \
+    && rm ./Anaconda3-2020.02-Linux-x86_64.sh
 
-RUN echo "PATH='/home/aspire/tools/anaconda3/bin/:$PATH'" >> /home/aspire/.bashrc
+RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:$PATH\"" >> /home/aspire/.bashrc
+
+# faiss-gpu
+RUN /home/aspire/tools/anaconda3/bin/conda install -y -c pytorch faiss-gpu
+
+# RUN /home/aspire/tools/anaconda3/bin/conda install \
+#     -c rapidsai-nightly -c nvidia -c conda-forge \
+#     -c defaults cuml=0.14 python=3.7
 
 ###############################################################################
 # DEPENDENCIES (OCAML)
@@ -94,12 +105,10 @@ RUN rm /home/aspire/install-opam.sh
 USER aspire
 RUN opam init -y --disable-sandboxing
 
-# Utilities
-RUN opam install -y ocamlbuild ocamlformat merlin parmap
-RUN opam install -y ocamlgraph yojson ppx_compare ppx_deriving ppx_deriving_yojson
-
-# LLVM & Z3
-RUN opam install -y llvm ctypes ctypes-foreign z3
+# Dependencies
+RUN opam install -y ocamlbuild ocamlformat merlin parmap \
+                    ocamlgraph yojson ppx_compare ppx_deriving ppx_deriving_yojson \
+                    llvm ctypes ctypes-foreign z3
 
 # Update bashrc
 RUN echo "eval `opam env`" >> /home/aspire/.bashrc
