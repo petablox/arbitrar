@@ -9,11 +9,16 @@ FROM nvidia/cuda:10.0-base
 
 RUN apt-get update
 RUN apt-get install -y curl unzip git vim sudo clang gcc cmake m4 \
-                       libgmp-dev python3-pip python3.7 pkg-config
+                       libgmp-dev python3-pip python3.7 pkg-config \
+                       graphviz
 
 # Use python3.7 to install pip3
 # Note: we choose 3.7 because cuML supports python 3.7
 RUN python3.7 -m pip install pip
+
+# Set default python3 to python3.7
+RUN rm /usr/bin/python3
+RUN ln -s /usr/bin/python3.7 /usr/bin/python3
 
 ###############################################################################
 # SYSTEM SETUP
@@ -68,9 +73,7 @@ RUN echo "export LLVM_COMPILER=clang" >> /home/aspire/.bashrc
 USER aspire
 
 # Utilities
-RUN python3.7 -m pip install mypy yapf pytest python-magic termcolor \
-                     graphviz scikit-learn matplotlib pandas \
-                     wllvm
+RUN python3.7 -m pip install mypy yapf pytest wllvm
 
 ###############################################################################
 # DEPENDENCIES (OCAML)
@@ -133,7 +136,7 @@ RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:\$PATH\"" >> /home/aspire/.ba
 
 # Use conda to install other dependencies
 ENV CONDA=/home/aspire/tools/anaconda3/bin/conda
-ENV CONDA_ENV_NAME=learning
+ENV CONDA_ENV_NAME=misapi
 
 # Initialize conda
 RUN ${CONDA} init bash
@@ -141,6 +144,10 @@ RUN ${CONDA} create --name ${CONDA_ENV_NAME} python=3.7
 RUN echo "source activate ${CONDA_ENV_NAME}" >> /home/aspire/.bashrc
 
 # Use conda to install dependencies
+
+RUN ${CONDA} install -n ${CONDA_ENV_NAME} -c conda-forge \
+    python-magic termcolor pygraphviz joblib \
+    pandas scikit-learn matplotlib
 
 # faiss-gpu (https://github.com/rapidsai/cuml/issues/25)
 # RUN /home/aspire/tools/anaconda3/bin/conda install -y -c pytorch faiss-gpu
