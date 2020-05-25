@@ -122,29 +122,34 @@ RUN LD_LIBRARY_PATH=/usr/local/cuda-10.1/lib64
 
 # Then install anaconda3
 USER aspire
-
 WORKDIR /home/aspire/tools/
 RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2020.02-Linux-x86_64.sh
 RUN chmod +x Anaconda3-2020.02-Linux-x86_64.sh
 RUN ./Anaconda3-2020.02-Linux-x86_64.sh -b -p /home/aspire/tools/anaconda3
 RUN rm ./Anaconda3-2020.02-Linux-x86_64.sh
 
-RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:$PATH\"" >> /home/aspire/.bashrc
+# Setup conda path
+RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:\$PATH\"" >> /home/aspire/.bashrc
 
 # Use conda to install other dependencies
 ENV CONDA=/home/aspire/tools/anaconda3/bin/conda
+ENV CONDA_ENV_NAME=learning
 
+# Initialize conda
 RUN ${CONDA} init bash
-RUN ${CONDA} create --name learning python=3.7
+RUN ${CONDA} create --name ${CONDA_ENV_NAME} python=3.7
+RUN echo "source activate ${CONDA_ENV_NAME}" >> /home/aspire/.bashrc
+
+# Use conda to install dependencies
 
 # faiss-gpu (https://github.com/rapidsai/cuml/issues/25)
 # RUN /home/aspire/tools/anaconda3/bin/conda install -y -c pytorch faiss-gpu
 
-# RUN /home/aspire/tools/anaconda3/bin/conda install \
-#     -c rapidsai-nightly -c nvidia -c conda-forge \
-#     -c defaults cuml=0.14 python=3.7 cudatoolkit=10.1
+# RUN /home/aspire/tools/anaconda3/bin/conda install -n ${CONDA_ENV_NAME} \
+#     -c rapidsai-nightly -c nvidia -c conda-forge -c defaults \
+#     cuml=0.14 python=3.7 cudatoolkit=10.1
 
-RUN ${CONDA} install -n learning tsnecuda cuda101 -c cannylab
+RUN ${CONDA} install -n ${CONDA_ENV_NAME} tsnecuda cuda101 -c cannylab
 
 ###############################################################################
 # Setup Compiler
