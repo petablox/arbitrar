@@ -1,5 +1,5 @@
 from ..meta import Executor
-from graphviz import Digraph
+import pygraphviz as pgv
 
 
 def instr_str(vertex):
@@ -32,29 +32,31 @@ def instr_str(vertex):
 
 
 def dot_of_dugraph(dugraph):
-  dot = Digraph()
+  g = pgv.AGraph()
 
   # First insert all the vertices
-  dot.attr('node', shape='box', style='filled', fillcolor="white")
+  g.node_attr["shape"] = "box"
+  g.node_attr["style"] = "filled"
+  g.node_attr["fillcolor"] = "white"
   for v in dugraph["vertex"]:
     loc = v["location"]
     id = str(v["id"])
     label = f"[{loc}]\n{instr_str(v)}"
     if v["id"] == dugraph["target"]:
-      dot.node(id, label=label, fontcolor="white", fillcolor="blue")
+      g.add_node(id, label=label, fontcolor="white", fillcolor="blue")
     else:
-      dot.node(id, label=label)
+      g.add_node(id, label=label)
 
   # Then insert all the cf_edges
   for cfe in dugraph["cf_edge"]:
-    dot.edge(str(cfe[0]), str(cfe[1]))
+    dot.add_edge(str(cfe[0]), str(cfe[1]))
 
   # Finally insert all the du_edges
-  dot.attr('edge', color='red')
+  g.edge_attr["color"] = "red"
   for due in dugraph["du_edge"]:
-    dot.edge(str(due[0]), str(due[1]))
+    g.add_edge(str(due[0]), str(due[1]))
 
-  return dot
+  return g
 
 
 class GenerateDotAction(Executor):
@@ -115,8 +117,8 @@ class GenerateDotAction(Executor):
       dugraph = db.dugraph(fn, bc, slice_id, trace_id)
 
       # Generate dot file
-      dot = dot_of_dugraph(dugraph)
+      g = dot_of_dugraph(dugraph)
 
       # Save the file
       save_dir = db.func_bc_slice_dots_dir(fn, bc, slice_id, create=True)
-      dot.save(filename=f"{trace_id}.dot", directory=save_dir)
+      g.write(f"{save_dir}/{trace_id}.dot")
