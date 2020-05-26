@@ -33,22 +33,31 @@ class MCMCFeatureSelection(FeatureSelection):
     best_score = score.copy()
     for i in range(iteration):
       next_mask = self.mutate_mask(mask)
-      next_score = self.evaluate_mask(mask)
+      next_score = self.evaluate_mask(next_mask)
+      print(" " * 100, end="\r")
       print(f"Iteration {i}: Sampled next mask, scored {next_score}... ", end="")
-      acceptance = next_score / score
-      if acceptance > random.random():
+      if self.meet_regulation(next_score):
+        acceptance = next_score / score
+        if acceptance > random.random():
+          mask = next_mask
+          score = next_score
+          if score > best_score:
+            best_mask = mask
+            best_score = score
+            print("New High Score!", end="\r")
+          else:
+            print("Proceeding", end="\r")
+        else:
+          print("Rejecting", end="\r")
+      else:
         mask = next_mask
         score = next_score
-        if score > best_score:
-          best_mask = mask
-          best_score = score
-          print("New High Score!")
-        else:
-          print("Proceeding")
-      else:
-        print("Rejecting")
+        print("Too Big. Proceeding", end="\r")
     print(f"Final mask {best_mask} scored {best_score}")
     return best_mask
+
+  def meet_regulation(self, score):
+    return self.args.mcmc_score_regulation == None or next_score < self.args.mcmc_score_regulation
 
   def random_mask(self):
     v = np.full(self.src_dim, 0) # Create a vector of dimension dim with everything 0

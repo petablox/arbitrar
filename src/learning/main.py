@@ -43,10 +43,11 @@ def setup_parser(parser):
   parser.add_argument('--num-features-variant', type=int, default=2)
 
   # Gaussian Mixture Model
-  parser.add_argument('--gmc-n-components', type=int, default=10)
+  parser.add_argument('--gmc-n-components', type=int, default=2)
 
   # MCMC
   parser.add_argument('--mcmc-iteration', type=int, default=1000)
+  parser.add_argument('--mcmc-score-regulation', type=int)
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
