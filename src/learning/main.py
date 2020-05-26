@@ -8,9 +8,11 @@ import json
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
+from .utils import *
 from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
 from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
+from .selection import MCMCFeatureSelection
 from .encoder import encode_feature
 from .unifier import unify_features, unify_features_with_sample
 
@@ -31,15 +33,20 @@ def setup_parser(parser):
   parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')
   parser.add_argument('--no-retval', action='store_true', help='Does not include retval features')
   parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
+
+  # Feature selection
   parser.add_argument('--enable-feature-selection', action='store_true')
   parser.add_argument('--fitness-function', type=str, default='gmc')
   parser.add_argument('--fitness-dimension', type=int, default=2, help='The dimension used to compute fitness')
   parser.add_argument('--visualize-fitness', action='store_true', help='Output the fitness function')
-  parser.add_argument('--num-features', type=int, default=10)
+  parser.add_argument('--num-features', type=int, default=5)
   parser.add_argument('--num-features-variant', type=int, default=2)
 
   # Gaussian Mixture Model
-  parser.add_argument('--gmc-n-components', type=int, default=5)
+  parser.add_argument('--gmc-n-components', type=int, default=10)
+
+  # MCMC
+  parser.add_argument('--mcmc-iteration', type=int, default=1000)
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -106,15 +113,18 @@ def train_and_test(args):
   x = np.array([encode(feature) for feature in features])
   (num_datapoints, dim) = np.shape(x)
 
+  if args.enable_feature_selection:
+    print("Using feature selection...")
+    selector = MCMCFeatureSelection(x, args.num_features, args)
+    mask = selector.select(iteration=args.mcmc_iteration)
+    x = selector.masked_x(mask)
+
   print("Training Model...")
   model = model_fn(datapoints, x, args)
 
-  print("Embedding Fitness with TSNE...")
-  x_fitness = TSNE(n_components=args.fitness_dimension, verbose=2 if args.verbose else 0).fit_transform(x)
-
   # Computing Entropy
   print("Computing Fitness Function for the Dataset")
-  fit = fit_fn(x_fitness, args)
+  fit = fit_fn(x, args)
   fitness_score = fit.value()
 
   # Get the output directory
@@ -142,6 +152,10 @@ def train_and_test(args):
 
   # Dump the Xs used to train the model
   x.dump(f"{exp_dir}/x.dat")
+
+  # Mask
+  with open(f"{exp_dir}/mask.txt", "w") as f:
+    f.write(str(mask))
 
   # Dump the model
   with open(f"{exp_dir}/model.joblib", "wb") as f:
@@ -186,6 +200,10 @@ def train_and_test(args):
     f.write(f"dim: {dim}\n")
     f.write(f"num_alarms: {len(alarms)}\n")
     f.write(f"num_alarmed_slices: {num_alarmed_slices}\n")
+
+  print("Embedding Fitness with TSNE...")
+  tsne_fitter = TSNE(n_components=args.fitness_dimension, verbose=2 if args.verbose else 0)
+  x_fitness = tsne_fitter.fit_transform(x)
 
   # Generate TSNE
   print("Generating T-SNE Plot")
@@ -241,7 +259,8 @@ def train_and_test(args):
   tsne_fig.savefig(f"{exp_dir}/tsne.png")
 
   # Save fitness function plot
-  if fit.plot(fitness_ax) != False:
+  fit_2d = fit_fn(x_embedded, args)
+  if fit_2d.plot(fitness_ax) != False:
     fitness_fig.savefig(f"{exp_dir}/fitness.png")
 
 
