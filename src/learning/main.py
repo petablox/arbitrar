@@ -12,13 +12,18 @@ from .utils import index_of_ith_one
 from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
 from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
-from .selection import MCMCFeatureSelection
-from .encoder import encode_feature, ith_meaning
+from .selection import MCMCFeatureSelection, MCMCFeatureGroupSelection
+from .encoder import encode_feature, ith_meaning, feature_groups
 from .unifier import unify_features, unify_features_with_sample
 
 models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
 
 fitness_functions = {"mdc": MinimumDistanceCluster, "gmc": GaussianMixtureCluster}
+
+feature_selector = {
+  "mcmc-feature": MCMCFeatureSelection,
+  "mcmc-feature-group": MCMCFeatureGroupSelection
+}
 
 
 def setup_parser(parser):
@@ -36,11 +41,12 @@ def setup_parser(parser):
 
   # Feature selection
   parser.add_argument('--enable-feature-selection', action='store_true')
+  parser.add_argument('--feature-selector', type=str, default='mcmc-feature')
   parser.add_argument('--fitness-function', type=str, default='gmc')
   parser.add_argument('--fitness-dimension', type=int, default=2, help='The dimension used to compute fitness')
   parser.add_argument('--visualize-fitness', action='store_true', help='Output the fitness function')
   parser.add_argument('--num-features', type=int, default=5)
-  parser.add_argument('--num-features-variant', type=int, default=2)
+  parser.add_argument('--num-feature-groups', type=int, default=2)
 
   # Gaussian Mixture Model
   parser.add_argument('--gmc-n-components', type=int, default=2)
@@ -102,7 +108,8 @@ def train_and_test(args):
   db = args.db
   encode = get_encoder(args)
   model_fn = get_model(args)
-  fit_fn = get_fitness_function(args)
+  fitness_function = get_fitness_function(args)
+  feature_groups = get_feature_groups_function(args)
 
   print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
@@ -112,20 +119,27 @@ def train_and_test(args):
 
   print("Encoding Features...")
   x = np.array([encode(feature) for feature in features])
-  (num_datapoints, dim) = np.shape(x)
 
   if args.enable_feature_selection:
-    print("Using feature selection...")
-    selector = MCMCFeatureSelection(x, args.num_features, args)
-    mask = selector.select(iteration=args.mcmc_iteration)
-    x = selector.masked_x(mask)
+    print(f"Using feature selection {args.feature_selector}...")
+    if args.feature_selector == 'mcmc-feature':
+      selector = MCMCFeatureSelection(x, args.num_features, args)
+      mask = selector.select(iteration=args.mcmc_iteration)
+      x = selector.masked_x(mask)
+    elif args.feature_selector == 'mcmc-feature-group':
+      fgs = feature_groups(features[0])
+      selector = MCMCFeatureGroupSelection(x, fgs, args.num_feature_groups, args)
+      mask = selector.select(iteration=args.mcmc_iteration)
+      x = selector.masked_x(mask)
+
+  (num_datapoints, dim) = np.shape(x)
 
   print("Training Model...")
   model = model_fn(datapoints, x, args)
 
   # Computing Entropy
   print("Computing Fitness Function for the Dataset")
-  fit = fit_fn(x, args)
+  fit = fitness_function(x, args)
   fitness_score = fit.value()
 
   # Get the output directory
@@ -163,7 +177,7 @@ def train_and_test(args):
     meaning_of = get_ith_meaning(args)
     if len(features) > 0:
       sample = features[0]
-      for i in range(args.num_features):
+      for i in range(dim):
         index = index_of_ith_one(mask, i)
         meaning = meaning_of(sample, index)
         f.write(f"{meaning}\n")
@@ -270,7 +284,7 @@ def train_and_test(args):
   tsne_fig.savefig(f"{exp_dir}/tsne.png")
 
   # Save fitness function plot
-  fit_2d = fit_fn(x_embedded, args)
+  fit_2d = fitness_function(x_embedded, args)
   if fit_2d.plot(fitness_ax) != False:
     fitness_fig.savefig(f"{exp_dir}/fitness.png")
 
@@ -291,3 +305,8 @@ def get_model(args) -> Type[Model]:
 
 def get_fitness_function(args):
   return fitness_functions[args.fitness_function]
+
+
+def get_feature_groups_function(args):
+  return lambda f: feature_groups(
+      f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)

@@ -96,3 +96,43 @@ def ith_meaning_of_retval(retval_check, i):
 
 def ith_meaning_of_argval(argval_check, i):
   return ["has_argval_check", "check_branch_taken", "branch_is_zero", "branch_not_zero"][i]
+
+
+def feature_groups(feature_json, enable_causality=True, enable_retval=True, enable_argval=True):
+  """
+  Return: List[range]
+  """
+
+  global groups
+  global counter
+
+  groups = []
+  counter = 0
+
+  def add_group(feature_count):
+    global groups
+    global counter
+    if feature_count != 0:
+      groups.append((counter, counter + feature_count))
+      counter += feature_count
+
+  # Causality features
+  if enable_causality:
+    for f in ["invoked_before", "invoked_after"]:
+      for key in sorted(feature_json[f]):
+        features = encode_causality(feature_json[f][key])
+        add_group(len(features))
+
+  # Return value features
+  if enable_retval:
+    features = encode_retval(feature_json["retval_check"]) if "retval_check" in feature_json else []
+    add_group(len(features))
+
+  # Argument value features
+  if enable_argval:
+    for arg_i in [0, 1, 2, 3]:
+      field = f"argval_{arg_i}_check"
+      features = encode_argval(feature_json[field]) if field in feature_json else []
+      add_group(len(features))
+
+  return groups
