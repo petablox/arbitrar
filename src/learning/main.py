@@ -8,12 +8,12 @@ import json
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
-from .utils import *
+from .utils import index_of_ith_one
 from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
 from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
 from .selection import MCMCFeatureSelection
-from .encoder import encode_feature
+from .encoder import encode_feature, ith_meaning
 from .unifier import unify_features, unify_features_with_sample
 
 models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
@@ -155,7 +155,17 @@ def train_and_test(args):
 
   # Mask
   with open(f"{exp_dir}/mask.txt", "w") as f:
-    f.write(str(mask))
+    f.write("Raw Mask:\n")
+    f.write(str(mask) + "\n")
+
+    f.write("Enabled Meanings:\n")
+    meaning_of = get_ith_meaning(args)
+    if len(features) > 0:
+      sample = features[0]
+      for i in range(args.num_features):
+        index = index_of_ith_one(mask, i)
+        meaning = meaning_of(sample, index)
+        f.write(f"{meaning}\n")
 
   # Dump the model
   with open(f"{exp_dir}/model.joblib", "wb") as f:
@@ -267,6 +277,11 @@ def train_and_test(args):
 def get_encoder(args):
   return lambda f: encode_feature(
       f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
+
+
+def get_ith_meaning(args):
+  return lambda f, i: ith_meaning(
+      f, i, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
 
 
 def get_model(args) -> Type[Model]:
