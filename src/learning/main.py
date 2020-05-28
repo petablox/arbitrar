@@ -5,7 +5,8 @@ import joblib
 import sys
 import json
 
-from sklearn.manifold import TSNE
+# from sklearn.manifold import TSNE
+from tsnecuda import TSNE
 import matplotlib.pyplot as plt
 
 from .utils import index_of_ith_one
@@ -49,7 +50,7 @@ def setup_parser(parser):
   parser.add_argument('--num-feature-groups', type=int, default=2)
 
   # Gaussian Mixture Model
-  parser.add_argument('--gmc-n-components', type=int, default=2)
+  parser.add_argument('--gmc-n-components', type=int, default=5)
 
   # MCMC
   parser.add_argument('--mcmc-iteration', type=int, default=1000)

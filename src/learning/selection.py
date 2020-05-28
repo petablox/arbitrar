@@ -165,15 +165,16 @@ class MCMCFeatureGroupSelection(FeatureSelection):
     return self.args.mcmc_score_regulation == None or score < self.args.mcmc_score_regulation
 
   def random_group_mask(self):
-    v = np.full(self.src_groups_dim, 0) # Create a vector of dimension dim with everything 0
-    v[:self.dst_groups_dim] = True # Set the first 0 - dst_dim to 1
+    v = np.full(self.src_groups_dim - 1, 0) # Create a vector of dimension dim with everything 0
+    v[:self.dst_groups_dim - 1] = 1 # Set the first 0 - dst_dim to 1
     np.random.shuffle(v) # Shuffle the mask
+    v = np.append(v, [1]) # Set the last one to 1
     return v
 
   def mutate_group_mask(self, group_mask):
     new_mask = group_mask.copy()
     turn_zero_index = int(random.random() * self.num_zeros)
-    turn_one_index = int(random.random() * self.dst_groups_dim)
+    turn_one_index = int(random.random() * (self.dst_groups_dim - 1))
     turn_zero_i = -1
     turn_one_i = -1
     for i in range(self.src_groups_dim):
