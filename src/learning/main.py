@@ -14,7 +14,8 @@ from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
 from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
 from .selection import MCMCFeatureSelection, MCMCFeatureGroupSelection
-from .encoder import encode_feature, ith_meaning, feature_groups
+# from .encoder import encode_feature, ith_meaning, feature_groups
+from .feature_group import *
 from .unifier import unify_features, unify_features_with_sample
 
 models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
@@ -74,7 +75,6 @@ def main(args):
 
 def test(args):
   db = args.db
-  encode = get_encoder(args)
 
   input_exp_dir = os.path.join(os.getcwd(), args.input)
   clf_dir = f"{input_exp_dir}/model.joblib"
@@ -85,8 +85,11 @@ def test(args):
     unified = json.load(f)
 
   datapoints = list(db.function_datapoints(args.function))
-  features = unify_features_with_sample(datapoints, unified)
-  x = np.array([encode(feature) for feature in features])
+  feature_jsons = unify_features_with_sample(datapoints, unified)
+  sample_feature_json = feature_jsons[0]
+  feature_groups = FeatureGroups(sample_feature_json, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
+
+  x = np.array([feature_groups.encode(feature) for feature in feature_jsons])
   model = get_model(args)(datapoints, x, clf)
 
   exp_dir = db.new_learning_dir(args.function)
@@ -107,19 +110,20 @@ def test(args):
 
 def train_and_test(args):
   db = args.db
-  encode = get_encoder(args)
   model_fn = get_model(args)
   fitness_function = get_fitness_function(args)
-  feature_groups = get_feature_groups_function(args)
 
   print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
 
   print("Unifying Features...")
-  features = unify_features(datapoints)
+  feature_jsons = unify_features(datapoints)
+  sample_feature_json = feature_jsons[0]
+
+  feature_groups = FeatureGroups(sample_feature_json, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
 
   print("Encoding Features...")
-  x = np.array([encode(feature) for feature in features])
+  x = np.array([feature_groups.encode(feature) for feature in feature_jsons])
 
   if args.enable_feature_selection:
     print(f"Using feature selection {args.feature_selector}...")
@@ -128,7 +132,7 @@ def train_and_test(args):
       mask = selector.select(iteration=args.mcmc_iteration)
       x = selector.masked_x(mask)
     elif args.feature_selector == 'mcmc-feature-group':
-      fgs = feature_groups(features[0])
+      fgs = feature_groups.indices()
       selector = MCMCFeatureGroupSelection(x, fgs, args.num_feature_groups, args)
       mask = selector.select(iteration=args.mcmc_iteration)
       x = selector.masked_x(mask)
@@ -159,10 +163,9 @@ def train_and_test(args):
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
-    sample_feature = features[0]
     j = {
-        'invoked_before': list(sample_feature['invoked_before'].keys()),
-        'invoked_after': list(sample_feature['invoked_after'].keys())
+        'invoked_before': list(sample_feature_json['invoked_before'].keys()),
+        'invoked_after': list(sample_feature_json['invoked_after'].keys())
     }
     json.dump(j, f)
 
@@ -175,13 +178,10 @@ def train_and_test(args):
     f.write(str(mask) + "\n")
 
     f.write("Enabled Meanings:\n")
-    meaning_of = get_ith_meaning(args)
-    if len(features) > 0:
-      sample = features[0]
-      for i in range(dim):
-        index = index_of_ith_one(mask, i)
-        meaning = meaning_of(sample, index)
-        f.write(f"{meaning}\n")
+    for i in range(dim):
+      index = index_of_ith_one(mask, i)
+      meaning = feature_groups.meaning_of(index)
+      f.write(f"{meaning}\n")
 
   # Dump the model
   with open(f"{exp_dir}/model.joblib", "wb") as f:
@@ -290,24 +290,9 @@ def train_and_test(args):
     fitness_fig.savefig(f"{exp_dir}/fitness.png")
 
 
-def get_encoder(args):
-  return lambda f: encode_feature(
-      f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
-
-
-def get_ith_meaning(args):
-  return lambda f, i: ith_meaning(
-      f, i, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
-
-
 def get_model(args) -> Type[Model]:
   return models[args.model]
 
 
 def get_fitness_function(args):
   return fitness_functions[args.fitness_function]
-
-
-def get_feature_groups_function(args):
-  return lambda f: feature_groups(
-      f, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
