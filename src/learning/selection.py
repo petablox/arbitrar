@@ -3,6 +3,7 @@ import random
 
 from .fitness import GaussianMixtureCluster
 from .utils import index_of_ith_one
+from .feature_group import FeatureGroup, FeatureGroups
 
 class FeatureSelection:
   def __init__(self):
@@ -100,11 +101,12 @@ class MCMCFeatureSelection(FeatureSelection):
     return 1.0 / score
 
 class MCMCFeatureGroupSelection(FeatureSelection):
-  def __init__(self, x, groups, dst_groups_dim, args):
+  def __init__(self, x: np.ndarray, groups: FeatureGroups, dst_groups_dim: int, args):
     self.x = x
     (_, self.src_dim) = np.shape(x)
     self.groups = groups
-    self.src_groups_dim = len(self.groups)
+    self.group_indices = groups.indices()
+    self.src_groups_dim = self.groups.num_feature_groups()
     self.dst_groups_dim = dst_groups_dim
     self.num_zeros = self.src_groups_dim - self.dst_groups_dim
     self.args = args
@@ -130,7 +132,7 @@ class MCMCFeatureGroupSelection(FeatureSelection):
       print(" " * 100, end="\r")
       print(f"Iteration {i}: Sampled next mask, scored {next_score}... ", end="")
 
-
+      # Check regulation
       if self.meet_regulation(next_score):
 
         # Calculate acceptance
@@ -165,34 +167,63 @@ class MCMCFeatureGroupSelection(FeatureSelection):
     return self.args.mcmc_score_regulation == None or score < self.args.mcmc_score_regulation
 
   def random_group_mask(self):
-    v = np.full(self.src_groups_dim - 1, 0) # Create a vector of dimension dim with everything 0
-    v[:self.dst_groups_dim - 1] = 1 # Set the first 0 - dst_dim to 1
-    np.random.shuffle(v) # Shuffle the mask
-    v = np.append(v, [1]) # Set the last one to 1
-    return v
+    num_fixed = self.groups.num_fixed_feature_groups()
+    num_non_fixed = self.groups.num_non_fixed_feature_groups()
+    num_variables = self.dst_groups_dim - num_fixed
+    num_groups = self.groups.num_feature_groups()
+
+    if num_variables > 0:
+
+      # Create a random mask for variable bits
+      v = np.full(num_non_fixed, 0) # Create a vector of non_fixed dimension
+      v[:num_variables] = 1 # Set the first 0 - variable to 1
+      np.random.shuffle(v) # Shuffle the mask
+
+      # Fill in the full mask where fixed bit is set to 1 and variable bit is set to v
+      ret = []
+      counter = 0
+      for i in range(num_groups):
+        if self.groups[i].fixed:
+          ret.append(1)
+        else:
+          ret.append(v[counter])
+          counter += 1
+
+      # Create np array
+      return np.array(ret)
+
+    else:
+
+      # If nothing is variable, then just return a mask where fixed groups are enabled
+      return np.array([int(g.fixed) for g in self.groups])
 
   def mutate_group_mask(self, group_mask):
-    new_mask = group_mask.copy()
-    turn_zero_index = int(random.random() * self.num_zeros)
-    turn_one_index = int(random.random() * (self.dst_groups_dim - 1))
-    turn_zero_i = -1
-    turn_one_i = -1
-    for i in range(self.src_groups_dim):
-      n = new_mask[i]
-      if n == 0:
-        turn_zero_i += 1
-        if turn_zero_i == turn_zero_index:
-          new_mask[i] = 1
-      else:
-        turn_one_i += 1
-        if turn_one_i == turn_one_index:
-          new_mask[i] = 0
-    return new_mask
+    num_variables = self.dst_groups_dim - self.groups.num_fixed_feature_groups()
+    if num_variables > 0:
+      new_mask = group_mask.copy()
+      turn_zero_index = int(random.random() * self.num_zeros)
+      turn_one_index = int(random.random() * num_variables)
+      turn_zero_i = -1
+      turn_one_i = -1
+      for i in range(len(self.groups)):
+        n = new_mask[i]
+        if n == 0:
+          turn_zero_i += 1
+          if turn_zero_i == turn_zero_index:
+            new_mask[i] = 1
+        else:
+          if not self.groups[i].fixed:
+            turn_one_i += 1
+            if turn_one_i == turn_one_index:
+              new_mask[i] = 0
+      return new_mask
+    else:
+      return group_mask
 
   def feature_mask(self, group_mask):
     mask = np.full(self.src_dim, 0)
     for i in range(len(self.groups)):
-      (start, end) = self.groups[i]
+      (start, end) = self.group_indices[i]
       if group_mask[i] == 1:
         for j in range(start, end):
           mask[j] = 1

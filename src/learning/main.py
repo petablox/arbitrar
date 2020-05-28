@@ -132,8 +132,7 @@ def train_and_test(args):
       mask = selector.select(iteration=args.mcmc_iteration)
       x = selector.masked_x(mask)
     elif args.feature_selector == 'mcmc-feature-group':
-      fgs = feature_groups.indices()
-      selector = MCMCFeatureGroupSelection(x, fgs, args.num_feature_groups, args)
+      selector = MCMCFeatureGroupSelection(x, feature_groups, args.num_feature_groups, args)
       mask = selector.select(iteration=args.mcmc_iteration)
       x = selector.masked_x(mask)
 
