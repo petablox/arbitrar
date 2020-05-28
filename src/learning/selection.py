@@ -5,6 +5,7 @@ from .fitness import GaussianMixtureCluster
 from .utils import index_of_ith_one
 from .feature_group import FeatureGroup, FeatureGroups
 
+
 class FeatureSelection:
   def __init__(self):
     pass
@@ -17,7 +18,6 @@ class MCMCFeatureSelection(FeatureSelection):
   """
   Metropolis-Hastings Algorithm + GMC
   """
-
   def __init__(self, x, dst_dim, args):
     self.x = x
     (_, self.src_dim) = np.shape(x)
@@ -61,9 +61,9 @@ class MCMCFeatureSelection(FeatureSelection):
     return self.args.mcmc_score_regulation == None or score < self.args.mcmc_score_regulation
 
   def random_mask(self):
-    v = np.full(self.src_dim, 0) # Create a vector of dimension dim with everything 0
-    v[:self.dst_dim] = True # Set the first 0 - dst_dim to 1
-    np.random.shuffle(v) # Shuffle the mask
+    v = np.full(self.src_dim, 0)  # Create a vector of dimension dim with everything 0
+    v[:self.dst_dim] = True  # Set the first 0 - dst_dim to 1
+    np.random.shuffle(v)  # Shuffle the mask
     return v
 
   def mutate_mask(self, mask):
@@ -85,9 +85,9 @@ class MCMCFeatureSelection(FeatureSelection):
     return new_mask
 
   def masked_x(self, mask):
-    mask_mat = np.transpose(np.matrix([
-      [1 if index_of_ith_one(mask, i) == j else 0 for j in range(self.src_dim)] for i in range(self.dst_dim)
-    ]))
+    mask_mat = np.transpose(
+        np.matrix([[1 if index_of_ith_one(mask, i) == j else 0 for j in range(self.src_dim)]
+                   for i in range(self.dst_dim)]))
     masked_x = self.x * mask_mat
     return masked_x
 
@@ -99,6 +99,7 @@ class MCMCFeatureSelection(FeatureSelection):
     # Entropy score is the lower the better.
     # We want the higher the better.
     return 1.0 / score
+
 
 class MCMCFeatureGroupSelection(FeatureSelection):
   def __init__(self, x: np.ndarray, groups: FeatureGroups, dst_groups_dim: int, args):
@@ -161,7 +162,7 @@ class MCMCFeatureGroupSelection(FeatureSelection):
 
     # Return the best mask found
     print(f"Final mask {best_mask} scored {best_score}")
-    return self.feature_mask(best_mask) # Return the feature mask
+    return self.feature_mask(best_mask)  # Return the feature mask
 
   def meet_regulation(self, score):
     return self.args.mcmc_score_regulation == None or score < self.args.mcmc_score_regulation
@@ -175,9 +176,9 @@ class MCMCFeatureGroupSelection(FeatureSelection):
     if num_variables > 0:
 
       # Create a random mask for variable bits
-      v = np.full(num_non_fixed, 0) # Create a vector of non_fixed dimension
-      v[:num_variables] = 1 # Set the first 0 - variable to 1
-      np.random.shuffle(v) # Shuffle the mask
+      v = np.full(num_non_fixed, 0)  # Create a vector of non_fixed dimension
+      v[:num_variables] = 1  # Set the first 0 - variable to 1
+      np.random.shuffle(v)  # Shuffle the mask
 
       # Fill in the full mask where fixed bit is set to 1 and variable bit is set to v
       ret = []
@@ -211,7 +212,7 @@ class MCMCFeatureGroupSelection(FeatureSelection):
           turn_zero_i += 1
           if turn_zero_i == turn_zero_index:
             new_mask[i] = 1
-        else:
+        else: # n == 1
           if not self.groups[i].fixed:
             turn_one_i += 1
             if turn_one_i == turn_one_index:
@@ -234,10 +235,9 @@ class MCMCFeatureGroupSelection(FeatureSelection):
     return self.masked_x(mask)
 
   def masked_x(self, mask):
-    num_ones = sum(mask) # Number of ones in a mask (with only 0 and 1s) is sum of the mask
-    mask_mat = np.transpose(np.matrix([
-      [1 if index_of_ith_one(mask, i) == j else 0 for j in range(self.src_dim)] for i in range(num_ones)
-    ]))
+    num_ones = sum(mask)  # Number of ones in a mask (with only 0 and 1s) is sum of the mask
+    mask_mat = np.transpose(
+        np.matrix([[1 if index_of_ith_one(mask, i) == j else 0 for j in range(self.src_dim)] for i in range(num_ones)]))
     masked_x = self.x * mask_mat
     return masked_x
 

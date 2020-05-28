@@ -22,10 +22,7 @@ models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
 
 fitness_functions = {"mdc": MinimumDistanceCluster, "gmc": GaussianMixtureCluster}
 
-feature_selector = {
-  "mcmc-feature": MCMCFeatureSelection,
-  "mcmc-feature-group": MCMCFeatureGroupSelection
-}
+feature_selector = {"mcmc-feature": MCMCFeatureSelection, "mcmc-feature-group": MCMCFeatureGroupSelection}
 
 
 def setup_parser(parser):
@@ -46,9 +43,7 @@ def setup_parser(parser):
   parser.add_argument('--feature-selector', type=str, default='mcmc-feature')
   parser.add_argument('--fitness-function', type=str, default='gmc')
   parser.add_argument('--fitness-dimension', type=int, default=2, help='The dimension used to compute fitness')
-  parser.add_argument('--visualize-fitness', action='store_true', help='Output the fitness function')
-  parser.add_argument('--num-features', type=int, default=5)
-  parser.add_argument('--num-feature-groups', type=int, default=2)
+  # parser.add_argument('--visualize-fitness', action='store_true', help='Output the fitness function') # Enabled always
 
   # Gaussian Mixture Model
   parser.add_argument('--gmc-n-components', type=int, default=5)
@@ -56,6 +51,10 @@ def setup_parser(parser):
   # MCMC
   parser.add_argument('--mcmc-iteration', type=int, default=1000)
   parser.add_argument('--mcmc-score-regulation', type=int)
+  parser.add_argument('--num-features', type=int, default=5)
+  parser.add_argument('--num-feature-groups', type=int, default=3)
+  parser.add_argument('--fix-retval', action='store_true')
+  parser.add_argument('--fix-argval', action='store_true')
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -87,7 +86,12 @@ def test(args):
   datapoints = list(db.function_datapoints(args.function))
   feature_jsons = unify_features_with_sample(datapoints, unified)
   sample_feature_json = feature_jsons[0]
-  feature_groups = FeatureGroups(sample_feature_json, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
+  feature_groups = FeatureGroups(sample_feature_json,
+                                 enable_causality=not args.no_causality,
+                                 enable_retval=not args.no_retval,
+                                 enable_argval=not args.no_argval,
+                                 fix_retval=args.fix_retval,
+                                 fix_argval=args.fix_argval)
 
   x = np.array([feature_groups.encode(feature) for feature in feature_jsons])
   model = get_model(args)(datapoints, x, clf)
@@ -120,7 +124,12 @@ def train_and_test(args):
   feature_jsons = unify_features(datapoints)
   sample_feature_json = feature_jsons[0]
 
-  feature_groups = FeatureGroups(sample_feature_json, enable_causality=not args.no_causality, enable_retval=not args.no_retval, enable_argval=not args.no_argval)
+  feature_groups = FeatureGroups(sample_feature_json,
+                                 enable_causality=not args.no_causality,
+                                 enable_retval=not args.no_retval,
+                                 enable_argval=not args.no_argval,
+                                 fix_retval=args.fix_retval,
+                                 fix_argval=args.fix_argval)
 
   print("Encoding Features...")
   x = np.array([feature_groups.encode(feature) for feature in feature_jsons])

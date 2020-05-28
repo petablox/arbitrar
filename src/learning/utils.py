@@ -2,10 +2,13 @@ import warnings
 from functools import reduce
 from collections.abc import Iterable
 
+
 def warn(*args, **kwargs):
   pass
 
+
 warnings.warn = warn
+
 
 def index_of_ith_one(v, i) -> int:
   return index_of_ith(v, i, 1)
