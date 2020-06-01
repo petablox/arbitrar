@@ -93,7 +93,7 @@ class MCMCFeatureSelection(FeatureSelection):
 
   def evaluate_mask(self, mask):
     masked_x = self.masked_x(mask)
-    model = GaussianMixtureCluster(masked_x, self.args)
+    model = GaussianMixtureClusterEntropy(masked_x, self.args)
     score = model.value()
 
     # Entropy score is the lower the better.
@@ -244,7 +244,7 @@ class MCMCFeatureGroupSelection(FeatureSelection):
 
   def evaluate_group_mask(self, group_mask):
     masked_x = self.group_masked_x(group_mask)
-    model = GaussianMixtureCluster(masked_x, self.args)
+    model = GaussianMixtureClusterEntropy(masked_x, self.args)
     score = model.value()
 
     # Entropy score is the lower the better.

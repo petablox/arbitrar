@@ -93,12 +93,14 @@ class FeatureGroups:
         for function_name in sample_feature_json[invoked_type.value]:
           self.groups.append(CausalityFeatureGroup(fix_causality, invoked_type, function_name))
     if enable_retval:
-      self.groups.append(RetvalFeatureGroup(fix_retval))
+      retval_group = RetvalFeatureGroup(fix_retval)
+      if utils.has_dot_separated_field(sample_feature_json, retval_group.field()):
+        self.groups.append()
     if enable_argval:
       for arg_i in [0, 1, 2, 3]:
-        argval_group = ArgvalFeatureGroup(fix_argval, arg_i)
-        if utils.has_dot_separated_field(sample_feature_json, argval_group.field()):
-          self.groups.append(argval_group)
+        ith_argval_group = ArgvalFeatureGroup(fix_argval, arg_i)
+        if utils.has_dot_separated_field(sample_feature_json, ith_argval_group.field()):
+          self.groups.append(ith_argval_group)
 
   def meaning_of(self, i: int) -> str:
     """

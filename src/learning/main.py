@@ -40,7 +40,7 @@ def setup_parser(parser):
 
   # Feature selection
   parser.add_argument('--enable-feature-selection', action='store_true')
-  parser.add_argument('--feature-selector', type=str, default='mcmc-feature')
+  parser.add_argument('--feature-selector', type=str, default='mcmc-feature-group')
   parser.add_argument('--fitness-function', type=str, default='gmc')
   parser.add_argument('--fitness-dimension', type=int, default=2, help='The dimension used to compute fitness')
   # parser.add_argument('--visualize-fitness', action='store_true', help='Output the fitness function') # Enabled always
@@ -49,7 +49,7 @@ def setup_parser(parser):
   parser.add_argument('--gmc-n-components', type=int, default=5)
 
   # MCMC
-  parser.add_argument('--mcmc-iteration', type=int, default=1000)
+  parser.add_argument('--mcmc-iteration', type=int, default=200)
   parser.add_argument('--mcmc-score-regulation', type=int)
   parser.add_argument('--num-features', type=int, default=5)
   parser.add_argument('--num-feature-groups', type=int, default=3)
@@ -181,15 +181,16 @@ def train_and_test(args):
   x.dump(f"{exp_dir}/x.dat")
 
   # Mask
-  with open(f"{exp_dir}/mask.txt", "w") as f:
-    f.write("Raw Mask:\n")
-    f.write(str(mask) + "\n")
+  if args.enable_feature_selection:
+    with open(f"{exp_dir}/mask.txt", "w") as f:
+      f.write("Raw Mask:\n")
+      f.write(str(mask) + "\n")
 
-    f.write("Enabled Meanings:\n")
-    for i in range(dim):
-      index = index_of_ith_one(mask, i)
-      meaning = feature_groups.meaning_of(index)
-      f.write(f"{meaning}\n")
+      f.write("Enabled Meanings:\n")
+      for i in range(dim):
+        index = index_of_ith_one(mask, i)
+        meaning = feature_groups.meaning_of(index)
+        f.write(f"{meaning}\n")
 
   # Dump the model
   with open(f"{exp_dir}/model.joblib", "wb") as f:
