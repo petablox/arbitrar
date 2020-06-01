@@ -7,8 +7,6 @@ from scipy import linalg
 from sklearn import mixture
 from scipy import spatial
 
-sys.setrecursionlimit(10000)
-
 
 class Fitness:
   def __init__(self, x, args):
@@ -21,7 +19,7 @@ class Fitness:
     pass
 
 
-class MinimumDistanceCluster(Fitness):
+class MinimumDistanceClusterEntropy(Fitness):
   """
   Minimum Distance Cluster + Entropy
 
@@ -33,6 +31,8 @@ class MinimumDistanceCluster(Fitness):
     """
     Initialize the fitness model. Compute all the edges & clusters.
     """
+    sys.setrecursionlimit(10000) # Because KNN computation is very heavy
+
     self.x = x
 
     # Build the KDTree for optimization
@@ -105,7 +105,7 @@ class MinimumDistanceCluster(Fitness):
     return entropy
 
 
-class GaussianMixtureCluster(Fitness):
+class GaussianMixtureClusterEntropy(Fitness):
   """
   Gaussian Mixture Cluster + Entropy
   """

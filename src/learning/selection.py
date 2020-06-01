@@ -1,7 +1,7 @@
 import numpy as np
 import random
 
-from .fitness import GaussianMixtureCluster
+from .fitness import GaussianMixtureClusterEntropy
 from .utils import index_of_ith_one
 from .feature_group import FeatureGroup, FeatureGroups
 
@@ -161,6 +161,7 @@ class MCMCFeatureGroupSelection(FeatureSelection):
         print("Too Big. Proceeding", end="\r")
 
     # Return the best mask found
+    print(" " * 100, end="\r")
     print(f"Final mask {best_mask} scored {best_score}")
     return self.feature_mask(best_mask)  # Return the feature mask
 

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from .utils import index_of_ith_one
 from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
-from .fitness import MinimumDistanceCluster, GaussianMixtureCluster
+from .fitness import MinimumDistanceClusterEntropy, GaussianMixtureClusterEntropy
 from .selection import MCMCFeatureSelection, MCMCFeatureGroupSelection
 # from .encoder import encode_feature, ith_meaning, feature_groups
 from .feature_group import *
@@ -20,7 +20,7 @@ from .unifier import unify_features, unify_features_with_sample
 
 models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
 
-fitness_functions = {"mdc": MinimumDistanceCluster, "gmc": GaussianMixtureCluster}
+fitness_functions = {"mdc": MinimumDistanceClusterEntropy, "gmc": GaussianMixtureClusterEntropy}
 
 feature_selector = {"mcmc-feature": MCMCFeatureSelection, "mcmc-feature-group": MCMCFeatureGroupSelection}
 
