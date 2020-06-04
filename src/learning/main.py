@@ -5,8 +5,8 @@ import joblib
 import sys
 import json
 
-# from sklearn.manifold import TSNE
-from tsnecuda import TSNE
+from sklearn.manifold import TSNE
+# from tsnecuda import TSNE
 import matplotlib.pyplot as plt
 
 from .utils import index_of_ith_one
@@ -32,6 +32,7 @@ def setup_parser(parser):
   parser.add_argument('-s', '--seed', type=int, default=1234)
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-i', '--input', type=str)
+  parser.add_argument('--train-with-embedded', action='store_true')
 
   # Feature Settings
   parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')
@@ -55,6 +56,7 @@ def setup_parser(parser):
   parser.add_argument('--num-feature-groups', type=int, default=3)
   parser.add_argument('--fix-retval', action='store_true')
   parser.add_argument('--fix-argval', action='store_true')
+  parser.add_argument('--fix-group', type=str, nargs='+', default=[])
 
   # OCSVM Parameters
   parser.add_argument('--kernel', type=str, default='rbf', help='OCSVM Kernel')
@@ -124,12 +126,16 @@ def train_and_test(args):
   feature_jsons = unify_features(datapoints)
   sample_feature_json = feature_jsons[0]
 
+  fix_groups = args.fix_group
+  if args.fix_retval:
+    fix_groups.append("retval")
+  if args.fix_argval:
+    fix_groups.append("argval")
   feature_groups = FeatureGroups(sample_feature_json,
                                  enable_causality=not args.no_causality,
                                  enable_retval=not args.no_retval,
                                  enable_argval=not args.no_argval,
-                                 fix_retval=args.fix_retval,
-                                 fix_argval=args.fix_argval)
+                                 fix_groups=fix_groups)
 
   print("Encoding Features...")
   x = np.array([feature_groups.encode(feature) for feature in feature_jsons])
@@ -147,13 +153,20 @@ def train_and_test(args):
 
   (num_datapoints, dim) = np.shape(x)
 
-  print("Training Model...")
-  model = model_fn(datapoints, x, args)
+  print("Embedding Fitness with TSNE...")
+  tsne_fitter = TSNE(n_components=args.fitness_dimension, verbose=2 if args.verbose else 0)
+  x_fitness = tsne_fitter.fit_transform(x)
 
   # Computing Entropy
   print("Computing Fitness Function for the Dataset")
   fit = fitness_function(x, args)
   fitness_score = fit.value()
+
+  print("Training Model...")
+  if args.train_with_embedded:
+    model = model_fn(datapoints, x_fitness, args)
+  else:
+    model = model_fn(datapoints, x, args)
 
   # Get the output directory
   exp_dir = db.new_learning_dir(args.function)
@@ -228,17 +241,15 @@ def train_and_test(args):
   # Dump the command line arguments
   with open(f"{exp_dir}/log.txt", "w") as f:
     f.write("cmd\n")
-    f.write(str(sys.argv) + "\n")
+    f.write("  " + str(sys.argv) + "\n")
     f.write("parsed_args\n")
-    f.write(str(args) + "\n")
+    var_args = vars(args)
+    for key in var_args:
+      f.write(f"  {key}: {var_args[key]}\n")
     f.write(f"num_datapoints: {num_datapoints}\n")
     f.write(f"dim: {dim}\n")
     f.write(f"num_alarms: {len(alarms)}\n")
     f.write(f"num_alarmed_slices: {num_alarmed_slices}\n")
-
-  print("Embedding Fitness with TSNE...")
-  tsne_fitter = TSNE(n_components=args.fitness_dimension, verbose=2 if args.verbose else 0)
-  x_fitness = tsne_fitter.fit_transform(x)
 
   # Generate TSNE
   print("Generating T-SNE Plot")

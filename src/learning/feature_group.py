@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import reduce
-from typing import List, Tuple
+from typing import Optional, List, Tuple
 import operator
 
 import numpy as np
@@ -84,23 +84,35 @@ class FeatureGroups:
                enable_causality=True,
                enable_retval=True,
                enable_argval=True,
-               fix_causality=False,
-               fix_retval=False,
-               fix_argval=False):
+               fix_groups=[]):
     self.groups = []
     if enable_causality:
       for invoked_type in InvokedType:
         for function_name in sample_feature_json[invoked_type.value]:
-          self.groups.append(CausalityFeatureGroup(fix_causality, invoked_type, function_name))
+          caus_group = CausalityFeatureGroup(False, invoked_type, function_name)
+          if FeatureGroups.should_be_fixed(caus_group, fix_groups):
+            caus_group.fixed = True
+          self.groups.append(caus_group)
     if enable_retval:
-      retval_group = RetvalFeatureGroup(fix_retval)
+      retval_group = RetvalFeatureGroup(False)
       if utils.has_dot_separated_field(sample_feature_json, retval_group.field()):
-        self.groups.append()
+        if FeatureGroups.should_be_fixed(retval_group, fix_groups):
+          retval_group.fixed = True
+        self.groups.append(retval_group)
     if enable_argval:
       for arg_i in [0, 1, 2, 3]:
-        ith_argval_group = ArgvalFeatureGroup(fix_argval, arg_i)
+        ith_argval_group = ArgvalFeatureGroup(False, arg_i)
         if utils.has_dot_separated_field(sample_feature_json, ith_argval_group.field()):
+          if FeatureGroups.should_be_fixed(ith_argval_group, fix_groups):
+            ith_argval_group.fixed = True
           self.groups.append(ith_argval_group)
+
+  @staticmethod
+  def should_be_fixed(group: FeatureGroup, fix_groups: List[str]) -> bool:
+    for fix_group in fix_groups:
+      if fix_group in group.field():
+        return True
+    return False
 
   def meaning_of(self, i: int) -> str:
     """

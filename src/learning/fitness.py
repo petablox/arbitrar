@@ -97,8 +97,9 @@ class MinimumDistanceClusterEntropy(Fitness):
     entropy = 0
     for cluster in self.clusters:
       count = len(cluster)
-      p = count / total
-      entropy -= p * math.log(p)
+      if count > 0:
+        p = count / total
+        entropy -= p * math.log(p)
 
     print(f"Entropy: {entropy}")
 
@@ -131,8 +132,9 @@ class GaussianMixtureClusterEntropy(Fitness):
 
     entropy = 0
     for count in self.y_counts:
-      p = count / total
-      entropy -= p * math.log(p)
+      if count > 0:
+        p = count / total
+        entropy -= p * math.log(p)
 
     return entropy
 
