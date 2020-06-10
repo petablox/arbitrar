@@ -7,7 +7,7 @@ import curses
 
 
 class SourceFeatureVisualizer():
-  def __init__(self):
+  def __init__(self, source):
     self.stdscr = curses.initscr()
 
     curses.start_color()
@@ -25,8 +25,9 @@ class SourceFeatureVisualizer():
     self.left_window = curses.newwin(self.lines, self.half_width)
     self.right_window = curses.newwin(self.lines, self.half_width, 0, self.half_width + 2)
 
-  def show(self, datapoint, source, label="", padding=20):
+    self.source = source
 
+  def display(self, datapoint, label="", padding=20):
     # Initialize datapoint data
     bc = datapoint.bc
     func_name = datapoint.func_name
@@ -54,7 +55,7 @@ class SourceFeatureVisualizer():
                              curses.color_pair(1))
 
     #cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
-    path = os.path.join(source, path)
+    path = os.path.join(self.source, path)
     if not os.path.exists(path):
       print(f"No file found at {path}")
     else:
@@ -85,6 +86,9 @@ class SourceFeatureVisualizer():
     self.left_window.refresh()
     self.right_window.refresh()
 
+  def show(self, datapoint, label="", padding=20):
+    self.display(datapoint, label=label, padding=padding)
+
     while True:
       key = self.left_window.getkey()
       if key == "n":
@@ -102,3 +106,35 @@ class SourceFeatureVisualizer():
       else:
         return True
       self.right_window.refresh()
+
+  def ask(self, datapoint, keys, label="", padding=20, scroll_down_key="n", scroll_up_key="p", quit_key="q"):
+    self.display(datapoint, label=label, padding=padding)
+
+    assert yes_key != scroll_down_key and yes_key != scroll_up_key and yes_key != quit_key, f"Yes key cannot be {scroll_down_key} or {scroll_up_key} or {quit_key}"
+    assert no_key != scroll_down_key and no_key != scroll_up_key and no_key != quit_key, f"No key cannot be {scroll_down_key} or {scroll_up_key} or {quit_key}"
+
+    while True:
+      key = self.left_window.getkey()
+      if key == scroll_down_key:
+        self.right_window.scrollok(True)
+        self.right_window.scroll(10)
+      elif key == scroll_up_key:
+        self.right_window.scrollok(True)
+        self.right_window.scroll(-10)
+
+      # Quit using 'q'
+      elif key == quit_key:
+        return quit_key
+
+      # Any key, move foward
+      if key in keys:
+        return key
+
+      # Refresh the window
+      self.right_window.refresh()
+
+  def destroy(self):
+    self.left_window.erase()
+    self.left_window.refresh()
+    self.right_window.erase()
+    self.right_window.refresh()

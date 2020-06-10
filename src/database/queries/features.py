@@ -30,7 +30,7 @@ class FeaturesQuery(Executor):
   @staticmethod
   def execute(args):
     if args.source:
-      vis = SourceFeatureVisualizer()
+      vis = SourceFeatureVisualizer(args.source)
 
     if args.one_per_slice:
       last_slice_id = -1
@@ -46,7 +46,7 @@ class FeaturesQuery(Executor):
 
       # Check if source is provided. If is, then use visualizer
       if args.source:
-        result = vis.show(datapoint, args.source)
+        result = vis.show(datapoint)
         if not result:
           break
       else:

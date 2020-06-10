@@ -14,7 +14,8 @@ class AlarmsQuery(Executor):
 
   @staticmethod
   def execute(args):
-    vis = SourceFeatureVisualizer()
+    if args.source:
+      vis = SourceFeatureVisualizer(args.source)
 
     db = args.db
     var_args = vars(args)
@@ -40,6 +41,6 @@ class AlarmsQuery(Executor):
       if not args.source:
         pp.pprint(datapoint.dugraph())
       else:
-        result = vis.show(datapoint, args.source, label=f"{i}/{nalarms}")
+        result = vis.show(datapoint, label=f"{i}/{nalarms}")
         if not result:
           break
