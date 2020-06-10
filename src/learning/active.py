@@ -1,16 +1,20 @@
+import numpy as np
+import json
+import random
+
 from src.database import Database, DataPoint
 from src.database.helpers import SourceFeatureVisualizer
 
-from .unifier import unify_features, unify_features_with_sample
+from .unifier import unify_features
 from .feature_group import *
 
 
 def cube_pdf(xs, x):
-  pass
+  raise Exception("Not implemented")
 
 
 def gaussian_pdf(xs, x):
-  raise Exception("Not implemented")
+  pass
 
 
 pdfs = {
@@ -18,59 +22,74 @@ pdfs = {
     'gaussian': gaussian_pdf
 }
 
-def score_1(xs, x, ts, os):
+def score_1(x, ps, ts, os, density):
   raise Exception("Not implemented")
 
 
-def score_2(xs, x, ts, os):
+def score_2(x, ps, ts, os, density):
   raise Exception("Not implemented")
 
 
-def score_3(xs, x, ts, os):
+def score_3(x, ps, ts, os, density):
   raise Exception("Not implemented")
 
 
-def score_4(xs, x, ts, os):
-  pass
+def score_4(x, ps, ts, os, density):
+  return random.random()
 
 
 score_functions = {
-    'score_1': score_1
-    'score_2': score_2
-    'score_3': score_3
+    'score_1': score_1,
+    'score_2': score_2,
+    'score_3': score_3,
     'score_4': score_4
 }
 
 
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
-  parser.add_argument('-d', '--pdf', type=str, default="cube", help='Density Function')
+  parser.add_argument('source', type=str, help='The source program to refer to')
+  parser.add_argument('-d', '--pdf', type=str, default="gaussian", help='Density Function')
   parser.add_argument('-s', '--score', type=str, default="score_4", help='Score Function')
   parser.add_argument('-l', '--limit', type=int, default=0.01, help="Number of alarms reported")
 
 
-def argmax(ps, ts, os, score, density) -> int:
+def argmax(ps, ts, os, score, density) -> Tuple[int, float]:
   """
-  Return the index of the datapoint in xs that score the highest
+  Return the (index, score) of the datapoint in xs that score the highest
   """
-  pass
+  max_i = None
+  max_score = None
+  for (i, x) in ps:
+    s = score(x, ps, ts, os, density)
+    if max_i == None or s > max_score:
+      max_i = i
+      max_score = s
+  return (max_i, max_score)
 
 
 def top_scored(ps, ts, os, score, density, limit):
   """
-  Return a list of indices that rank the highest on score
+  limit: a number between 0 and 1, indicating the portion of alarms to be reported
+  Return a list of (index, x, score) that rank the highest on score
   """
-  pass
+  xs = ps + ts + os
+  xs_with_scores = [(i, x, score(x, ps, ts, os, density)) for (i, x) in xs]
+  num_xs = len(xs_with_scores)
+  num_alarms = int(num_xs * limit)
+  sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
+  return sorted_xs_with_scores[0:num_alarms]
 
 
 def main(args):
   db = args.db
+  exp_dir = db.new_learning_dir(args.function)
 
   print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
 
   print("Unifying Features...")
-  feature_jsons = unify_featuers(datapoints)
+  feature_jsons = unify_features(datapoints)
   sample_feature_json = feature_jsons[0]
 
   print("Generating Feature Groups and Encoder")
@@ -92,11 +111,11 @@ def main(args):
   vis = SourceFeatureVisualizer(args.source)
 
   while True:
-    p_i = argmax(ps, ts, os, score_function, density_function)
-    datapoint_i = datapoints[p_i]
+    (p_i, _) = argmax(ps, ts, os, score_function, density_function)
+    dp_i = datapoints[p_i]
 
     # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
-    result = vis.ask(datapoint, ["y", "n", "u"], scroll_down_key="]", scroll_up_key="[")
+    result = vis.ask(dp_i, ["y", "n", "u"], scroll_down_key="]", scroll_up_key="[")
     item = (p_i, xs[p_i])
     if result != "q":
       if result == "y":
@@ -110,10 +129,15 @@ def main(args):
     else:
       break
 
+  print("Done active learning")
+
+  # Remove the visualizer
+  vis.destroy()
+
   # Get the alarms
   alarm_id_scores = top_scored(ps, ts, os, score_function, density_function, args.limit)
-  alarm_dps = [(datapoints[i], score) for (i, score) in alarm_id_scores]
-  print("Dumping result")
+  alarm_dps = [(datapoints[i], score) for (i, _, score) in alarm_id_scores]
+  print("Dumping result...")
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:

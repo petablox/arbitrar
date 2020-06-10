@@ -10,6 +10,8 @@ class SourceFeatureVisualizer():
   def __init__(self, source):
     self.stdscr = curses.initscr()
 
+    curses.savetty()
+
     curses.start_color()
 
     curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -108,10 +110,10 @@ class SourceFeatureVisualizer():
       self.right_window.refresh()
 
   def ask(self, datapoint, keys, label="", padding=20, scroll_down_key="n", scroll_up_key="p", quit_key="q"):
+    """
+    Please make sure that `keys` do not collide with scroll_down_key, scroll_up_key, and quit_key
+    """
     self.display(datapoint, label=label, padding=padding)
-
-    assert yes_key != scroll_down_key and yes_key != scroll_up_key and yes_key != quit_key, f"Yes key cannot be {scroll_down_key} or {scroll_up_key} or {quit_key}"
-    assert no_key != scroll_down_key and no_key != scroll_up_key and no_key != quit_key, f"No key cannot be {scroll_down_key} or {scroll_up_key} or {quit_key}"
 
     while True:
       key = self.left_window.getkey()
@@ -134,7 +136,20 @@ class SourceFeatureVisualizer():
       self.right_window.refresh()
 
   def destroy(self):
-    self.left_window.erase()
-    self.left_window.refresh()
-    self.right_window.erase()
-    self.right_window.refresh()
+
+    curses.endwin()
+
+    # self.left_window.erase()
+    # self.left_window.refresh()
+    # self.right_window.erase()
+    # self.right_window.refresh()
+
+    # Delete windows
+    # del self.left_window
+    # del self.right_window
+
+    # curses.resetty()
+
+    # # Restore std screen
+    # self.stdscr.touchwin()
+    # self.stdscr.refresh()

@@ -14,6 +14,6 @@ def setup_parser(parser):
 
 def main(args):
   if args.learner in learners:
-    learners[args.learner].execute(args)
+    learners[args.learner].main(args)
   else:
     print(f"Unknown query {args.learner}")
