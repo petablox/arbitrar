@@ -13,24 +13,24 @@ class Fitness:
     pass
 
   def value(self):
-    raise NotImplemented()
+    raise Exception("Not Implemented")
 
   def plot(self, ax):
     pass
 
 
+"""
+Minimum Distance Cluster + Entropy
+
+We group cluster by connected components which edges are drawn between
+the closest points. Then we calculate the entropy ($\Sum p \log p$) of
+the dataset.
+"""
 class MinimumDistanceClusterEntropy(Fitness):
   """
-  Minimum Distance Cluster + Entropy
-
-  We group cluster by connected components which edges are drawn between
-  the closest points. Then we calculate the entropy ($\Sum p \log p$) of
-  the dataset.
+  Initialize the fitness model. Compute all the edges & clusters.
   """
   def __init__(self, x, args):
-    """
-    Initialize the fitness model. Compute all the edges & clusters.
-    """
     sys.setrecursionlimit(10000) # Because KNN computation is very heavy
 
     self.x = x
@@ -44,7 +44,7 @@ class MinimumDistanceClusterEntropy(Fitness):
     for i in range(len(self.x)):
       print(f"Finding edge for point {i}/{len(self.x)}...", end="\r")
       p = self.x[i]
-      dist, j = kdtree.query(p)
+      _, j = kdtree.query(p)
       self.edges.add((i, j))
 
     # Generate cluster (without merging)
@@ -105,15 +105,15 @@ class MinimumDistanceClusterEntropy(Fitness):
 
     return entropy
 
-
+"""
+Gaussian Mixture Cluster + Entropy
+"""
 class GaussianMixtureClusterEntropy(Fitness):
+
   """
-  Gaussian Mixture Cluster + Entropy
+  Initialize the Gaussian Mixture Model
   """
   def __init__(self, x, args):
-    """
-    Initialize the Gaussian Mixture Model
-    """
     self.x = x
     self.dim = np.shape(x)[1]
     self.n_components = args.gmc_n_components
