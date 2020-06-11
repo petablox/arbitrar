@@ -14,7 +14,7 @@ from src.database import Database, DataPoint
 from .model import Model, OCSVM, IF
 from .fitness import MinimumDistanceClusterEntropy, GaussianMixtureClusterEntropy
 from .selection import MCMCFeatureSelection, MCMCFeatureGroupSelection
-from .feature_group import *
+from .feature_group import FeatureGroups
 from .unifier import unify_features, unify_features_with_sample
 
 models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
@@ -87,12 +87,17 @@ def test(args):
   datapoints = list(db.function_datapoints(args.function))
   feature_jsons = unify_features_with_sample(datapoints, unified)
   sample_feature_json = feature_jsons[0]
+
+  fix_groups = args.fix_group
+  if args.fix_retval:
+    fix_groups.append("retval")
+  if args.fix_argval:
+    fix_groups.append("argval")
   feature_groups = FeatureGroups(sample_feature_json,
                                  enable_causality=not args.no_causality,
                                  enable_retval=not args.no_retval,
                                  enable_argval=not args.no_argval,
-                                 fix_retval=args.fix_retval,
-                                 fix_argval=args.fix_argval)
+                                 fix_groups=fix_groups)
 
   x = np.array([feature_groups.encode(feature) for feature in feature_jsons])
   model = get_model(args)(datapoints, x, clf)
