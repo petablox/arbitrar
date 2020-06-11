@@ -48,8 +48,10 @@ def dot_of_dugraph(dugraph):
       g.add_node(id, label=label)
 
   # Then insert all the cf_edges
+  g.edge_attr["arrowhead"] = "vee"
+  g.edge_attr["color"] = "black"
   for cfe in dugraph["cf_edge"]:
-    dot.add_edge(str(cfe[0]), str(cfe[1]))
+    g.add_edge(str(cfe[0]), str(cfe[1]))
 
   # Finally insert all the du_edges
   g.edge_attr["color"] = "red"

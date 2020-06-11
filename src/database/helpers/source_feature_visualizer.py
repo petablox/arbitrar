@@ -1,10 +1,11 @@
 import os
+import sys
 from ..meta import pp
 from os import system
 from termcolor import cprint
-
 import curses
 
+from ..analysis import DataPoint
 
 class SourceFeatureVisualizer():
   def __init__(self, source):
@@ -29,10 +30,10 @@ class SourceFeatureVisualizer():
 
     self.source = source
 
-  def display(self, datapoint, label="", padding=20):
+  def display(self, datapoint: DataPoint, label="", padding=20):
     # Initialize datapoint data
-    bc = datapoint.bc
-    func_name = datapoint.func_name
+    # bc = datapoint.bc
+    # func_name = datapoint.func_name
     slice_id = datapoint.slice_id
     trace_id = datapoint.trace_id
 
@@ -42,12 +43,12 @@ class SourceFeatureVisualizer():
       toks = v['location'].split(":")
       if len(toks) < 4:
         continue
-      line, col = int(toks[2]), int(toks[3])
+      line, _col = int(toks[2]), int(toks[3])
       used.add(line)
 
     slice = datapoint.slice()
     toks = slice['call_edge']['location'].split(":")
-    path, func, line, col = toks[0], toks[1], int(toks[2]), toks[3]
+    path, _func, line, _col = toks[0], toks[1], int(toks[2]), toks[3]
 
     self.left_window.erase()
     self.right_window.erase()
@@ -109,31 +110,39 @@ class SourceFeatureVisualizer():
         return True
       self.right_window.refresh()
 
-  def ask(self, datapoint, keys, label="", padding=20, scroll_down_key="n", scroll_up_key="p", quit_key="q"):
+  def ask(self, datapoint, keys, prompt="> ", label="", padding=20, scroll_down_key="n", scroll_up_key="p", quit_key="q"):
     """
     Please make sure that `keys` do not collide with scroll_down_key, scroll_up_key, and quit_key
     """
     self.display(datapoint, label=label, padding=padding)
 
-    while True:
-      key = self.left_window.getkey()
-      if key == scroll_down_key:
-        self.right_window.scrollok(True)
-        self.right_window.scroll(10)
-      elif key == scroll_up_key:
-        self.right_window.scrollok(True)
-        self.right_window.scroll(-10)
+    # Prompt the user input
+    self.left_window.addstr("")
+    self.left_window.addstr(prompt)
 
-      # Quit using 'q'
-      elif key == quit_key:
-        return quit_key
+    try:
+      while True:
+        key = self.left_window.getkey()
+        if key == scroll_down_key:
+          self.right_window.scrollok(True)
+          self.right_window.scroll(10)
+        elif key == scroll_up_key:
+          self.right_window.scrollok(True)
+          self.right_window.scroll(-10)
 
-      # Any key, move foward
-      if key in keys:
-        return key
+        # Quit using 'q'
+        elif key == quit_key:
+          return quit_key
 
-      # Refresh the window
-      self.right_window.refresh()
+        # Any key, move foward
+        if key in keys:
+          return key
+
+        # Refresh the window
+        self.right_window.refresh()
+    except: # KeyboardInterrupt:
+      self.destroy()
+      sys.exit()
 
   def destroy(self):
 
