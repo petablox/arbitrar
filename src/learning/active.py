@@ -36,7 +36,6 @@ def setup_parser(parser):
 
 def main(args):
   db = args.db
-  exp_dir = db.new_learning_dir(args.function)
   active_learner = learners[args.active_learner]
 
   print("Fetching Datapoints From Database...")
@@ -57,6 +56,7 @@ def main(args):
 
   # Dump lots of things
   print("Dumping result...")
+  exp_dir = db.new_learning_dir(args.function)
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
