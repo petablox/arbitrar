@@ -13,25 +13,29 @@ from src.database.helpers import SourceFeatureVisualizer
 
 from .unifier import unify_features
 from .feature_group import FeatureGroups
-from .active_learner import kde, dual_occ
+from .active_learner import kde, dual_occ, rand
 
 
 # Learner :: (List<DataPoint>, NP.ndarray, int  , Args) -> (List<(DataPoint, Score)>, List<float>)
 #         :: (Datapoints     , X         , Count, args) -> (alarms                  , AUC_Graph  )
 learners = {
-    "kde": kde.active_learn,
-    "dual-occ": dual_occ.active_learn
+    "kde": kde.KDELearner,
+    "dual-occ": dual_occ.active_learn,
+    "random": rand.RandomLearner
 }
 
 
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
   parser.add_argument('--active-learner', type=str, default='kde')
-  parser.add_argument('-d', '--pdf', type=str, default="gaussian", help='Density Function')
-  parser.add_argument('-s', '--score', type=str, default="score_4", help='Score Function')
-  parser.add_argument('-l', '--limit', type=float, default=0.1, help='Number of alarms to report')
+  parser.add_argument('--limit', type=float, default=0.1, help='Number of alarms to report')
   parser.add_argument('--evaluate-count', type=int)
   parser.add_argument('--evaluate-percentage', type=float)
+  parser.add_argument('--random-baseline', action='store_true')
+
+  # KDE specifics
+  parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
+  parser.add_argument('--kde-score', type=str, default="score_4", help='Score Function')
 
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
@@ -40,7 +44,6 @@ def setup_parser(parser):
 
 def main(args):
   db = args.db
-  active_learner = learners[args.active_learner]
 
   print("Fetching Datapoints From Database...")
   datapoints = list(db.function_datapoints(args.function))
@@ -61,7 +64,17 @@ def main(args):
     amount_to_evaluate = int(len(xs) * args.evaluate_percentage)
 
   print("Active Learning...")
-  alarms, auc_graph = active_learner(datapoints, xs, amount_to_evaluate, args)
+  active_learner = learners[args.active_learner]
+  model = active_learner(datapoints, xs, amount_to_evaluate, args)
+  alarms, auc_graph = model.run()
+
+  if args.random_baseline:
+    print("Running Random Baseline...")
+    random_learner = learners["random"]
+    random_model = random_learner(datapoints, xs, amount_to_evaluate, args)
+    _, random_auc_graph = random_model.run()
+  else:
+    random_auc_graph = None
 
   # Dump lots of things
   print("Dumping result...")
@@ -86,42 +99,55 @@ def main(args):
       f.write(s)
 
   # Dump the AUC graph
-  auc = compute_and_dump_auc_graph(auc_graph, exp_dir)
+  auc = compute_and_dump_auc_graph(auc_graph, exp_dir, baseline=random_auc_graph)
 
   # Dump logs
   with open(f"{exp_dir}/log.txt", "w") as f:
     f.write(f"AUC: {auc}\n")
 
 
+def fps_from_tps(tps):
+  length = len(tps)
+  fps, prev_tp_count, prev_fp_count, auc = [], 0, 0, 0.0
+  for i in range(length):
+    if tps[i] == prev_tp_count:
+      prev_fp_count += 1
+      auc += tps[i]
+    fps.append(prev_fp_count)
+    prev_tp_count = tps[i]
+
+  if fps[-1] == 0 or tps[-1] == 0:
+    auc = 0.0
+  if fps[-1] > 0:
+    auc = auc / (fps[-1] * tps[-1])
+  else:
+    auc = 1.0
+
+  return fps, auc
+
+
 """
 return the AUC value
 """
-def compute_and_dump_auc_graph(auc_graph, exp_dir) -> float:
+def compute_and_dump_auc_graph(auc_graph, exp_dir, baseline=None) -> float:
   auc_fig, auc_ax = plt.subplots()
-  length = len(auc_graph)
-  tps = auc_graph
-
-  # Generate false positive array from true positive array
-  fps, prev_tp_count, prev_fp_count, auc = [], 0, 0, 0.0
-  has_fp = False
-  for i in range(length):
-    if auc_graph[i] == prev_tp_count:
-      prev_fp_count += 1
-      auc += auc_graph[i]
-      has_fp = True
-    fps.append(prev_fp_count)
-    prev_tp_count = auc_graph[i]
+  tps, (fps, auc) = auc_graph, fps_from_tps(auc_graph)
 
   # y = x
   y_eq_x = range(fps[-1])
 
+  if baseline:
+    baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
+
   # Plot
   auc_ax.plot(fps, tps)
   auc_ax.plot(y_eq_x, y_eq_x, '--')
+
+  # Plot baseline
+  if baseline:
+    auc_ax.plot(baseline_fps, baseline_tps)
+
   auc_fig.savefig(f"{exp_dir}/auc.png")
 
   # Return AUC
-  if has_fp:
-    return auc / (fps[-1] * tps[-1])
-  else:
-    return 1.0
+  return auc

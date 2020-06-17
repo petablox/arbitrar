@@ -10,8 +10,7 @@ from sklearn.neighbors import KernelDensity
 from src.database import Database, DataPoint
 from src.database.helpers import SourceFeatureVisualizer
 
-# from .unifier import unify_features
-# from .feature_group import FeatureGroups
+from .meta import ActiveLearner
 
 Vec = np.ndarray
 
@@ -119,82 +118,24 @@ def top_scored(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, limit: 
   return sorted_xs_with_scores[0:num_alarms]
 
 
-def active_learn(datapoints, xs, amount, args):
-  score_function = score_functions[args.score]
+class KDELearner(ActiveLearner):
+  def __init__(self, datapoints, xs, amount, args):
+    super().__init__(datapoints, xs, amount, args)
+    self.score_function = score_functions[args.kde_score]
+    self.ts = []
+    self.os = []
 
-  ps = list(enumerate(xs))
-  ts = []
-  os = []
+  def select(self, ps):
+    (p_i, _) = argmax(ps, self.ts, self.os, self.score_function, self.args.limit)
+    return p_i
 
-  outlier_count = 0
-  auc_graph = []
+  def feedback(self, item, is_alarm):
+    if is_alarm:
+      self.os.append(item)
+    else:
+      self.ts.append(item)
 
-  if args.source:
-    vis = SourceFeatureVisualizer(args.source)
-
-  try:
-    for attempt_count in range(amount):
-
-      # Get the index of datapoint that has the lowest score
-      (p_i, _) = argmax(ps, ts, os, score_function, args.limit)
-      if p_i == None:
-        break
-
-      # Get the full datapoint
-      dp_i = datapoints[p_i]
-      item = (p_i, xs[p_i])
-
-      if args.ground_truth:
-
-        # Alarm
-        is_alarm = dp_i.has_label(label=args.ground_truth)
-        print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}   ", end="\r")
-
-      elif args.source:
-
-        # If the ground truth is not provided
-        # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
-        result = vis.ask(dp_i,
-                        ["y", "n"],
-                        prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|n|u] > ",
-                        scroll_down_key="]",
-                        scroll_up_key="[")
-        if result != "q":
-          if result == "y":
-            is_alarm = True
-          elif result == "n":
-            is_alarm = False
-        else:
-          break
-
-      else:
-        print("Must provide --ground-truth or --source. Aborting")
-        sys.exit()
-
-      if is_alarm:
-        os.append(item)
-        outlier_count += 1
-      else:
-        ts.append(item)
-      ps = [(i, x) for (i, x) in ps if i != p_i]
-      auc_graph.append(outlier_count)
-
-  except SystemExit:
-    print("Aborting")
-    sys.exit()
-  except Exception as err:
-    if not args.ground_truth:
-      vis.destroy()
-    raise err
-
-  # Remove the visualizer
-  if not args.ground_truth:
-    vis.destroy()
-  else:
-    print("")
-
-  # Generate the scores and alarms
-  alarm_id_scores = top_scored(ps, ts, os, score_function, args.limit)
-  alarms = [(datapoints[i], score) for (i, _, score) in alarm_id_scores]
-
-  return alarms, auc_graph
+  def alarms(self, ps):
+    alarm_id_scores = top_scored(ps, self.ts, self.os, self.score_function, self.args.limit)
+    alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
+    return alarms
