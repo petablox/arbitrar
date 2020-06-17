@@ -20,8 +20,12 @@ class BinarySVMLearner(ActiveLearner):
       y = [1 for _ in self.ts] + [-1 for _ in self.os]
       model = SVC()
       model.fit(X, y)
-      abs_scores = np.abs(model.predict([x for (_, x) in ps]))
-      argmin_score = np.argmin(abs_scores)
+      if self.args.bin_svm_select_lowest:
+        scores = model.predict([x for (_, x) in ps])
+        argmin_score = np.argmin(scores)
+      else:
+        abs_scores = np.abs(model.predict([x for (_, x) in ps]))
+        argmin_score = np.argmin(abs_scores)
       (p_i, _) = ps[argmin_score]
       return p_i
 

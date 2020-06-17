@@ -1,3 +1,6 @@
+import numpy as np
+from sklearn.svm import OneClassSVM
+
 from .meta import ActiveLearner
 
 class DualOCCLearner(ActiveLearner):
@@ -5,16 +8,44 @@ class DualOCCLearner(ActiveLearner):
     super().__init__(datapoints, xs, amount, args)
     self.ts = []
     self.os = []
+    self.target_occ = OneClassSVM(nu=0.1)
+    self.outlier_occ = OneClassSVM(nu=0.9)
 
   def select(self, ps):
-    # (p_i, _) = argmax(ps, self.ts, self.os, self.score_function, self.args.limit)
-    return 0
+    if len(self.ts) == 0 and len(self.os) == 0:
+      return 0
+    else:
+      us = np.array([x for (_, x) in ps])
+      if len(self.ts) > 0:
+        dv_t = self.target_occ.predict(us)
+      else:
+        dv_t = np.array([1 for _ in ps])
+      if len(self.os) > 0:
+        dv_o = self.outlier_occ.predict(us)
+      else:
+        dv_o = np.array([1 for _ in ps])
+      agg = dv_o * (-dv_t) # agg_exploration
+      i = np.argmax(agg)
+      (p_i, _) = ps[i]
+      return p_i
 
   def feedback(self, item, is_alarm):
     if is_alarm:
       self.os.append(item)
+      self.outlier_occ.fit([x for (_, x) in self.os])
     else:
       self.ts.append(item)
+      self.target_occ.fit([x for (_, x) in self.ts])
 
   def alarms(self, num_alarms):
-    return []
+    if len(self.ts) > 0:
+      dv_t = self.target_occ.predict(self.xs)
+    else:
+      dv_t = np.array([1 for _ in range(len(self.xs))])
+    if len(self.os) > 0:
+      dv_o = self.outlier_occ.predict(self.xs)
+    else:
+      dv_o = np.array([1 for _ in range(len(self.xs))])
+    scores = dv_o - dv_t
+    alarms = [(self.datapoints[i], score) for (i, score) in zip(range(len(self.xs)), scores)]
+    return alarms

@@ -40,6 +40,9 @@ def setup_parser(parser):
   parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
   parser.add_argument('--kde-score', type=str, default="score_4", help='Score Function')
 
+  # Binary SVM specifics
+  parser.add_argument('--bin-svm-select-lowest', action='store_true')
+
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
   parser.add_argument('--ground-truth', type=str)
@@ -96,7 +99,7 @@ def main(args):
 
   # Dump the raised alarms
   with open(f"{exp_dir}/alarms.csv", "w") as f:
-    f.write("bc,slice_id,trace_id,scroe,alarms\n")
+    f.write("bc,slice_id,trace_id,score,alarms\n")
     for (dp, score) in alarms:
       s = f"{dp.bc},{dp.slice_id},{dp.trace_id},{score},\"{str(dp.alarms())}\"\n"
       f.write(s)
