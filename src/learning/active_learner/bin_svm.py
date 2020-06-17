@@ -10,6 +10,10 @@ class BinarySVMLearner(ActiveLearner):
     self.ts = []
     self.os = []
 
+  @staticmethod
+  def setup_parser(parser):
+    parser.add_argument('--bin-svm-select-lowest', action='store_true')
+
   def select(self, ps):
     if len(self.ts) == 0 or len(self.os) == 0:
       (p_i, _) = ps[random.randint(0, len(ps) - 1)]

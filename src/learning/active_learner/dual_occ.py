@@ -11,20 +11,36 @@ class DualOCCLearner(ActiveLearner):
     self.target_occ = OneClassSVM(nu=0.1)
     self.outlier_occ = OneClassSVM(nu=0.9)
 
+  @staticmethod
+  def setup_parser(parser):
+    parser.add_argument('--dual-occ-agg', type=str, default="exp") # Or "sim"
+
   def select(self, ps):
     if len(self.ts) == 0 and len(self.os) == 0:
       return 0
     else:
       us = np.array([x for (_, x) in ps])
+
+      # Compute DV^t
       if len(self.ts) > 0:
         dv_t = self.target_occ.predict(us)
       else:
         dv_t = np.array([1 for _ in ps])
+
+      # Compute DV^o
       if len(self.os) > 0:
         dv_o = self.outlier_occ.predict(us)
       else:
         dv_o = np.array([1 for _ in ps])
-      agg = dv_o * (-dv_t) # agg_exploration
+
+      # Compute aggregation function
+      if self.args.dual_occ_agg == 'exp':
+        agg = dv_o * dv_t # agg_exploration
+      elif self.args.dual_occ_agg == 'sim':
+        agg = -np.abs(dv_t - dv_o)
+      else:
+        raise Exception(f"Unknown aggregation function {self.args.dual_occ_agg}")
+
       i = np.argmax(agg)
       (p_i, _) = ps[i]
       return p_i

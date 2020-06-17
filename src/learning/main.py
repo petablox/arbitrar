@@ -1,7 +1,8 @@
-from . import unsupervised, active
+from . import unsupervised, supervised, active
 
 learners = {
     'unsupervised': unsupervised,
+    'supervised': supervised,
     'active': active
 }
 

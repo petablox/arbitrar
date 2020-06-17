@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import KernelDensity
 
 from src.database import Database, DataPoint
-from src.database.helpers import SourceFeatureVisualizer
 
 from .unifier import unify_features
 from .feature_group import FeatureGroups
@@ -36,16 +35,13 @@ def setup_parser(parser):
   parser.add_argument('--random-baseline', action='store_true')
   parser.add_argument('--num-alarms', type=int, default=100)
 
-  # KDE specifics
-  parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
-  parser.add_argument('--kde-score', type=str, default="score_4", help='Score Function')
-
-  # Binary SVM specifics
-  parser.add_argument('--bin-svm-select-lowest', action='store_true')
-
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
   parser.add_argument('--ground-truth', type=str)
+
+  # Setup learner specific arguments
+  for learner in learners.values():
+    learner.setup_parser(parser)
 
 
 def main(args):

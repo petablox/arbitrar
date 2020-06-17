@@ -122,6 +122,11 @@ class KDELearner(ActiveLearner):
     self.ts = []
     self.os = []
 
+  @staticmethod
+  def setup_parser(parser):
+    parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
+    parser.add_argument('--kde-score', type=str, default="score_4", help='Score Function')
+
   def select(self, ps):
     (p_i, _) = argmax(ps, self.ts, self.os, self.score_function, self.args.limit)
     return p_i
