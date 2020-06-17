@@ -16,7 +16,5 @@ class DualOCCLearner(ActiveLearner):
     else:
       self.ts.append(item)
 
-  def alarms(self, ps):
-    alarm_id_scores = top_scored(ps, self.ts, self.os, self.score_function, self.args.limit)
-    alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
-    return alarms
+  def alarms(self, num_alarms):
+    return []

@@ -22,7 +22,7 @@ class BinarySVMLearner(ActiveLearner):
       model.fit(X, y)
       abs_scores = np.abs(model.predict([x for (_, x) in ps]))
       argmin_score = np.argmin(abs_scores)
-      (p_i, _) = labeled[argmin_score]
+      (p_i, _) = ps[argmin_score]
       return p_i
 
   def feedback(self, item, is_alarm):
@@ -31,13 +31,16 @@ class BinarySVMLearner(ActiveLearner):
     else:
       self.ts.append(item)
 
-  def alarms(self, ps):
-    labeled = self.ts + self.os
-    X = [x for (_, x) in labeled]
-    y = [1 for _ in self.ts] + [-1 for _ in self.os]
-    model = SVC()
-    model.fit(X, y)
-    all_ps = labeled + ps
-    scores = model.predict([x for (_, x) in all_ps])
-    alarms = [(self.datapoints[i], score) for ((i, _), score) in zip(all_ps, scores)]
-    return alarms
+  def alarms(self, num_alarms):
+    if len(self.ts) == 0 or len(self.os) == 0:
+      return []
+    else:
+      labeled = self.ts + self.os
+      X = [x for (_, x) in labeled]
+      y = [1 for _ in self.ts] + [-1 for _ in self.os]
+      model = SVC()
+      model.fit(X, y)
+      scores = model.predict(self.xs)
+      dp_scores = [(self.datapoints[i], score) for (i, score) in zip(range(len(self.xs)), scores)]
+      sorted_dp_scores = sorted(dp_scores, key=lambda d: d[1])
+      return sorted_dp_scores[0:num_alarms]

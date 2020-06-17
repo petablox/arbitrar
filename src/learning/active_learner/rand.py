@@ -11,8 +11,7 @@ class RandomLearner(ActiveLearner):
     return p_i
 
   def feedback(self, item, is_alarm):
-    # No feedback when we have random
     pass
 
-  def alarms(self, ps):
+  def alarms(self, num_alarms):
     return []

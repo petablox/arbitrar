@@ -32,7 +32,9 @@ def setup_parser(parser):
   parser.add_argument('--limit', type=float, default=0.1, help='Number of alarms to report')
   parser.add_argument('--evaluate-count', type=int)
   parser.add_argument('--evaluate-percentage', type=float)
+  parser.add_argument('--evaluate-with-alarms', action='store_true')
   parser.add_argument('--random-baseline', action='store_true')
+  parser.add_argument('--num-alarms', type=int, default=100)
 
   # KDE specifics
   parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
@@ -100,10 +102,12 @@ def main(args):
       f.write(s)
 
   # Dump the AUC graph
-  auc = compute_and_dump_auc_graph(auc_graph, exp_dir, baseline=random_auc_graph)
+  auc = compute_and_dump_auc_graph(auc_graph, exp_dir, args, baseline=random_auc_graph)
 
   # Dump logs
   with open(f"{exp_dir}/log.txt", "w") as f:
+    f.write("cmd\n")
+    f.write("  " + str(sys.argv) + "\n")
     f.write(f"AUC: {auc}\n")
 
 
@@ -130,23 +134,27 @@ def fps_from_tps(tps):
 """
 return the AUC value
 """
-def compute_and_dump_auc_graph(auc_graph, exp_dir, baseline=None) -> float:
+def compute_and_dump_auc_graph(auc_graph, exp_dir, args, baseline=None) -> float:
   auc_fig, auc_ax = plt.subplots()
-  tps, (fps, auc) = auc_graph, fps_from_tps(auc_graph)
 
-  # y = x
-  y_eq_x = range(fps[-1])
+  if args.evaluate_with_alarms:
+    auc_ax.plot(range(len(auc_graph)), auc_graph)
+    auc = sum([p / len(auc_graph) for p in auc_graph])
 
-  if baseline:
-    baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
+  else:
+    tps, (fps, auc) = auc_graph, fps_from_tps(auc_graph)
+    y_eq_x = range(fps[-1])
 
-  # Plot
-  auc_ax.plot(fps, tps)
-  auc_ax.plot(y_eq_x, y_eq_x, '--')
+    if baseline:
+      baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
 
-  # Plot baseline
-  if baseline:
-    auc_ax.plot(baseline_fps, baseline_tps)
+    # Plot
+    auc_ax.plot(fps, tps)
+    auc_ax.plot(y_eq_x, y_eq_x, '--')
+
+    # Plot baseline
+    if baseline:
+      auc_ax.plot(baseline_fps, baseline_tps)
 
   auc_fig.savefig(f"{exp_dir}/auc.png")
 

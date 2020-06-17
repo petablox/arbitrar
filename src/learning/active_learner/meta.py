@@ -9,6 +9,9 @@ class ActiveLearner:
     self.amount = amount
     self.args = args
 
+    if self.args.evaluate_with_alarms and self.args.ground_truth:
+      self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
+
   def run(self):
     ps = list(enumerate(self.xs))
     outlier_count = 0
@@ -28,7 +31,8 @@ class ActiveLearner:
 
         if self.args.ground_truth:
           is_alarm = dp_i.has_label(label=self.args.ground_truth)
-          print(f"Attemp {attempt_count} is alarm: {str(is_alarm)}    ", end="\r")
+          print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end="\r")
+
         elif self.args.source:
           # If the ground truth is not provided
           # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
@@ -48,13 +52,23 @@ class ActiveLearner:
           print("Must provide --ground-truth or --source. Aborting")
           sys.exit()
 
-        if is_alarm:
-          outlier_count += 1
-
         self.feedback(item, is_alarm)
 
         ps = [(i, x) for (i, x) in ps if i != p_i]
-        auc_graph.append(outlier_count)
+
+        # AUC Graph Generation
+        if is_alarm:
+          outlier_count += 1
+
+        if self.args.evaluate_with_alarms and self.args.ground_truth:
+          alarms = self.alarms(self.num_outliers)
+          if len(alarms) > 0:
+            true_alarms = [(dp, score) for (dp, score) in alarms if dp.has_label(label=self.args.ground_truth)]
+            auc_graph.append(len(true_alarms) / len(alarms))
+          else:
+            auc_graph.append(0)
+        else:
+          auc_graph.append(outlier_count)
 
     except SystemExit:
       print("Aborting")
@@ -71,7 +85,7 @@ class ActiveLearner:
       print("")
 
     # return the result alarms and auc_graph
-    return self.alarms(ps), auc_graph
+    return self.alarms(self.args.num_alarms), auc_graph
 
   def select(self, ps):
     raise Exception("Child class of Active Learner should override this function")
@@ -79,5 +93,5 @@ class ActiveLearner:
   def feedback(self, item, is_alarm):
     pass
 
-  def alarms(self, ps):
+  def alarms(self, num_alarms):
     raise Exception("Child class of Active Learner should override this function")

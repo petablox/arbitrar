@@ -105,15 +105,12 @@ def argmax(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, p_t: float)
   return (max_i, max_score)
 
 
-def top_scored(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, limit: float):
+def top_scored(xs: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, num_alarms):
   """
   limit: a number between 0 and 1, indicating the portion of alarms to be reported
   Return a list of (index, x, score) that rank the lowest on score
   """
-  xs = ps + ts + os
-  xs_with_scores = [(i, x, score(i, x, ts, os, limit)) for (i, x) in xs]
-  num_xs = len(xs_with_scores)
-  num_alarms = int(num_xs * limit)
+  xs_with_scores = [(i, x, score(i, x, ts, os, 0.1)) for (i, x) in xs]
   sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
   return sorted_xs_with_scores[0:num_alarms]
 
@@ -135,7 +132,7 @@ class KDELearner(ActiveLearner):
     else:
       self.ts.append(item)
 
-  def alarms(self, ps):
-    alarm_id_scores = top_scored(ps, self.ts, self.os, self.score_function, self.args.limit)
+  def alarms(self, num_alarms):
+    alarm_id_scores = top_scored(list(enumerate(self.xs)), self.ts, self.os, self.score_function, num_alarms)
     alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
     return alarms
