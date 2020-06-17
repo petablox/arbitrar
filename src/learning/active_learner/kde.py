@@ -119,7 +119,7 @@ def top_scored(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, limit: 
   return sorted_xs_with_scores[0:num_alarms]
 
 
-def active_learn(datapoints, xs, args):
+def active_learn(datapoints, xs, amount, args):
   score_function = score_functions[args.score]
 
   ps = list(enumerate(xs))
@@ -128,13 +128,12 @@ def active_learn(datapoints, xs, args):
 
   outlier_count = 0
   auc_graph = []
-  evaluate_count = int(len(datapoints) * args.evaluate_percentage)
 
   if args.source:
     vis = SourceFeatureVisualizer(args.source)
 
   try:
-    for attempt_count in range(evaluate_count):
+    for attempt_count in range(amount):
 
       # Get the index of datapoint that has the lowest score
       (p_i, _) = argmax(ps, ts, os, score_function, args.limit)

@@ -1,4 +1,5 @@
 from typing import Tuple, Callable, List, Dict
+from functools import reduce
 import math
 import json
 import random
@@ -12,22 +13,25 @@ from src.database.helpers import SourceFeatureVisualizer
 
 from .unifier import unify_features
 from .feature_group import FeatureGroups
-from .active_learner import kde
+from .active_learner import kde, dual_occ
 
-# Learner :: (List<DataPoint>, NP.ndarray, Args) -> (List<(DataPoint, Score)>, List<float>)
-#         :: (Datapoints     , X         , args) -> (alarms                  , AUC_Graph  )
+
+# Learner :: (List<DataPoint>, NP.ndarray, int  , Args) -> (List<(DataPoint, Score)>, List<float>)
+#         :: (Datapoints     , X         , Count, args) -> (alarms                  , AUC_Graph  )
 learners = {
-    "kde": kde.active_learn
+    "kde": kde.active_learn,
+    "dual-occ": dual_occ.active_learn
 }
 
 
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
-  parser.add_argument('--active-learner', type=str, default="kde")
+  parser.add_argument('--active-learner', type=str, default='kde')
   parser.add_argument('-d', '--pdf', type=str, default="gaussian", help='Density Function')
   parser.add_argument('-s', '--score', type=str, default="score_4", help='Score Function')
-  parser.add_argument('-l', '--limit', type=float, default=0.1, help="Number of alarms reported")
-  parser.add_argument('--evaluate-percentage', type=float, default=1)
+  parser.add_argument('-l', '--limit', type=float, default=0.1, help='Number of alarms to report')
+  parser.add_argument('--evaluate-count', type=int)
+  parser.add_argument('--evaluate-percentage', type=float)
 
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
@@ -50,9 +54,14 @@ def main(args):
 
   print("Encoding Features...")
   xs = [np.array(feature_groups.encode(feature)) for feature in feature_jsons]
+  amount_to_evaluate = len(xs)
+  if args.evaluate_count:
+    amount_to_evaluate = min(len(xs), args.evaluate_count)
+  elif args.evaluate_percentage:
+    amount_to_evaluate = int(len(xs) * args.evaluate_percentage)
 
   print("Active Learning...")
-  alarms, auc_graph = active_learner(datapoints, xs, args)
+  alarms, auc_graph = active_learner(datapoints, xs, amount_to_evaluate, args)
 
   # Dump lots of things
   print("Dumping result...")
@@ -77,7 +86,42 @@ def main(args):
       f.write(s)
 
   # Dump the AUC graph
-  if args.ground_truth:
-    auc_fig, auc_ax = plt.subplots()
-    auc_ax.plot(range(1, len(auc_graph) + 1), auc_graph)
-    auc_fig.savefig(f"{exp_dir}/auc.png")
+  auc = compute_and_dump_auc_graph(auc_graph, exp_dir)
+
+  # Dump logs
+  with open(f"{exp_dir}/log.txt", "w") as f:
+    f.write(f"AUC: {auc}\n")
+
+
+"""
+return the AUC value
+"""
+def compute_and_dump_auc_graph(auc_graph, exp_dir) -> float:
+  auc_fig, auc_ax = plt.subplots()
+  length = len(auc_graph)
+  tps = auc_graph
+
+  # Generate false positive array from true positive array
+  fps, prev_tp_count, prev_fp_count, auc = [], 0, 0, 0.0
+  has_fp = False
+  for i in range(length):
+    if auc_graph[i] == prev_tp_count:
+      prev_fp_count += 1
+      auc += auc_graph[i]
+      has_fp = True
+    fps.append(prev_fp_count)
+    prev_tp_count = auc_graph[i]
+
+  # y = x
+  y_eq_x = range(fps[-1])
+
+  # Plot
+  auc_ax.plot(fps, tps)
+  auc_ax.plot(y_eq_x, y_eq_x, '--')
+  auc_fig.savefig(f"{exp_dir}/auc.png")
+
+  # Return AUC
+  if has_fp:
+    return auc / (fps[-1] * tps[-1])
+  else:
+    return 1.0
