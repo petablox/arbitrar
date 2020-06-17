@@ -13,14 +13,15 @@ from src.database.helpers import SourceFeatureVisualizer
 
 from .unifier import unify_features
 from .feature_group import FeatureGroups
-from .active_learner import kde, dual_occ, rand
+from .active_learner import kde, dual_occ, bin_svm, rand
 
 
 # Learner :: (List<DataPoint>, NP.ndarray, int  , Args) -> (List<(DataPoint, Score)>, List<float>)
 #         :: (Datapoints     , X         , Count, args) -> (alarms                  , AUC_Graph  )
 learners = {
     "kde": kde.KDELearner,
-    "dual-occ": dual_occ.active_learn,
+    "dual-occ": dual_occ.DualOCCLearner,
+    "bin-svm": bin_svm.BinarySVMLearner,
     "random": rand.RandomLearner
 }
 

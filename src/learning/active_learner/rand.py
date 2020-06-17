@@ -7,8 +7,7 @@ class RandomLearner(ActiveLearner):
     super().__init__(datapoints, xs, amount, args)
 
   def select(self, ps):
-    random.shuffle(ps)
-    (p_i, _) = ps[0]
+    (p_i, _) = ps[random.randint(0, len(ps) - 1)]
     return p_i
 
   def feedback(self, item, is_alarm):

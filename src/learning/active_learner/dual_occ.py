@@ -1,18 +1,22 @@
-from src.database.helpers import SourceFeatureVisualizer
+from .meta import ActiveLearner
 
-def active_learn(datapoints, xs, amount, args):
-  us = list(enumerate(xs))
-  ts = []
-  os = []
+class DualOCCLearner(ActiveLearner):
+  def __init__(self, datapoints, xs, amount, args):
+    super().__init__(datapoints, xs, amount, args)
+    self.ts = []
+    self.os = []
 
-  outlier_count = 0
-  auc_graph = []
+  def select(self, ps):
+    # (p_i, _) = argmax(ps, self.ts, self.os, self.score_function, self.args.limit)
+    return 0
 
-  if args.source:
-    vis = SourceFeatureVisualizer(args.source)
+  def feedback(self, item, is_alarm):
+    if is_alarm:
+      self.os.append(item)
+    else:
+      self.ts.append(item)
 
-  try:
-    for attempt_count in range(amount):
-      pass
-  except:
-    pass
+  def alarms(self, ps):
+    alarm_id_scores = top_scored(ps, self.ts, self.os, self.score_function, self.args.limit)
+    alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
+    return alarms
