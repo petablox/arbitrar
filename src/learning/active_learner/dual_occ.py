@@ -8,8 +8,8 @@ class DualOCCLearner(ActiveLearner):
     super().__init__(datapoints, xs, amount, args)
     self.ts = []
     self.os = []
-    self.target_occ = OneClassSVM(nu=0.1)
-    self.outlier_occ = OneClassSVM(nu=0.9)
+    self.target_occ = None
+    self.outlier_occ = None
 
   @staticmethod
   def setup_parser(parser):
@@ -48,9 +48,11 @@ class DualOCCLearner(ActiveLearner):
   def feedback(self, item, is_alarm):
     if is_alarm:
       self.os.append(item)
+      self.outlier_occ = OneClassSVM(nu=0.9)
       self.outlier_occ.fit([x for (_, x) in self.os])
     else:
       self.ts.append(item)
+      self.target_occ = OneClassSVM(nu=0.1)
       self.target_occ.fit([x for (_, x) in self.ts])
 
   def alarms(self, num_alarms):

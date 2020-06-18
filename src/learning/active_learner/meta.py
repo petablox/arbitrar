@@ -2,20 +2,24 @@ import sys
 
 from src.database.helpers import SourceFeatureVisualizer
 
+def x_to_string(x):
+  return "".join([str(x_i) for x_i in x.tolist()])
+
 class ActiveLearner:
   def __init__(self, datapoints, xs, amount, args):
     self.datapoints = datapoints
     self.xs = xs
     self.amount = amount
     self.args = args
-
-    if self.args.evaluate_with_alarms and self.args.ground_truth:
+    if self.args.ground_truth:
       self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
+    self.explored_cache = {}
 
   def run(self):
     ps = list(enumerate(self.xs))
     outlier_count = 0
     auc_graph = []
+    alarms_perc_graph = []
 
     if self.args.source:
       vis = SourceFeatureVisualizer(self.args.source)
@@ -60,15 +64,24 @@ class ActiveLearner:
         if is_alarm:
           outlier_count += 1
 
-        if self.args.evaluate_with_alarms and self.args.ground_truth:
+        # Alarms Percentage Graph
+        if self.args.ground_truth:
           alarms = self.alarms(self.num_outliers)
           if len(alarms) > 0:
             true_alarms = [(dp, score) for (dp, score) in alarms if dp.has_label(label=self.args.ground_truth)]
-            auc_graph.append(len(true_alarms) / len(alarms))
+            alarms_perc_graph.append(len(true_alarms) / len(alarms))
           else:
-            auc_graph.append(0)
-        else:
-          auc_graph.append(outlier_count)
+            alarms_perc_graph.append(0)
+
+        # Mark similar
+        if self.args.mark_similar:
+          for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
+            dp_j = self.datapoints[j]
+            if dp_j.slice_id == dp_i.slice_id and x_to_string(self.xs[j]) == x_to_string(self.xs[p_i]):
+              self.feedback((j, self.xs[j]), is_alarm)
+
+        # AUC Graph
+        auc_graph.append(outlier_count)
 
     except SystemExit:
       print("Aborting")
@@ -85,7 +98,7 @@ class ActiveLearner:
       print("")
 
     # return the result alarms and auc_graph
-    return self.alarms(self.args.num_alarms), auc_graph
+    return self.alarms(self.args.num_alarms), auc_graph, alarms_perc_graph
 
   def select(self, ps):
     raise Exception("Child class of Active Learner should override this function")

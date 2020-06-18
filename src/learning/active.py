@@ -32,8 +32,8 @@ def setup_parser(parser):
   parser.add_argument('--evaluate-count', type=int)
   parser.add_argument('--evaluate-percentage', type=float)
   parser.add_argument('--evaluate-with-alarms', action='store_true')
-  parser.add_argument('--random-baseline', action='store_true')
   parser.add_argument('--num-alarms', type=int, default=100)
+  parser.add_argument('--mark-similar', action='store_true')
 
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
@@ -68,15 +68,12 @@ def main(args):
   print("Active Learning...")
   active_learner = learners[args.active_learner]
   model = active_learner(datapoints, xs, amount_to_evaluate, args)
-  alarms, auc_graph = model.run()
+  alarms, auc_graph, alarms_perc_graph = model.run()
 
-  if args.random_baseline:
-    print("Running Random Baseline...")
-    random_learner = learners["random"]
-    random_model = random_learner(datapoints, xs, amount_to_evaluate, args)
-    _, random_auc_graph = random_model.run()
-  else:
-    random_auc_graph = None
+  print("Running Random Baseline...")
+  random_learner = learners["random"]
+  random_model = random_learner(datapoints, xs, amount_to_evaluate, args)
+  _, random_auc_graph, _ = random_model.run()
 
   # Dump lots of things
   print("Dumping result...")
@@ -101,7 +98,11 @@ def main(args):
       f.write(s)
 
   # Dump the AUC graph
-  auc = compute_and_dump_auc_graph(auc_graph, exp_dir, args, baseline=random_auc_graph)
+  auc = compute_and_dump_auc_graph(auc_graph, random_auc_graph, f"{args.function} AUC", exp_dir)
+
+  # Dump the AP graph
+  if args.ground_truth:
+    dump_alarms_percentage_graph(alarms_perc_graph, exp_dir)
 
   # Dump logs
   with open(f"{exp_dir}/log.txt", "w") as f:
@@ -122,7 +123,7 @@ def fps_from_tps(tps):
 
   if fps[-1] == 0 or tps[-1] == 0:
     auc = 0.0
-  if fps[-1] > 0:
+  elif fps[-1] > 0:
     auc = auc / (fps[-1] * tps[-1])
   else:
     auc = 1.0
@@ -133,29 +134,36 @@ def fps_from_tps(tps):
 """
 return the AUC value
 """
-def compute_and_dump_auc_graph(auc_graph, exp_dir, args, baseline=None) -> float:
+def compute_and_dump_auc_graph(auc_graph, baseline, title, exp_dir) -> float:
   auc_fig, auc_ax = plt.subplots()
 
-  if args.evaluate_with_alarms:
-    auc_ax.plot(range(len(auc_graph)), auc_graph)
-    auc = sum([p / len(auc_graph) for p in auc_graph])
+  auc_ax.set_title(title)
+  auc_ax.set_ylabel('#TP')
+  auc_ax.set_xlabel('#FP')
 
-  else:
-    tps, (fps, auc) = auc_graph, fps_from_tps(auc_graph)
-    y_eq_x = range(fps[-1])
+  tps, (fps, auc) = auc_graph, fps_from_tps(auc_graph)
+  y_eq_x = range(fps[-1])
 
-    if baseline:
-      baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
+  baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
 
-    # Plot
-    auc_ax.plot(fps, tps)
-    auc_ax.plot(y_eq_x, y_eq_x, '--')
+  # Plot
+  auc_ax.plot(fps, tps, label='Ours')
+  auc_ax.plot(y_eq_x, y_eq_x, '--', label='y = x')
+  auc_ax.plot(baseline_fps, baseline_tps, label='Random Baseline')
 
-    # Plot baseline
-    if baseline:
-      auc_ax.plot(baseline_fps, baseline_tps)
+  # Legend
+  auc_ax.legend()
 
+  # Save the image
   auc_fig.savefig(f"{exp_dir}/auc.png")
 
   # Return AUC
   return auc
+
+
+def dump_alarms_percentage_graph(alarms_perc_graph, exp_dir):
+  ap_fig, ap_ax = plt.subplots()
+  ap_ax.set_ylabel('%% of TP in alarms')
+  ap_ax.set_xlabel('# Attempts')
+  ap_ax.plot(range(len(alarms_perc_graph)), alarms_perc_graph)
+  ap_fig.savefig(f"{exp_dir}/ap.png")
