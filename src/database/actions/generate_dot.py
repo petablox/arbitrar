@@ -32,31 +32,28 @@ def instr_str(vertex):
 
 
 def dot_of_dugraph(dugraph):
-  g = pgv.AGraph()
+  g = pgv.AGraph(directed=True, strict=False)
 
   # First insert all the vertices
-  g.node_attr["shape"] = "box"
-  g.node_attr["style"] = "filled"
-  g.node_attr["fillcolor"] = "white"
+  g.node_attr.update(shape="box", style="filled", fillcolor="white")
   for v in dugraph["vertex"]:
     loc = v["location"]
-    id = str(v["id"])
+    str_id = str(v["id"])
     label = f"[{loc}]\n{instr_str(v)}"
     if v["id"] == dugraph["target"]:
-      g.add_node(id, label=label, fontcolor="white", fillcolor="blue")
+      g.add_node(str_id, label=label, fontcolor="white", fillcolor="blue")
     else:
-      g.add_node(id, label=label)
+      g.add_node(str_id, label=label)
 
-  # Then insert all the cf_edges
-  g.edge_attr["arrowhead"] = "vee"
-  g.edge_attr["color"] = "black"
-  for cfe in dugraph["cf_edge"]:
-    g.add_edge(str(cfe[0]), str(cfe[1]))
-
-  # Finally insert all the du_edges
-  g.edge_attr["color"] = "red"
+  # Insert all the du_edges
+  g.edge_attr.update(color="red")
   for due in dugraph["du_edge"]:
-    g.add_edge(str(due[0]), str(due[1]))
+    g.add_edge(str(due[0]), str(due[1]), key="du")
+
+  # Insert all the cf_edges
+  g.edge_attr.update(color="black")
+  for cfe in dugraph["cf_edge"]:
+    g.add_edge(str(cfe[0]), str(cfe[1]), key="cf")
 
   return g
 
