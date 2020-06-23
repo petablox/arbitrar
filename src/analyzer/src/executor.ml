@@ -613,6 +613,7 @@ and transfer_switch llctx instr env state =
     List.fold_left
       (fun env (_case_, target_block) ->
         (* TODO: Make use of `_switch_target_` and `_case_` to create path constraint *)
+        let state = State.visit_block target_block state in
         Environment.add_work (target_block, state) env)
       env cases
   in
@@ -620,7 +621,6 @@ and transfer_switch llctx instr env state =
      equal to any cases *)
   let state = State.visit_block default_block state in
   execute_block llctx default_block env_with_works state
-
 
 and transfer_phi llctx instr env state =
   let prev_blk = Option.get state.State.prev_blk in

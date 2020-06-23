@@ -957,6 +957,8 @@ module State = struct
   let visit_block block s =
     {s with visited_blocks= BlockSet.add block s.visited_blocks}
 
+  let visited_block block s = BlockSet.mem block s.visited_blocks
+
   let visit_func func s =
     {s with visited_funcs= FuncSet.add func s.visited_funcs}
 
