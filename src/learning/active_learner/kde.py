@@ -10,8 +10,7 @@ from sklearn.neighbors import KernelDensity
 from src.database import Database, DataPoint
 from src.database.helpers import SourceFeatureVisualizer
 
-# from .unifier import unify_features
-# from .feature_group import FeatureGroups
+from .meta import ActiveLearner
 
 Vec = np.ndarray
 
@@ -106,96 +105,39 @@ def argmax(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, p_t: float)
   return (max_i, max_score)
 
 
-def top_scored(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, limit: float):
+def top_scored(xs: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, num_alarms):
   """
   limit: a number between 0 and 1, indicating the portion of alarms to be reported
   Return a list of (index, x, score) that rank the lowest on score
   """
-  xs = ps + ts + os
-  xs_with_scores = [(i, x, score(i, x, ts, os, limit)) for (i, x) in xs]
-  num_xs = len(xs_with_scores)
-  num_alarms = int(num_xs * limit)
+  xs_with_scores = [(i, x, score(i, x, ts, os, 0.1)) for (i, x) in xs]
   sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
   return sorted_xs_with_scores[0:num_alarms]
 
 
-def active_learn(datapoints, xs, args):
-  score_function = score_functions[args.score]
+class KDELearner(ActiveLearner):
+  def __init__(self, datapoints, xs, amount, args):
+    super().__init__(datapoints, xs, amount, args)
+    self.score_function = score_functions[args.kde_score]
+    self.ts = []
+    self.os = []
 
-  ps = list(enumerate(xs))
-  ts = []
-  os = []
+  @staticmethod
+  def setup_parser(parser):
+    parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
+    parser.add_argument('--kde-score', type=str, default="score_4", help='Score Function')
 
-  outlier_count = 0
-  auc_graph = []
-  evaluate_count = int(len(datapoints) * args.evaluate_percentage)
+  def select(self, ps):
+    (p_i, _) = argmax(ps, self.ts, self.os, self.score_function, self.args.limit)
+    return p_i
 
-  if args.source:
-    vis = SourceFeatureVisualizer(args.source)
+  def feedback(self, item, is_alarm):
+    if is_alarm:
+      self.os.append(item)
+    else:
+      self.ts.append(item)
 
-  try:
-    for attempt_count in range(evaluate_count):
-
-      # Get the index of datapoint that has the lowest score
-      (p_i, _) = argmax(ps, ts, os, score_function, args.limit)
-      if p_i == None:
-        break
-
-      # Get the full datapoint
-      dp_i = datapoints[p_i]
-      item = (p_i, xs[p_i])
-
-      if args.ground_truth:
-
-        # Alarm
-        is_alarm = dp_i.has_label(label=args.ground_truth)
-        print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}   ", end="\r")
-
-      elif args.source:
-
-        # If the ground truth is not provided
-        # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
-        result = vis.ask(dp_i,
-                        ["y", "n"],
-                        prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|n|u] > ",
-                        scroll_down_key="]",
-                        scroll_up_key="[")
-        if result != "q":
-          if result == "y":
-            is_alarm = True
-          elif result == "n":
-            is_alarm = False
-        else:
-          break
-
-      else:
-        print("Must provide --ground-truth or --source. Aborting")
-        sys.exit()
-
-      if is_alarm:
-        os.append(item)
-        outlier_count += 1
-      else:
-        ts.append(item)
-      ps = [(i, x) for (i, x) in ps if i != p_i]
-      auc_graph.append(outlier_count)
-
-  except SystemExit:
-    print("Aborting")
-    sys.exit()
-  except Exception as err:
-    if not args.ground_truth:
-      vis.destroy()
-    raise err
-
-  # Remove the visualizer
-  if not args.ground_truth:
-    vis.destroy()
-  else:
-    print("")
-
-  # Generate the scores and alarms
-  alarm_id_scores = top_scored(ps, ts, os, score_function, args.limit)
-  alarms = [(datapoints[i], score) for (i, _, score) in alarm_id_scores]
-
-  return alarms, auc_graph
+  def alarms(self, num_alarms):
+    alarm_id_scores = top_scored(list(enumerate(self.xs)), self.ts, self.os, self.score_function, num_alarms)
+    alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
+    return alarms
