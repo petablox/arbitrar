@@ -566,8 +566,8 @@ and transfer_br llctx instr env state =
         |> State.add_trace env.cache llctx instr semantic_sig
         |> add_syntactic_du_edge instr env
       in
-      let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
-      let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
+      let b1_visited = State.visited_block b1 state in
+      let b2_visited = State.visited_block b2 state in
       if b1_visited && b2_visited then finish_execution llctx env state
       else if b1_visited then
         let state = State.visit_block b2 (get_state false) in
@@ -586,7 +586,7 @@ and transfer_br llctx instr env state =
         State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
-      let visited = BlockSet.mem b state.State.visited_blocks in
+      let visited = State.visited_block b state in
       if visited then finish_execution llctx env state
       else
         let state = State.visit_block b state in
@@ -614,6 +614,7 @@ and transfer_switch llctx instr env state =
     List.fold_left
       (fun env (_case_, target_block) ->
         (* TODO: Make use of `_switch_target_` and `_case_` to create path constraint *)
+        let state = State.visit_block target_block state in
         Environment.add_work (target_block, state) env)
       env cases
   in
@@ -621,7 +622,6 @@ and transfer_switch llctx instr env state =
      equal to any cases *)
   let state = State.visit_block default_block state in
   execute_block llctx default_block env_with_works state
-
 
 and transfer_phi llctx instr env state =
   let prev_blk = Option.get state.State.prev_blk in
