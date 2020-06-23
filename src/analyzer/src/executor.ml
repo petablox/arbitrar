@@ -30,6 +30,14 @@ module Traces = struct
     `List l
 end
 
+module FinishState = struct
+  type t =
+    | ProperlyReturned
+    | BranchExplored
+    | ExceedingMaxTraceLength
+    | ExceedingMaxInstructionExplored
+end
+
 module Metadata = struct
   type t =
     { num_explored: int
@@ -283,6 +291,17 @@ let rec find_viable_control_succ v orig newg =
 let reduce_dugraph target orig =
   let du_projection = DUGraph.du_project orig in
   let du_checker = Path.create du_projection in
+  let cf_nodes =
+    DUGraph.fold_vertex
+      (fun v ls -> if Stmt.is_control_flow v.stmt then v :: ls else ls)
+      orig []
+  in
+  let connected_to_cf_nodes node =
+    List.fold_left
+      (fun connected cf_node ->
+        connected || Path.check_path du_checker node cf_node)
+      false cf_nodes
+  in
   (* filter out du-unrechable nodes *)
   let directly_connected_g =
     DUGraph.fold_vertex
@@ -291,6 +310,7 @@ let reduce_dugraph target orig =
           Path.check_path du_checker v target
           || Path.check_path du_checker target v
           || Stmt.is_control_flow v.stmt
+          || connected_to_cf_nodes v
         then g
         else
           (* Add a control flow edge from previous to next node *)
@@ -308,13 +328,13 @@ let reduce_dugraph target orig =
   let forward_connected_g =
     DUGraph.fold_vertex
       (fun v g ->
-        let is_forward_connected =
+        let is_connected =
           DUGraph.fold_vertex
             (fun v_p connected ->
-              if connected then true else Path.check_path du_checker v_p v)
+              connected || Path.check_path du_checker v v_p)
             g false
         in
-        if is_forward_connected then DUGraph.add_vertex g v else g)
+        if is_connected then DUGraph.add_vertex g v else g)
       orig directly_connected_g
   in
   (* restore du edges *)
@@ -324,7 +344,7 @@ let reduce_dugraph target orig =
         match DUGraph.E.label edge with
         | DUGraph.Edge.Data ->
             let src = DUGraph.E.src edge in
-            let dst = DUGraph.E.src edge in
+            let dst = DUGraph.E.dst edge in
             if DUGraph.mem_vertex g src && DUGraph.mem_vertex g dst then
               DUGraph.add_edge_e g edge
             else g
@@ -362,7 +382,7 @@ and execute_instr llctx instr env state =
   | Llvm.Before instr ->
       transfer llctx instr env state
 
-and transfer llctx instr env state =
+and transfer llctx instr (env : Environment.t) state =
   (*
   if !Options.verbose > 1 then
     prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
@@ -375,10 +395,7 @@ and transfer llctx instr env state =
     | Br ->
         transfer_br llctx instr env state
     | Switch ->
-        let semantic_sig = `Assoc [] in
-        State.add_trace env.Environment.cache llctx instr semantic_sig state
-        |> add_syntactic_du_edge instr env
-        |> execute_instr llctx (Llvm.instr_succ instr) env
+        transfer_switch llctx instr env state
     | Call ->
         transfer_call llctx instr env state
     | Alloca ->
@@ -577,6 +594,34 @@ and transfer_br llctx instr env state =
   | _ ->
       prerr_endline "warning: unknown branch" ;
       execute_instr llctx (Llvm.instr_succ instr) env state
+
+and transfer_switch llctx instr env state =
+  let _switch_target_ = Llvm.operand instr 0 in
+  let default_block = Llvm.block_of_value (Llvm.operand instr 1) in
+  let cases : (Int64.t * Llvm.llbasicblock) list =
+    List.map
+      (fun i ->
+        let case_llvalue = Llvm.operand instr (2 * i + 2) in
+        match Llvm.int64_of_const case_llvalue with
+        | Some case ->
+            let target_block_llvalue = Llvm.operand instr (2 * i + 3) in
+            let target_block = Llvm.block_of_value target_block_llvalue in
+            (case, target_block)
+        | None -> raise Utils.InvalidSwitchCase)
+      (Utils.range (((Llvm.num_operands instr) - 2) / 2))
+  in
+  let env_with_works =
+    List.fold_left
+      (fun env (_case_, target_block) ->
+        (* TODO: Make use of `_switch_target_` and `_case_` to create path constraint *)
+        Environment.add_work (target_block, state) env)
+      env cases
+  in
+  (* TODO: When executing default block, the path constraint is `_switch_target_` not
+     equal to any cases *)
+  let state = State.visit_block default_block state in
+  execute_block llctx default_block env_with_works state
+
 
 and transfer_phi llctx instr env state =
   let prev_blk = Option.get state.State.prev_blk in

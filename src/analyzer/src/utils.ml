@@ -6,9 +6,17 @@ exception InvalidArgument
 
 exception InvalidFunctionType
 
+exception InvalidSwitchCase
+
 (* System operation *)
 
 module F = Format
+
+let range (i : int) : int list =
+  let rec aux n acc =
+    if n < 0 then acc else aux (n - 1) (n :: acc)
+  in
+  aux (i - 1) []
 
 let mkdir dirname =
   (* Printf.printf "Creating directory %s\n" dirname ; *)
@@ -79,7 +87,7 @@ let initialize_output_directories outdir =
 (* LLVM utility functions *)
 
 let is_control_flow = function
-  | Llvm.Opcode.Ret | Llvm.Opcode.Br ->
+  | Llvm.Opcode.Ret | Llvm.Opcode.Br | Llvm.Opcode.Switch ->
       true
   | _ ->
       false

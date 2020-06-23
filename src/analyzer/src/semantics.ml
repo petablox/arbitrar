@@ -700,6 +700,8 @@ module Trace = struct
     `List l
 end
 
+module NodeSet = Set.Make (Node)
+
 module DUGraph = struct
   module Edge = struct
     type t = Data | Control
