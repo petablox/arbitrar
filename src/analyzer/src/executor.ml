@@ -30,14 +30,6 @@ module Traces = struct
     `List l
 end
 
-module FinishState = struct
-  type t =
-    | ProperlyReturned
-    | BranchExplored
-    | ExceedingMaxTraceLength
-    | ExceedingMaxInstructionExplored
-end
-
 module Metadata = struct
   type t =
     { num_explored: int
@@ -114,7 +106,7 @@ module Environment = struct
     ; worklist: Worklist.t
     ; traces: Traces.t
     ; target: Llvm.llvalue
-    ; dugraphs: DUGraph.t list
+    ; dugraphs: (DUGraph.t * FinishState.t) list
     ; boundaries: Llvm.llvalue list
     ; cache: Utils.EnvCache.t
     ; z3_ctx: Z3.context
@@ -136,7 +128,7 @@ module Environment = struct
 
   let add_work work env = {env with worklist= Worklist.push work env.worklist}
 
-  let add_dugraph g env = {env with dugraphs= g :: env.dugraphs}
+  let add_dugraph g fstate env = {env with dugraphs= (g,fstate) :: env.dugraphs}
 
   let add_discarded trace env =
     {env with discarded= Traces.add trace env.discarded}
@@ -146,7 +138,7 @@ module Environment = struct
     else if !Options.no_filter_duplication then true
     else
       List.find_opt
-        (fun g2 ->
+        (fun (g2,_) ->
           (* Check if the size are equal and if not, directly return false *)
           if DUGraph.nb_vertex g1 = DUGraph.nb_vertex g2 then
             (* Check if every vertex in g1 is contained in g2 *)
@@ -378,7 +370,7 @@ and execute_block llctx blk env state =
 and execute_instr llctx instr env state =
   match instr with
   | Llvm.At_end _ ->
-      finish_execution llctx env state
+      finish_execution llctx env state FinishState.ProperlyReturned
   | Llvm.Before instr ->
       transfer llctx instr env state
 
@@ -387,7 +379,7 @@ and transfer llctx instr (env : Environment.t) state =
   if !Options.verbose > 1 then
     prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
   if Trace.length state.State.trace > !Options.max_length then
-    finish_execution llctx env state
+    finish_execution llctx env state FinishState.ExceedingMaxInstructionExplored
   else
     match Llvm.instr_opcode instr with
     | Llvm.Opcode.Ret ->
@@ -511,6 +503,13 @@ and transfer llctx instr (env : Environment.t) state =
         |> State.add_memory lv v
         |> State.add_semantic_du_edges uses0 instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
+        
+    | Unreachable ->
+        let semantic_sig = `Assoc [] in
+        let state = State.add_trace env.cache llctx instr semantic_sig state in
+        let state = add_syntactic_du_edge instr env state in
+        finish_execution llctx env state FinishState.UnreachableStatement
+
     | x ->
         let semantic_sig = `Assoc [] in
         State.add_trace env.cache llctx instr semantic_sig state
@@ -568,7 +567,7 @@ and transfer_br llctx instr env state =
       in
       let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
       let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
-      if b1_visited && b2_visited then finish_execution llctx env state
+      if b1_visited && b2_visited then finish_execution llctx env state FinishState.BranchExplored
       else if b1_visited then
         let state = State.visit_block b2 (get_state false) in
         execute_block llctx b2 env state
@@ -587,7 +586,7 @@ and transfer_br llctx instr env state =
         |> add_syntactic_du_edge instr env
       in
       let visited = BlockSet.mem b state.State.visited_blocks in
-      if visited then finish_execution llctx env state
+      if visited then finish_execution llctx env state FinishState.BranchExplored
       else
         let state = State.visit_block b state in
         execute_block llctx b env state
@@ -713,11 +712,12 @@ and transfer_binop llctx instr env state =
   |> State.add_semantic_du_edges (uses0 @ uses1) instr
   |> execute_instr llctx (Llvm.instr_succ instr) env
 
-and finish_execution llctx env state =
+and finish_execution llctx env state fstate =
   let target_visited = state.target_node <> None in
   let env =
     if target_visited then
-      if Environment.should_include state.dugraph env then
+      if fstate != FinishState.UnreachableStatement && 
+            Environment.should_include state.dugraph env then
         if Environment.solve state.State.path_cons env then
           let target_node = Option.get state.target_node in
           let dug =
@@ -726,7 +726,7 @@ and finish_execution llctx env state =
           in
           let env =
             Environment.add_trace state.State.trace env
-            |> Environment.add_dugraph dug
+            |> Environment.add_dugraph dug fstate
           in
           { env with
             metadata=
@@ -796,7 +796,7 @@ let dump_discarded ?(prefix = "") env =
 
 let dump_dots ?(prefix = "") env =
   List.iteri
-    (fun idx g ->
+    (fun idx (g,_)->
       let oc = open_out (prefix ^ "-" ^ string_of_int idx ^ ".dot") in
       GraphViz.output_graph oc g ; close_out oc)
     env.Environment.dugraphs

@@ -702,6 +702,16 @@ end
 
 module NodeSet = Set.Make (Node)
 
+module FinishState = struct
+  type t =
+    | ProperlyReturned
+    | BranchExplored
+    | ExceedingMaxTraceLength
+    | ExceedingMaxInstructionExplored
+    | UnreachableStatement
+  [@@deriving show, yojson {exn= true}]
+end 
+
 module DUGraph = struct
   module Edge = struct
     type t = Data | Control
@@ -762,7 +772,7 @@ module DUGraph = struct
 
   let default_vertex_attributes g = [`Shape `Box]
 
-  let to_json cache g =
+  let to_json cache (g, fstate) =
     let vertices, target_id =
       fold_vertex
         (fun v (l, t) ->
@@ -786,7 +796,8 @@ module DUGraph = struct
       [ ("vertex", `List vertices)
       ; ("du_edge", `List du_edges)
       ; ("cf_edge", `List cf_edges)
-      ; ("target", `Int target_id) ]
+      ; ("target", `Int target_id) 
+      ; ("finish_state", (FinishState.to_yojson fstate)) ]
 end
 
 module InstrMap = Map.Make (struct
