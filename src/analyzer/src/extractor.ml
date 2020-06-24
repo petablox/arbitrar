@@ -88,8 +88,18 @@ let execute lc outdir llctx llm slices =
   let array_slices = Array.of_list slices in
   let num_slices = Array.length array_slices in
   if num_slices > 0 then
+    (* Anthony: Leaving this here to quickly switch to serial execution for
+     * debuing purposes.
+    List.iter 
+      (fun idx ->
+           let slice = array_slices.(idx) in
+           let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
+           Printf.printf "Doing symbolic execution on %d slice %c\r" num_slices
+             (loading idx) ;
+           flush stdout)
+         (Utils.range num_slices) ; *)
     ignore
-      (Parmap.parmap
+      (Parmap.parmap 
          (fun idx ->
            let slice = array_slices.(idx) in
            let _ = run_one_slice lc outdir llctx llm initial_state idx slice in

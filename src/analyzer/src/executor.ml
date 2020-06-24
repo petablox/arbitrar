@@ -375,9 +375,9 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr (env : Environment.t) state =
-  (*
-  if !Options.verbose > 1 then
-    prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
+  (* if !Options.verbose > 1 then
+    prerr_endline (Llvm.string_of_llvalue instr) 
+    (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *) *)
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state FinishState.ExceedingMaxInstructionExplored
   else
@@ -595,6 +595,7 @@ and transfer_br llctx instr env state =
       execute_instr llctx (Llvm.instr_succ instr) env state
 
 and transfer_switch llctx instr env state =
+  let state = {state with State.prev_blk= Some (Llvm.instr_parent instr)} in
   let _switch_target_ = Llvm.operand instr 0 in
   let default_block = Llvm.block_of_value (Llvm.operand instr 1) in
   let cases : (Int64.t * Llvm.llbasicblock) list =
