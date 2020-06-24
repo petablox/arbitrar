@@ -19,18 +19,18 @@ class Fitness:
     pass
 
 
-"""
-Minimum Distance Cluster + Entropy
-
-We group cluster by connected components which edges are drawn between
-the closest points. Then we calculate the entropy ($\Sum p \log p$) of
-the dataset.
-"""
 class MinimumDistanceClusterEntropy(Fitness):
+  """ Minimum Distance Cluster + Entropy
+
+      We group cluster by connected components which edges are drawn between
+      the closest points. Then we calculate the entropy ($\Sum p \log p$) of
+      the dataset.
   """
-  Initialize the fitness model. Compute all the edges & clusters.
-  """
+
   def __init__(self, x, args):
+    """ Initialize the fitness model. Compute all the edges & clusters.
+    """
+
     sys.setrecursionlimit(10000) # Because KNN computation is very heavy
 
     self.x = x
@@ -147,7 +147,7 @@ class GaussianMixtureClusterEntropy(Fitness):
     means = self.model.means_
     covariances = self.model.covariances_
 
-    for i, (mean, covar, color) in enumerate(zip(means, covariances, colors)):
+    for _, (mean, covar, color) in enumerate(zip(means, covariances, colors)):
       v, w = linalg.eigh(covar)
       v = 2. * np.sqrt(2.) * np.sqrt(v)
       u = w[0] / linalg.norm(w[0])

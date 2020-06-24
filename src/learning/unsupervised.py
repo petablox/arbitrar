@@ -5,19 +5,21 @@ import joblib
 import sys
 import json
 
+import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 # from tsnecuda import TSNE
-import matplotlib.pyplot as plt
+
+from src.database import Database, DataPoint
 
 from .utils import index_of_ith_one
-from src.database import Database, DataPoint
-from .model import Model, OCSVM, IF
+from .unsupervised_learner import ocsvm, isolation_forest
+from .unsupervised_learner.meta import Model
 from .fitness import MinimumDistanceClusterEntropy, GaussianMixtureClusterEntropy
 from .selection import MCMCFeatureSelection, MCMCFeatureGroupSelection
 from .feature_group import FeatureGroups
 from .unifier import unify_features, unify_features_with_sample
 
-models: Dict[str, Type[Model]] = {"ocsvm": OCSVM, "isolation-forest": IF}
+models: Dict[str, Type[Model]] = {"ocsvm": ocsvm.OCSVM, "isolation-forest": isolation_forest.IF}
 
 fitness_functions = {"mdc": MinimumDistanceClusterEntropy, "gmc": GaussianMixtureClusterEntropy}
 

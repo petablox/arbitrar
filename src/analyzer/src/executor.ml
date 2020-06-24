@@ -602,6 +602,9 @@ and transfer_switch llctx instr env state =
     List.map
       (fun i ->
         let case_llvalue = Llvm.operand instr (2 * i + 2) in
+        (* Note: C standard specifies switch case has to be constant int. Even it is a
+         * global variable, it has to be constant and will be casted to Llvm int64
+         * constant. So it's safe to assume  *)
         match Llvm.int64_of_const case_llvalue with
         | Some case ->
             let target_block_llvalue = Llvm.operand instr (2 * i + 3) in
