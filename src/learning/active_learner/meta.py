@@ -41,15 +41,24 @@ class ActiveLearner:
           # If the ground truth is not provided
           # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
           result = vis.ask(dp_i,
-                           ["y", "n"],
-                           prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|n] > ",
+                           ["y", "Y", "n", "N"],
+                           prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|Y|n|N] > ",
                            scroll_down_key="]",
                            scroll_up_key="[")
           if result != "q":
-            if result == "y":
+
+            # Check is alarm
+            if result == "y" or result == "Y":
               is_alarm = True
-            elif result == "n":
+            elif result == "n" or result == "N":
               is_alarm = False
+
+            # Check if we need to mark the whole slice
+            if result == "Y" or result == "N":
+              mark_whole_slice = True
+            else:
+              mark_whole_slice = False
+
           else:
             break
         else:
@@ -57,7 +66,6 @@ class ActiveLearner:
           sys.exit()
 
         self.feedback(item, is_alarm)
-
         ps = [(i, x) for (i, x) in ps if i != p_i]
 
         # AUC Graph Generation
@@ -73,12 +81,21 @@ class ActiveLearner:
           else:
             alarms_perc_graph.append(0)
 
+        # Mark whole slice
+        if mark_whole_slice:
+          for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
+            dp_j = self.datapoints[j]
+            if dp_j.slice_id == dp_i.slice_id:
+              self.feedback((j, self.xs[j]), is_alarm)
+              ps = [(i, x) for (i, x) in ps if i != j]
+
         # Mark similar
         if self.args.mark_similar:
           for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
             dp_j = self.datapoints[j]
             if dp_j.slice_id == dp_i.slice_id and x_to_string(self.xs[j]) == x_to_string(self.xs[p_i]):
               self.feedback((j, self.xs[j]), is_alarm)
+              ps = [(i, x) for (i, x) in ps if i != j]
 
         # AUC Graph
         auc_graph.append(outlier_count)
