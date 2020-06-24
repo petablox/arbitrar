@@ -147,7 +147,7 @@ class GaussianMixtureClusterEntropy(Fitness):
     means = self.model.means_
     covariances = self.model.covariances_
 
-    for i, (mean, covar, color) in enumerate(zip(means, covariances, colors)):
+    for _, (mean, covar, color) in enumerate(zip(means, covariances, colors)):
       v, w = linalg.eigh(covar)
       v = 2. * np.sqrt(2.) * np.sqrt(v)
       u = w[0] / linalg.norm(w[0])
