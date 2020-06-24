@@ -12,7 +12,7 @@ from src.database import Database, DataPoint
 
 from .unifier import unify_features
 from .feature_group import FeatureGroups
-from .active_learner import kde, dual_occ, bin_svm, rand
+from .active_learner import kde, dual_occ, bin_svm, rand, ssad
 
 
 # Learner :: (List<DataPoint>, NP.ndarray, int  , Args) -> (List<(DataPoint, Score)>, List<float>)
@@ -21,6 +21,7 @@ learners = {
     "kde": kde.KDELearner,
     "dual-occ": dual_occ.DualOCCLearner,
     "bin-svm": bin_svm.BinarySVMLearner,
+    "ssad": ssad.SSADLearner,
     "random": rand.RandomLearner
 }
 

@@ -6,16 +6,18 @@ def x_to_string(x):
   return "".join([str(x_i) for x_i in x.tolist()])
 
 class ActiveLearner:
-  def __init__(self, datapoints, xs, amount, args):
+  def __init__(self, datapoints, xs, amount, args, log_newline=False):
     self.datapoints = datapoints
     self.xs = xs
     self.amount = amount
     self.args = args
+    self.log_newline = log_newline
     if self.args.ground_truth:
       self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
     self.explored_cache = {}
 
   def run(self):
+    log_end = "\n" if self.log_newline else "\r"
     ps = list(enumerate(self.xs))
     outlier_count = 0
     auc_graph = []
@@ -26,6 +28,8 @@ class ActiveLearner:
 
     try:
       for attempt_count in range(self.amount):
+        mark_whole_slice = False
+
         p_i = self.select(ps)
         if p_i == None:
           break
@@ -35,7 +39,7 @@ class ActiveLearner:
 
         if self.args.ground_truth:
           is_alarm = dp_i.has_label(label=self.args.ground_truth)
-          print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end="\r")
+          print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
 
         elif self.args.source:
           # If the ground truth is not provided
@@ -56,8 +60,6 @@ class ActiveLearner:
             # Check if we need to mark the whole slice
             if result == "Y" or result == "N":
               mark_whole_slice = True
-            else:
-              mark_whole_slice = False
 
           else:
             break

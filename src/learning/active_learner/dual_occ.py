@@ -66,4 +66,4 @@ class DualOCCLearner(ActiveLearner):
       dv_o = np.array([1 for _ in range(len(self.xs))])
     scores = dv_o - dv_t
     alarms = [(self.datapoints[i], score) for (i, score) in zip(range(len(self.xs)), scores)]
-    return alarms
+    return sorted(alarms, key=lambda a: a[1])[:num_alarms]
