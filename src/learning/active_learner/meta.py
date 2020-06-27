@@ -13,14 +13,17 @@ class ActiveLearner:
     self.args = args
     self.log_newline = log_newline
     if self.args.ground_truth:
-      self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
+      if self.args.num_outliers != None:
+        self.num_outliers = self.args.num_outliers
+      else:
+        self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
     self.explored_cache = {}
 
   def run(self):
     log_end = "\n" if self.log_newline else "\r"
     ps = list(enumerate(self.xs))
     outlier_count = 0
-    auc_graph = []
+    auc_graph = [0]
     alarms_perc_graph = []
 
     if self.args.source:
@@ -28,8 +31,6 @@ class ActiveLearner:
 
     try:
       for attempt_count in range(self.amount):
-        mark_whole_slice = False
-
         p_i = self.select(ps)
         if p_i == None:
           break
@@ -39,6 +40,7 @@ class ActiveLearner:
 
         if self.args.ground_truth:
           is_alarm = dp_i.has_label(label=self.args.ground_truth)
+          mark_whole_slice = False
           print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
 
         elif self.args.source:
@@ -60,28 +62,14 @@ class ActiveLearner:
             # Check if we need to mark the whole slice
             if result == "Y" or result == "N":
               mark_whole_slice = True
+            else:
+              mark_whole_slice = False
 
           else:
             break
         else:
           print("Must provide --ground-truth or --source. Aborting")
           sys.exit()
-
-        self.feedback(item, is_alarm)
-        ps = [(i, x) for (i, x) in ps if i != p_i]
-
-        # AUC Graph Generation
-        if is_alarm:
-          outlier_count += 1
-
-        # Alarms Percentage Graph
-        if self.args.ground_truth:
-          alarms = self.alarms(self.num_outliers)
-          if len(alarms) > 0:
-            true_alarms = [(dp, score) for (dp, score) in alarms if dp.has_label(label=self.args.ground_truth)]
-            alarms_perc_graph.append(len(true_alarms) / len(alarms))
-          else:
-            alarms_perc_graph.append(0)
 
         # Mark whole slice
         if mark_whole_slice:
@@ -91,16 +79,35 @@ class ActiveLearner:
               self.feedback((j, self.xs[j]), is_alarm)
               ps = [(i, x) for (i, x) in ps if i != j]
 
-        # Mark similar
-        if self.args.mark_similar:
-          for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
-            dp_j = self.datapoints[j]
-            if dp_j.slice_id == dp_i.slice_id and x_to_string(self.xs[j]) == x_to_string(self.xs[p_i]):
-              self.feedback((j, self.xs[j]), is_alarm)
-              ps = [(i, x) for (i, x) in ps if i != j]
+              # Simulate the process
+              if is_alarm:
+                outlier_count += 1
+              auc_graph.append(outlier_count)
+        else:
+          self.feedback(item, is_alarm)
+          ps = [(i, x) for (i, x) in ps if i != p_i]
 
-        # AUC Graph
-        auc_graph.append(outlier_count)
+          # Simulate the process
+          if is_alarm:
+            outlier_count += 1
+          auc_graph.append(outlier_count)
+
+        # Mark similar
+        # if self.args.mark_similar:
+        #   for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
+        #     dp_j = self.datapoints[j]
+        #     if dp_j.slice_id == dp_i.slice_id and x_to_string(self.xs[j]) == x_to_string(self.xs[p_i]):
+        #       self.feedback((j, self.xs[j]), is_alarm)
+        #       ps = [(i, x) for (i, x) in ps if i != j]
+
+        # Alarms Percentage Graph
+        if self.args.ground_truth:
+          alarms = self.alarms(self.num_outliers)
+          if len(alarms) > 0:
+            true_alarms = [(dp, score) for (dp, score) in alarms if dp.has_label(label=self.args.ground_truth)]
+            alarms_perc_graph.append(len(true_alarms) / len(alarms))
+          else:
+            alarms_perc_graph.append(0)
 
     except SystemExit:
       print("Aborting")

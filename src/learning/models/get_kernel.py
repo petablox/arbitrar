@@ -1,8 +1,9 @@
+# Adapted from
 # https://github.com/nicococo/tilitools/blob/master/tilitools/utils_kernel.py
 
 import numpy as np
 
-def get_kernel(X, Y, type='rbf', param=1.0, verbose=0):
+def get_kernel(X, Y, type='rbf', param=2.0, verbose=0):
     """Calculates a kernel given the data X and Y (dims x exms)"""
     _, Xn = X.shape
     _, Yn = Y.shape
