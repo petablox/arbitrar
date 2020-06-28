@@ -8,6 +8,8 @@ exception InvalidFunctionType
 
 exception InvalidSwitchCase
 
+exception NonConstantInConstExpr
+
 (* System operation *)
 
 module F = Format
@@ -40,6 +42,113 @@ let range n =
     if i = 0 then i :: acc else aux ((i - 1) :: acc) (i - 1)
   in
   aux [] n
+
+let name_of_ll_value_kind (vk : Llvm.ValueKind.t) : string =
+  match vk with
+  | Llvm.ValueKind.NullValue -> "NullValue"
+  | Argument -> "Argument"
+  | BasicBlock -> "BasicBlock"
+  | InlineAsm -> "InlineAsm"
+  | MDNode -> "MDNode"
+  | MDString -> "MDString"
+  | BlockAddress -> "BlockAddress"
+  | ConstantAggregateZero -> "ConstantAggregateZero"
+  | ConstantArray -> "ConstantArray"
+  | ConstantDataArray -> "ConstantDataArray"
+  | ConstantDataVector -> "ConstantDataVector"
+  | ConstantExpr -> "ConstantExpr"
+  | ConstantFP -> "ConstantFP"
+  | ConstantInt -> "ConstantInt"
+  | ConstantPointerNull -> "ConstantPointerNull"
+  | ConstantStruct -> "ConstantStruct"
+  | ConstantVector -> "ConstantVector"
+  | Function -> "Function"
+  | GlobalAlias -> "GlobalAlias"
+  | GlobalVariable -> "GlobalVariable"
+  | GlobalIFunc -> "GlobalIFunc"
+  | UndefValue -> "UndefValue"
+  | Instruction _ -> "Instruction"
+
+let name_of_opcode (opcode : Llvm.Opcode.t) : string =
+  match opcode with
+  | Invalid -> "Invalide" (* Not an instruction *)
+  | Ret -> "Ret" (* Terminator Instructions *)
+  | Br -> "Br"
+  | Switch -> "Switch"
+  | IndirectBr -> "IndirectBr"
+  | Invoke -> "Invoke"
+  | Invalid2 -> "Invalid2"
+  | Unreachable -> "Unreachable"
+  | Add -> "Add" (* Standard Binary Operators *)
+  | FAdd -> "FAdd"
+  | Sub -> "Sub"
+  | FSub -> "FSub"
+  | Mul -> "Mul"
+  | FMul -> "FMul"
+  | UDiv -> "UDiv"
+  | SDiv -> "SDiv"
+  | FDiv -> "FDiv"
+  | URem -> "URem"
+  | SRem -> "SRem"
+  | FRem -> "FRem"
+  | Shl -> "Shl" (* Logical Operators *)
+  | LShr -> "LShr"
+  | AShr -> "AShr"
+  | And -> "And"
+  | Or -> "Or"
+  | Xor -> "Xor"
+  | Alloca -> "Alloca" (* Memory Operators *)
+  | Load -> "Load"
+  | Store -> "Store"
+  | GetElementPtr -> "GetElementPtr"
+  | Trunc -> "Trunc" (* Cast Operators *)
+  | ZExt -> "ZExt"
+  | SExt -> "SExt"
+  | FPToUI -> "FPToUI"
+  | FPToSI -> "FPToSI"
+  | UIToFP -> "UIToFP"
+  | SIToFP -> "SIToFP"
+  | FPTrunc -> "FPTrunc"
+  | FPExt -> "FPExt"
+  | PtrToInt -> "PtrToInt"
+  | IntToPtr -> "IntToPtr"
+  | BitCast -> "BitCast"
+  | ICmp -> "ICmp" (* Other Operators *)
+  | FCmp -> "FCmp"
+  | PHI -> "PHI"
+  | Call -> "Call"
+  | Select -> "Select"
+  | UserOp1 -> "UserOp1"
+  | UserOp2 -> "UserOp2"
+  | VAArg -> "VAArg"
+  | ExtractElement -> "ExtractElement"
+  | InsertElement -> "InsertElement"
+  | ShuffleVector -> "ShuffleVector"
+  | ExtractValue -> "ExtractValue"
+  | InsertValue -> "InsertValue"
+  | Fence -> "Fence"
+  | AtomicCmpXchg -> "AtomicCmpXchg"
+  | AtomicRMW -> "AtomicRMW"
+  | Resume -> "Resume"
+  | LandingPad -> "LandingPad"
+  | AddrSpaceCast -> "AddrSpaceCast"
+  | CleanupRet -> "CleanupRet"
+  | CatchRet -> "CatchRet"
+  | CatchPad -> "CatchPad"
+  | CleanupPad -> "CleanupPad"
+  | CatchSwitch -> "CatchSwitch"
+  | FNeg -> "FNeg"
+  | CallBr -> "CallBr"
+
+let indices_of_const_gep instr =
+  let llvalue_indices = List.init
+    (Llvm.num_operands instr - 1)
+    (fun i -> Llvm.operand instr (i + 1))
+  in
+  List.map
+    (fun llvalue_index ->
+      Llvm.int64_of_const llvalue_index |> Option.map Int64.to_int)
+    llvalue_indices
 
 let exp_func_name : string -> string option =
   let asm = " asm " in
@@ -207,7 +316,9 @@ module EnvCache = struct
     ; const_counter: int ref
     ; const_id_cache: (Llvm.llvalue, int) Hashtbl.t
     ; lhs_counter: int ref
-    ; lhs_string_cache: (Llvm.llvalue, string) Hashtbl.t }
+    ; lhs_string_cache: (Llvm.llvalue, string) Hashtbl.t
+    ; global_value_counter: int ref
+    ; global_value_string_cache: (Llvm.llvalue, string) Hashtbl.t }
 
   let empty () =
     { ll_value_string_cache= Hashtbl.create 2048
@@ -217,7 +328,9 @@ module EnvCache = struct
     ; const_counter= ref 0
     ; const_id_cache= Hashtbl.create 2048
     ; lhs_counter= ref 0
-    ; lhs_string_cache= Hashtbl.create 2048 }
+    ; lhs_string_cache= Hashtbl.create 2048
+    ; global_value_counter= ref 0
+    ; global_value_string_cache= Hashtbl.create 2048 }
 
   let ll_value_string cache instr =
     if Hashtbl.mem cache.ll_value_string_cache instr then
@@ -297,6 +410,15 @@ module EnvCache = struct
             ll_value_string cache exp
       in
       Hashtbl.add cache.string_of_exp_cache exp str ;
+      str
+
+  let string_of_global cache g =
+    if Hashtbl.mem cache.global_value_string_cache g then
+      Hashtbl.find cache.global_value_string_cache g
+    else
+      let str = "%global" ^ string_of_int !(cache.global_value_counter) in
+      cache.global_value_counter := !(cache.global_value_counter) + 1 ;
+      Hashtbl.add cache.lhs_string_cache g str ;
       str
 end
 

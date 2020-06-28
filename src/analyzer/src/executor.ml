@@ -192,7 +192,19 @@ let eval cache exp memory =
   | Instruction _ (* | Argument *) ->
       let lv = Location.variable exp in
       (Memory.find lv memory, [lv])
+  | GlobalVariable ->
+      let name = Llvm.value_name exp in
+      (Value.Global name, [Location.Global name])
+  | ConstantExpr -> (
+    match Llvm.constexpr_opcode exp with
+    | Llvm.Opcode.GetElementPtr ->
+        let source = Llvm.operand exp 0 |> Llvm.value_name |> Location.global in
+        let indices = Utils.indices_of_const_gep exp in
+        let lv = Location.gep_of indices source in
+        (Value.Location lv, [lv])
+    | _ -> (Value.Unknown, []))
   | _ ->
+      Printf.printf "\nUnknown value kind %s\n" (Utils.name_of_ll_value_kind kind) ;
       (Value.Unknown, [])
 
 let eval_lv exp memory =
@@ -409,6 +421,8 @@ and transfer llctx instr (env : Environment.t) state =
               (l, v1, state)
           | Value.SymExpr s ->
               (Location.symexpr s, v1, state)
+          | Value.Global s ->
+              (Location.Global s, v1, state)
           | _ ->
               let l = Location.new_symbol () in
               ( l
@@ -503,7 +517,6 @@ and transfer llctx instr (env : Environment.t) state =
         |> State.add_memory lv v
         |> State.add_semantic_du_edges uses0 instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
-        
     | Unreachable ->
         let semantic_sig = `Assoc [] in
         let state = State.add_trace env.cache llctx instr semantic_sig state in
@@ -719,7 +732,7 @@ and finish_execution llctx env state fstate =
   let target_visited = state.target_node <> None in
   let env =
     if target_visited then
-      if fstate != FinishState.UnreachableStatement && 
+      if fstate != FinishState.UnreachableStatement &&
             Environment.should_include state.dugraph env then
         if Environment.solve state.State.path_cons env then
           let target_node = Option.get state.target_node in

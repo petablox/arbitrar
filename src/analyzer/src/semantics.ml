@@ -318,6 +318,7 @@ module Location = struct
     | Address of Address.t
     | Argument of int
     | Variable of Variable.t
+    | Global of string
     | SymExpr of SymExpr.t
     | Gep of t * int option list
     | Unknown
@@ -337,6 +338,8 @@ module Location = struct
           [ `String "Gep"
           ; to_json cache e
           ; `List (List.map (function Some i -> `Int i | None -> `Null) is) ]
+    | Global s ->
+        `List [`String "Global"; `String s]
     | Unknown ->
         `List [`String "Unknown"]
 
@@ -349,6 +352,8 @@ module Location = struct
   let symexpr s = SymExpr s
 
   let gep_of is l = Gep (l, is)
+
+  let global s = Global s
 
   let unknown = Unknown
 
@@ -374,6 +379,8 @@ module Location = struct
     | Gep (l, is) ->
         F.fprintf fmt "Gep(%a, [%s])" pp l
           (String.concat "," (List.filter_map (Option.map string_of_int) is))
+    | Global s ->
+        F.fprintf fmt "Global%s" s
     | Unknown ->
         F.fprintf fmt "Unknown"
 
@@ -393,6 +400,7 @@ module Value = struct
     | Int of Int64.t
     | Location of Location.t
     | Argument of int
+    | Global of string
     | Unknown
 
   let to_json cache v =
@@ -407,6 +415,8 @@ module Value = struct
         `List [`String "Location"; Location.to_json cache l]
     | Argument i ->
         `List [`String "Argument"; `Int i]
+    | Global s ->
+        `List [`String "Global"; `String s]
     | Unknown ->
         `List [`String "Unknown"]
 
@@ -415,6 +425,8 @@ module Value = struct
   let location l = Location l
 
   let func v = Function v
+
+  let global s = Global s
 
   let unknown = Unknown
 
@@ -604,6 +616,8 @@ module Value = struct
         Location.pp fmt l
     | Argument i ->
         F.fprintf fmt "Arg%d" i
+    | Global s ->
+        F.fprintf fmt "Global %s" s
     | Unknown ->
         F.fprintf fmt "Unknown"
 end
@@ -710,7 +724,7 @@ module FinishState = struct
     | ExceedingMaxInstructionExplored
     | UnreachableStatement
   [@@deriving show, yojson {exn= true}]
-end 
+end
 
 module DUGraph = struct
   module Edge = struct
@@ -796,7 +810,7 @@ module DUGraph = struct
       [ ("vertex", `List vertices)
       ; ("du_edge", `List du_edges)
       ; ("cf_edge", `List cf_edges)
-      ; ("target", `Int target_id) 
+      ; ("target", `Int target_id)
       ; ("finish_state", (FinishState.to_yojson fstate)) ]
 end
 
