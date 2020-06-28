@@ -22,6 +22,7 @@ def setup_parser(parser):
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
   parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
+  parser.add_argument('--redo-occurrence', action='store_true', help='Only do occurrence extraction')
   parser.add_argument('--pretty-json', action='store_true', help='Prettify JSON')
   parser.add_argument('--causality-dict-size', type=int, default=5)
   parser.add_argument('--commit', action='store_true', help='Commit the analysis data to the database')
@@ -43,6 +44,12 @@ def main(args):
 
 def alpha_num(s):
   return "".join([c for c in s if c.isalnum() or c == '_'])
+
+
+def remove_path_if_existed(path):
+  if os.path.exists(path):
+    print(f"Removing directory {path}")
+    shutil.rmtree(path)
 
 
 def run_analyzer(db, bc_file, args):
@@ -70,7 +77,7 @@ def run_analyzer(db, bc_file, args):
   occurrence_finished = has_temp_dir and has_occurrence_finished_file
 
   # Run occurrence if not finished
-  if args.redo or not occurrence_finished:
+  if args.redo or args.redo_occurrence or not occurrence_finished:
     cmd = ['./analyzer', 'occurrence', bc_file, '-json', '-exclude-fn', exclude_fn, '-outdir', temp_outdir]
 
     run = subprocess.run(cmd, cwd=this_path)
@@ -140,6 +147,8 @@ def run_analyzer(db, bc_file, args):
   # Check if database commit needs to be done
   if args.redo or args.commit or args.redo_feature or not os.path.exists(move_finished_file):
 
+    visited_funcs = set()
+
     # Move files over to real location
     # First we move slices
     with open(f"{temp_outdir}/slices.json") as f:
@@ -149,6 +158,15 @@ def run_analyzer(db, bc_file, args):
         print(f"Commiting slice #{slice_id}", end="\r")
 
         callee = slice_json["call_edge"]["callee"]
+
+        # Remove existing folders
+        if (args.redo or args.redo_feature) and not callee in visited_funcs:
+          remove_path_if_existed(db.func_bc_slices_dir(callee, bc_name))
+          remove_path_if_existed(db.func_bc_dugraphs_dir(callee, bc_name))
+          remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
+        visited_funcs.add(callee)
+
+        # Calculate counts
         if callee in func_counts:
           index = func_counts[callee]
           func_counts[callee] += 1
@@ -156,6 +174,7 @@ def run_analyzer(db, bc_file, args):
           index = 0
           func_counts[callee] = 1
 
+        # If we are not redoing feature
         if not args.redo_feature:
 
           # Move slices
