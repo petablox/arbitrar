@@ -7,6 +7,7 @@ import curses
 
 from ..analysis import DataPoint
 
+
 class SourceFeatureVisualizer():
   def __init__(self, source):
     self.stdscr = curses.initscr()
@@ -110,7 +111,15 @@ class SourceFeatureVisualizer():
         return True
       self.right_window.refresh()
 
-  def ask(self, datapoint, keys, prompt="> ", label="", padding=20, scroll_down_key="n", scroll_up_key="p", quit_key="q"):
+  def ask(self,
+          datapoint,
+          keys,
+          prompt="> ",
+          label="",
+          padding=20,
+          scroll_down_key="n",
+          scroll_up_key="p",
+          quit_key="q"):
     """
     Please make sure that `keys` do not collide with scroll_down_key, scroll_up_key, and quit_key
     """
@@ -140,7 +149,7 @@ class SourceFeatureVisualizer():
 
         # Refresh the window
         self.right_window.refresh()
-    except: # KeyboardInterrupt:
+    except:  # KeyboardInterrupt:
       self.destroy()
       sys.exit()
 

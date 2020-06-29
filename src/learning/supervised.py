@@ -6,9 +6,11 @@ from sklearn.metrics import accuracy_score, f1_score
 from .unifier import unify_features
 from .feature_group import FeatureGroups
 
+
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
   parser.add_argument('gt', type=str, help='Ground Truth Label')
+
 
 def main(args):
   db = args.db

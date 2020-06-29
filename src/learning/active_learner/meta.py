@@ -2,8 +2,10 @@ import sys
 
 from src.database.helpers import SourceFeatureVisualizer
 
+
 def x_to_string(x):
   return "".join([str(x_i) for x_i in x.tolist()])
+
 
 class ActiveLearner:
   def __init__(self, datapoints, xs, amount, args, log_newline=False):
@@ -46,8 +48,7 @@ class ActiveLearner:
         elif self.args.source:
           # If the ground truth is not provided
           # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
-          result = vis.ask(dp_i,
-                           ["y", "Y", "n", "N"],
+          result = vis.ask(dp_i, ["y", "Y", "n", "N"],
                            prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|Y|n|N] > ",
                            scroll_down_key="]",
                            scroll_up_key="[")

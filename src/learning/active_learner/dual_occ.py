@@ -3,6 +3,7 @@ from sklearn.svm import OneClassSVM
 
 from .meta import ActiveLearner
 
+
 class DualOCCLearner(ActiveLearner):
   def __init__(self, datapoints, xs, amount, args):
     super().__init__(datapoints, xs, amount, args)
@@ -13,7 +14,7 @@ class DualOCCLearner(ActiveLearner):
 
   @staticmethod
   def setup_parser(parser):
-    parser.add_argument('--dual-occ-agg', type=str, default="exp") # Or "sim"
+    parser.add_argument('--dual-occ-agg', type=str, default="exp")  # Or "sim"
 
   def select(self, ps):
     if len(self.ts) == 0 and len(self.os) == 0:
@@ -35,7 +36,7 @@ class DualOCCLearner(ActiveLearner):
 
       # Compute aggregation function
       if self.args.dual_occ_agg == 'exp':
-        agg = dv_o * dv_t # agg_exploration
+        agg = dv_o * dv_t  # agg_exploration
       elif self.args.dual_occ_agg == 'sim':
         agg = -np.abs(dv_t - dv_o)
       else:

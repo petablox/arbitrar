@@ -811,7 +811,7 @@ module DUGraph = struct
       ; ("du_edge", `List du_edges)
       ; ("cf_edge", `List cf_edges)
       ; ("target", `Int target_id)
-      ; ("finish_state", (FinishState.to_yojson fstate)) ]
+      ; ("finish_state", FinishState.to_yojson fstate) ]
 end
 
 module InstrMap = Map.Make (struct

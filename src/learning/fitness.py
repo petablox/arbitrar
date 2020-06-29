@@ -26,12 +26,11 @@ class MinimumDistanceClusterEntropy(Fitness):
       the closest points. Then we calculate the entropy ($\Sum p \log p$) of
       the dataset.
   """
-
   def __init__(self, x, args):
     """ Initialize the fitness model. Compute all the edges & clusters.
     """
 
-    sys.setrecursionlimit(10000) # Because KNN computation is very heavy
+    sys.setrecursionlimit(10000)  # Because KNN computation is very heavy
 
     self.x = x
 
@@ -105,11 +104,13 @@ class MinimumDistanceClusterEntropy(Fitness):
 
     return entropy
 
+
 """
 Gaussian Mixture Cluster + Entropy
 """
-class GaussianMixtureClusterEntropy(Fitness):
 
+
+class GaussianMixtureClusterEntropy(Fitness):
   """
   Initialize the Gaussian Mixture Model
   """

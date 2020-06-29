@@ -128,7 +128,7 @@ module Environment = struct
 
   let add_work work env = {env with worklist= Worklist.push work env.worklist}
 
-  let add_dugraph g fstate env = {env with dugraphs= (g,fstate) :: env.dugraphs}
+  let add_dugraph g fstate env = {env with dugraphs= (g, fstate) :: env.dugraphs}
 
   let add_discarded trace env =
     {env with discarded= Traces.add trace env.discarded}
@@ -138,7 +138,7 @@ module Environment = struct
     else if !Options.no_filter_duplication then true
     else
       List.find_opt
-        (fun (g2,_) ->
+        (fun (g2, _) ->
           (* Check if the size are equal and if not, directly return false *)
           if DUGraph.nb_vertex g1 = DUGraph.nb_vertex g2 then
             (* Check if every vertex in g1 is contained in g2 *)
@@ -202,9 +202,11 @@ let eval cache exp memory =
         let indices = Utils.indices_of_const_gep exp in
         let lv = Location.gep_of indices source in
         (Value.Location lv, [lv])
-    | _ -> (Value.Unknown, []))
+    | _ ->
+        (Value.Unknown, []) )
   | _ ->
-      Printf.printf "\nUnknown value kind %s\n" (Utils.name_of_ll_value_kind kind) ;
+      Printf.printf "\nUnknown value kind %s\n"
+        (Utils.name_of_ll_value_kind kind) ;
       (Value.Unknown, [])
 
 let eval_lv exp memory =
@@ -334,8 +336,7 @@ let reduce_dugraph target orig =
       (fun v g ->
         let is_connected =
           DUGraph.fold_vertex
-            (fun v_p connected ->
-              connected || Path.check_path du_checker v v_p)
+            (fun v_p connected -> connected || Path.check_path du_checker v v_p)
             g false
         in
         if is_connected then DUGraph.add_vertex g v else g)
@@ -522,7 +523,6 @@ and transfer llctx instr (env : Environment.t) state =
         let state = State.add_trace env.cache llctx instr semantic_sig state in
         let state = add_syntactic_du_edge instr env state in
         finish_execution llctx env state FinishState.UnreachableStatement
-
     | x ->
         let semantic_sig = `Assoc [] in
         State.add_trace env.cache llctx instr semantic_sig state
@@ -580,7 +580,8 @@ and transfer_br llctx instr env state =
       in
       let b1_visited = BlockSet.mem b1 state.State.visited_blocks in
       let b2_visited = BlockSet.mem b2 state.State.visited_blocks in
-      if b1_visited && b2_visited then finish_execution llctx env state FinishState.BranchExplored
+      if b1_visited && b2_visited then
+        finish_execution llctx env state FinishState.BranchExplored
       else if b1_visited then
         let state = State.visit_block b2 (get_state false) in
         execute_block llctx b2 env state
@@ -598,11 +599,13 @@ and transfer_br llctx instr env state =
         State.add_trace env.cache llctx instr semantic_sig state
         |> add_syntactic_du_edge instr env
       in
-      let visited = BlockSet.mem b state.State.visited_blocks in
-      if visited then finish_execution llctx env state FinishState.BranchExplored
-      else
-        let state = State.visit_block b state in
-        execute_block llctx b env state
+      (* let visited = BlockSet.mem b state.State.visited_blocks in
+         if visited then finish_execution llctx env state FinishState.BranchExplored
+         else *)
+      (* Note: When unconditional branch happens, we must follow the trace and go to
+         that block. Otherwise a for loop might never finish executing *)
+      let state = State.visit_block b state in
+      execute_block llctx b env state
   | _ ->
       prerr_endline "warning: unknown branch" ;
       execute_instr llctx (Llvm.instr_succ instr) env state
@@ -613,17 +616,18 @@ and transfer_switch llctx instr env state =
   let cases : (Int64.t * Llvm.llbasicblock) list =
     List.map
       (fun i ->
-        let case_llvalue = Llvm.operand instr (2 * i + 2) in
+        let case_llvalue = Llvm.operand instr ((2 * i) + 2) in
         (* Note: C standard specifies switch case has to be constant int. Even it is a
          * global variable, it has to be constant and will be casted to Llvm int64
-         * constant. So it's safe to assume  *)
+         * constant. So it's safe to assume *)
         match Llvm.int64_of_const case_llvalue with
         | Some case ->
-            let target_block_llvalue = Llvm.operand instr (2 * i + 3) in
+            let target_block_llvalue = Llvm.operand instr ((2 * i) + 3) in
             let target_block = Llvm.block_of_value target_block_llvalue in
             (case, target_block)
-        | None -> raise Utils.InvalidSwitchCase)
-      (Utils.range (((Llvm.num_operands instr) - 2) / 2))
+        | None ->
+            raise Utils.InvalidSwitchCase)
+      (Utils.range ((Llvm.num_operands instr - 2) / 2))
   in
   let env_with_works =
     List.fold_left
@@ -729,29 +733,42 @@ and transfer_binop llctx instr env state =
   |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and finish_execution llctx env state fstate =
+  Printf.printf "\nFinishing Execution\n" ;
   let target_visited = state.target_node <> None in
+  let add_trace (_ : unit) : Environment.t * DUGraph.t =
+    let target_node = Option.get state.target_node in
+    let dug =
+      if !Options.no_reduction then state.dugraph
+      else reduce_dugraph target_node state.dugraph
+    in
+    let env =
+      Environment.add_trace state.State.trace env
+      |> Environment.add_dugraph dug fstate
+    in
+    (env, dug)
+  in
   let env =
     if target_visited then
-      if fstate != FinishState.UnreachableStatement &&
-            Environment.should_include state.dugraph env then
-        if Environment.solve state.State.path_cons env then
-          let target_node = Option.get state.target_node in
-          let dug =
-            if !Options.no_reduction then state.dugraph
-            else reduce_dugraph target_node state.dugraph
+      if
+        fstate != FinishState.UnreachableStatement
+        && Environment.should_include state.dugraph env
+      then
+        if
+          !Options.no_path_constraint
+          || Environment.solve state.State.path_cons env
+        then
+          let env, dug = add_trace () in
+          let metadata =
+            Metadata.incr_explored env.metadata |> Metadata.incr_graph dug
           in
-          let env =
-            Environment.add_trace state.State.trace env
-            |> Environment.add_dugraph dug fstate
-          in
-          { env with
-            metadata=
-              Metadata.incr_explored env.metadata |> Metadata.incr_graph dug }
+          {env with metadata}
         else
           let env = Environment.add_discarded state.State.trace env in
           {env with metadata= Metadata.incr_rejected env.metadata}
-      else {env with metadata= Metadata.incr_duplicated env.metadata}
-    else {env with metadata= Metadata.incr_target_unvisited env.metadata}
+      else
+        {env with metadata= Metadata.incr_duplicated env.metadata}
+    else
+      {env with metadata= Metadata.incr_target_unvisited env.metadata}
   in
   if !Options.verbose > 2 then (
     Memory.pp F.std_formatter state.State.memory ;
@@ -812,7 +829,7 @@ let dump_discarded ?(prefix = "") env =
 
 let dump_dots ?(prefix = "") env =
   List.iteri
-    (fun idx (g,_)->
+    (fun idx (g, _) ->
       let oc = open_out (prefix ^ "-" ^ string_of_int idx ^ ".dot") in
       GraphViz.output_graph oc g ; close_out oc)
     env.Environment.dugraphs

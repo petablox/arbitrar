@@ -5,6 +5,7 @@ from ..models.get_kernel import get_kernel
 from ..models.saad_convex import ConvexSSAD
 from .meta import ActiveLearner
 
+
 class SSADLearner(ActiveLearner):
   def __init__(self, datapoints, xs, amount, args):
     if args.ssad_show_progress:

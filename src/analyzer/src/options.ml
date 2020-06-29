@@ -56,6 +56,8 @@ let output_trace = ref false
 
 let no_reduction = ref false
 
+let no_path_constraint = ref false
+
 (* Analyzer Options *)
 let no_analysis = ref false
 
@@ -102,7 +104,10 @@ let executor_opts_local =
   ; ( "-include-instr"
     , Arg.Set include_instr
     , "Include instruction in dugraph JSON" )
-  ; ("-no-reduction", Arg.Set no_reduction, "Do not reduce graphs") ]
+  ; ("-no-reduction", Arg.Set no_reduction, "Do not reduce graphs")
+  ; ( "-no-path-constraint"
+    , Arg.Set no_path_constraint
+    , "Do not use path constraint" ) ]
 
 let extractor_opts_local =
   [ ( "-continue"

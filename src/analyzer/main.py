@@ -8,7 +8,7 @@ import string
 
 this_path = os.path.dirname(os.path.realpath(__file__))
 
-exclude_fn = '^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
+exclude_fn = r'^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
 
 
 def setup_parser(parser):
@@ -20,6 +20,7 @@ def setup_parser(parser):
   parser.add_argument('--output-trace', action="store_true", help="Output trace json")
   parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
+  parser.add_argument('--no-path-constraint', action='store_true')
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
   parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
   parser.add_argument('--redo-occurrence', action='store_true', help='Only do occurrence extraction')
@@ -115,6 +116,10 @@ def run_analyzer(db, bc_file, args):
     if args.output_trace:
       print(f"Outputting trace")
       cmd += ['-output-trace']
+
+    if args.no_path_constraint:
+      print(f"No path constraint")
+      cmd += ['-no-path-constraint']
 
     if args.verbose != None:
       print(f"Setting verbose level to {args.verbose}")

@@ -15,9 +15,7 @@ exception NonConstantInConstExpr
 module F = Format
 
 let range (i : int) : int list =
-  let rec aux n acc =
-    if n < 0 then acc else aux (n - 1) (n :: acc)
-  in
+  let rec aux n acc = if n < 0 then acc else aux (n - 1) (n :: acc) in
   aux (i - 1) []
 
 let mkdir dirname =
@@ -45,105 +43,197 @@ let range n =
 
 let name_of_ll_value_kind (vk : Llvm.ValueKind.t) : string =
   match vk with
-  | Llvm.ValueKind.NullValue -> "NullValue"
-  | Argument -> "Argument"
-  | BasicBlock -> "BasicBlock"
-  | InlineAsm -> "InlineAsm"
-  | MDNode -> "MDNode"
-  | MDString -> "MDString"
-  | BlockAddress -> "BlockAddress"
-  | ConstantAggregateZero -> "ConstantAggregateZero"
-  | ConstantArray -> "ConstantArray"
-  | ConstantDataArray -> "ConstantDataArray"
-  | ConstantDataVector -> "ConstantDataVector"
-  | ConstantExpr -> "ConstantExpr"
-  | ConstantFP -> "ConstantFP"
-  | ConstantInt -> "ConstantInt"
-  | ConstantPointerNull -> "ConstantPointerNull"
-  | ConstantStruct -> "ConstantStruct"
-  | ConstantVector -> "ConstantVector"
-  | Function -> "Function"
-  | GlobalAlias -> "GlobalAlias"
-  | GlobalVariable -> "GlobalVariable"
-  | GlobalIFunc -> "GlobalIFunc"
-  | UndefValue -> "UndefValue"
-  | Instruction _ -> "Instruction"
+  | Llvm.ValueKind.NullValue ->
+      "NullValue"
+  | Argument ->
+      "Argument"
+  | BasicBlock ->
+      "BasicBlock"
+  | InlineAsm ->
+      "InlineAsm"
+  | MDNode ->
+      "MDNode"
+  | MDString ->
+      "MDString"
+  | BlockAddress ->
+      "BlockAddress"
+  | ConstantAggregateZero ->
+      "ConstantAggregateZero"
+  | ConstantArray ->
+      "ConstantArray"
+  | ConstantDataArray ->
+      "ConstantDataArray"
+  | ConstantDataVector ->
+      "ConstantDataVector"
+  | ConstantExpr ->
+      "ConstantExpr"
+  | ConstantFP ->
+      "ConstantFP"
+  | ConstantInt ->
+      "ConstantInt"
+  | ConstantPointerNull ->
+      "ConstantPointerNull"
+  | ConstantStruct ->
+      "ConstantStruct"
+  | ConstantVector ->
+      "ConstantVector"
+  | Function ->
+      "Function"
+  | GlobalAlias ->
+      "GlobalAlias"
+  | GlobalVariable ->
+      "GlobalVariable"
+  | GlobalIFunc ->
+      "GlobalIFunc"
+  | UndefValue ->
+      "UndefValue"
+  | Instruction _ ->
+      "Instruction"
 
 let name_of_opcode (opcode : Llvm.Opcode.t) : string =
   match opcode with
-  | Invalid -> "Invalide" (* Not an instruction *)
-  | Ret -> "Ret" (* Terminator Instructions *)
-  | Br -> "Br"
-  | Switch -> "Switch"
-  | IndirectBr -> "IndirectBr"
-  | Invoke -> "Invoke"
-  | Invalid2 -> "Invalid2"
-  | Unreachable -> "Unreachable"
-  | Add -> "Add" (* Standard Binary Operators *)
-  | FAdd -> "FAdd"
-  | Sub -> "Sub"
-  | FSub -> "FSub"
-  | Mul -> "Mul"
-  | FMul -> "FMul"
-  | UDiv -> "UDiv"
-  | SDiv -> "SDiv"
-  | FDiv -> "FDiv"
-  | URem -> "URem"
-  | SRem -> "SRem"
-  | FRem -> "FRem"
-  | Shl -> "Shl" (* Logical Operators *)
-  | LShr -> "LShr"
-  | AShr -> "AShr"
-  | And -> "And"
-  | Or -> "Or"
-  | Xor -> "Xor"
-  | Alloca -> "Alloca" (* Memory Operators *)
-  | Load -> "Load"
-  | Store -> "Store"
-  | GetElementPtr -> "GetElementPtr"
-  | Trunc -> "Trunc" (* Cast Operators *)
-  | ZExt -> "ZExt"
-  | SExt -> "SExt"
-  | FPToUI -> "FPToUI"
-  | FPToSI -> "FPToSI"
-  | UIToFP -> "UIToFP"
-  | SIToFP -> "SIToFP"
-  | FPTrunc -> "FPTrunc"
-  | FPExt -> "FPExt"
-  | PtrToInt -> "PtrToInt"
-  | IntToPtr -> "IntToPtr"
-  | BitCast -> "BitCast"
-  | ICmp -> "ICmp" (* Other Operators *)
-  | FCmp -> "FCmp"
-  | PHI -> "PHI"
-  | Call -> "Call"
-  | Select -> "Select"
-  | UserOp1 -> "UserOp1"
-  | UserOp2 -> "UserOp2"
-  | VAArg -> "VAArg"
-  | ExtractElement -> "ExtractElement"
-  | InsertElement -> "InsertElement"
-  | ShuffleVector -> "ShuffleVector"
-  | ExtractValue -> "ExtractValue"
-  | InsertValue -> "InsertValue"
-  | Fence -> "Fence"
-  | AtomicCmpXchg -> "AtomicCmpXchg"
-  | AtomicRMW -> "AtomicRMW"
-  | Resume -> "Resume"
-  | LandingPad -> "LandingPad"
-  | AddrSpaceCast -> "AddrSpaceCast"
-  | CleanupRet -> "CleanupRet"
-  | CatchRet -> "CatchRet"
-  | CatchPad -> "CatchPad"
-  | CleanupPad -> "CleanupPad"
-  | CatchSwitch -> "CatchSwitch"
-  | FNeg -> "FNeg"
-  | CallBr -> "CallBr"
+  | Invalid ->
+      "Invalid" (* Not an instruction *)
+  | Ret ->
+      "Ret" (* Terminator Instructions *)
+  | Br ->
+      "Br"
+  | Switch ->
+      "Switch"
+  | IndirectBr ->
+      "IndirectBr"
+  | Invoke ->
+      "Invoke"
+  | Invalid2 ->
+      "Invalid2"
+  | Unreachable ->
+      "Unreachable"
+  | Add ->
+      "Add" (* Standard Binary Operators *)
+  | FAdd ->
+      "FAdd"
+  | Sub ->
+      "Sub"
+  | FSub ->
+      "FSub"
+  | Mul ->
+      "Mul"
+  | FMul ->
+      "FMul"
+  | UDiv ->
+      "UDiv"
+  | SDiv ->
+      "SDiv"
+  | FDiv ->
+      "FDiv"
+  | URem ->
+      "URem"
+  | SRem ->
+      "SRem"
+  | FRem ->
+      "FRem"
+  | Shl ->
+      "Shl" (* Logical Operators *)
+  | LShr ->
+      "LShr"
+  | AShr ->
+      "AShr"
+  | And ->
+      "And"
+  | Or ->
+      "Or"
+  | Xor ->
+      "Xor"
+  | Alloca ->
+      "Alloca" (* Memory Operators *)
+  | Load ->
+      "Load"
+  | Store ->
+      "Store"
+  | GetElementPtr ->
+      "GetElementPtr"
+  | Trunc ->
+      "Trunc" (* Cast Operators *)
+  | ZExt ->
+      "ZExt"
+  | SExt ->
+      "SExt"
+  | FPToUI ->
+      "FPToUI"
+  | FPToSI ->
+      "FPToSI"
+  | UIToFP ->
+      "UIToFP"
+  | SIToFP ->
+      "SIToFP"
+  | FPTrunc ->
+      "FPTrunc"
+  | FPExt ->
+      "FPExt"
+  | PtrToInt ->
+      "PtrToInt"
+  | IntToPtr ->
+      "IntToPtr"
+  | BitCast ->
+      "BitCast"
+  | ICmp ->
+      "ICmp" (* Other Operators *)
+  | FCmp ->
+      "FCmp"
+  | PHI ->
+      "PHI"
+  | Call ->
+      "Call"
+  | Select ->
+      "Select"
+  | UserOp1 ->
+      "UserOp1"
+  | UserOp2 ->
+      "UserOp2"
+  | VAArg ->
+      "VAArg"
+  | ExtractElement ->
+      "ExtractElement"
+  | InsertElement ->
+      "InsertElement"
+  | ShuffleVector ->
+      "ShuffleVector"
+  | ExtractValue ->
+      "ExtractValue"
+  | InsertValue ->
+      "InsertValue"
+  | Fence ->
+      "Fence"
+  | AtomicCmpXchg ->
+      "AtomicCmpXchg"
+  | AtomicRMW ->
+      "AtomicRMW"
+  | Resume ->
+      "Resume"
+  | LandingPad ->
+      "LandingPad"
+  | AddrSpaceCast ->
+      "AddrSpaceCast"
+  | CleanupRet ->
+      "CleanupRet"
+  | CatchRet ->
+      "CatchRet"
+  | CatchPad ->
+      "CatchPad"
+  | CleanupPad ->
+      "CleanupPad"
+  | CatchSwitch ->
+      "CatchSwitch"
+  | FNeg ->
+      "FNeg"
+  | CallBr ->
+      "CallBr"
 
 let indices_of_const_gep instr =
-  let llvalue_indices = List.init
-    (Llvm.num_operands instr - 1)
-    (fun i -> Llvm.operand instr (i + 1))
+  let llvalue_indices =
+    List.init
+      (Llvm.num_operands instr - 1)
+      (fun i -> Llvm.operand instr (i + 1))
   in
   List.map
     (fun llvalue_index ->

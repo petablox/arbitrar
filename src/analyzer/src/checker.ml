@@ -51,8 +51,9 @@ module RetValChecker = struct
   let is_problematic r = match r with NoCheck -> true | _ -> false
 
   let filter (_, (ret_ty, _), _) = not (TypeKind.Void = ret_ty)
-    (* if ret_ty with TypeKind.Void -> false | _ -> true *)
-    (* match ret_ty with TypeKind.Pointer _ -> true | _ -> false *)
+
+  (* if ret_ty with TypeKind.Void -> false | _ -> true *)
+  (* match ret_ty with TypeKind.Pointer _ -> true | _ -> false *)
 
   let rec check_helper cfgraph ret explored fringe result =
     match NodeSet.choose_opt fringe with

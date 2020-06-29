@@ -14,7 +14,6 @@ from .unifier import unify_features
 from .feature_group import FeatureGroups
 from .active_learner import kde, dual_occ, bin_svm, rand, ssad
 
-
 # Learner :: (List<DataPoint>, NP.ndarray, int  , Args) -> (List<(DataPoint, Score)>, List<float>)
 #         :: (Datapoints     , X         , Count, args) -> (alarms                  , AUC_Graph  )
 learners = {
@@ -139,6 +138,8 @@ def fps_from_tps(tps):
 """
 return the AUC value
 """
+
+
 def compute_and_dump_auc_graph(auc_graph, baseline, title, exp_dir) -> float:
   auc_fig, auc_ax = plt.subplots()
 
