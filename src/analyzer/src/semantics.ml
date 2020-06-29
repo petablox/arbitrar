@@ -831,15 +831,21 @@ end)
 module NodeMap = Map.Make (Node)
 
 module PathConstraints = struct
-  type t = (Value.t * bool) list
+  type t = (Value.t * bool * int) list
 
-  let append cond b t = (cond, b) :: t
+  let append cond b bid t = (cond, b, bid) :: t
+
+  let remove_append cond b bid t = 
+    if List.exists (fun (_, _, id) -> id = bid) t then
+      List.filter (fun (_, _, id) -> id = bid) t
+    else
+      append cond b bid t
 
   let empty = []
 
   let pp fmt pc =
     F.fprintf fmt "===== Path =====\n" ;
-    List.iter (fun (v, b) -> F.fprintf fmt "%b = %a\n" b Value.pp v) pc ;
+    List.iter (fun (v, b, bid) -> F.fprintf fmt "%d :: %b = %a\n" bid b Value.pp v) pc ;
     F.fprintf fmt "================\n"
 
   let mk_solver ctx pc =
@@ -904,7 +910,7 @@ module PathConstraints = struct
     in
     let solver = Z3.Solver.mk_solver ctx None in
     List.iter
-      (fun (v, b) ->
+      (fun (v, b, _) ->
         let sv = Value.to_symexpr v in
         let ze = to_z3 sv in
         let cons = if b then ze else Z3.Boolean.mk_not ctx ze in
@@ -933,6 +939,7 @@ module State = struct
     ; target_node: Node.t option
     ; prev_blk: Llvm.llbasicblock option
     ; path_cons: PathConstraints.t
+    ; branchmap: int InstrMap.t 
     ; global_use: Llvm.llvalue GlobalValueMap.t }
 
   let empty =
@@ -948,6 +955,7 @@ module State = struct
     ; target_node= None
     ; prev_blk= None
     ; path_cons= PathConstraints.empty
+    ; branchmap= InstrMap.empty
     ; global_use= GlobalValueMap.empty }
 
   let instr_count = ref (-1)
@@ -955,6 +963,12 @@ module State = struct
   let new_instr_count () =
     instr_count := !instr_count + 1 ;
     !instr_count
+
+  let branch_count = ref (-1)
+
+  let new_branch_count () =
+    branch_count := !branch_count + 1 ;
+    !branch_count 
 
   let push_stack x s = {s with stack= Stack.push x s.stack}
 
@@ -1022,8 +1036,20 @@ module State = struct
 
   let set_target_instr t s = {s with target_instr= Some t}
 
-  let add_path_cons cons b s =
-    {s with path_cons= PathConstraints.append cons b s.path_cons}
+  (* Anthony : We are hacking here. If there is a path condition already in the
+   * path constraints for this branch id, we remove it (permit the path). This is
+   * done to address loops which are troublesome at the moment because we concretize
+   * values but do not execute all iterations of the loop.
+   *
+   * Ziyang and Anthony have discussed that if we continue down this path of symbolic
+   * execution, we need rewrite the backend to better use symbolic expressions. As it stands,
+   * its currently a mix of LLVM Location encodings and symbolic expressions. *)
+  let add_path_cons cons b bid s =
+    {s with path_cons= PathConstraints.remove_append cons b bid s.path_cons}
+
+  (*
+  let add_path_cons cons b bid s =
+    {s with path_cons= PathConstraints.append cons b bid s.path_cons} *)
 
   let add_global_du_edges lv_list instr state =
     let dugraph =
@@ -1051,4 +1077,14 @@ module State = struct
     List.fold_left
       (fun s global_var -> use_global global_var expr s)
       s (Utils.used_globals expr)
+
+  let add_branch instr s =
+    match InstrMap.find_opt instr s.branchmap with
+    | None ->
+      let bid = new_branch_count () in
+      {s with branchmap=InstrMap.add instr bid s.branchmap}
+    | _ -> s 
+
+  let get_branch_id instr s = InstrMap.find instr s.branchmap
+
 end

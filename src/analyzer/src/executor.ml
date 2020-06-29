@@ -387,9 +387,9 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr (env : Environment.t) state =
-  (* if !Options.verbose > 1 then
-    prerr_endline (Llvm.string_of_llvalue instr) 
-    (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *) *)
+  if !Options.verbose > 1 then
+    prerr_endline (Llvm.string_of_llvalue instr) ;
+    (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *) 
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state FinishState.ExceedingMaxInstructionExplored
   else
@@ -573,12 +573,14 @@ and transfer_ret llctx instr env state =
 
 and transfer_br llctx instr env state =
   let state = {state with State.prev_blk= Some (Llvm.instr_parent instr)} in
+  let state = State.add_branch instr state in
+  let bid = State.get_branch_id instr state in
   match Llvm.get_branch instr with
   | Some (`Conditional (cond, b1, b2)) ->
       let v, _ = eval env.cache cond state.State.memory in
       let get_state br =
         let semantic_sig = semantic_sig_of_br env.cache (Some (v, br)) in
-        State.add_path_cons v br state
+        State.add_path_cons v br bid state
         |> State.add_trace env.cache llctx instr semantic_sig
         |> add_syntactic_du_edge instr env
       in
