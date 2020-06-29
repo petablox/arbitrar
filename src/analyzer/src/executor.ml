@@ -176,7 +176,7 @@ let need_step_into_function boundaries target f : bool =
   let is_target = f == target in
   (not dec_only) && in_bound && (not is_debug) && not is_target
 
-let eval cache exp memory =
+let eval cache exp (memory : Memory.t) =
   let kind = Llvm.classify_value exp in
   match kind with
   | Llvm.ValueKind.ConstantInt -> (
@@ -198,15 +198,14 @@ let eval cache exp memory =
   | ConstantExpr -> (
     match Llvm.constexpr_opcode exp with
     | Llvm.Opcode.GetElementPtr ->
-        let source = Llvm.operand exp 0 |> Llvm.value_name |> Location.global in
+        let global_var = Llvm.operand exp 0 in
+        let source = Llvm.value_name global_var |> Location.global in
         let indices = Utils.indices_of_const_gep exp in
         let lv = Location.gep_of indices source in
         (Value.Location lv, [lv])
     | _ ->
         (Value.Unknown, []) )
   | _ ->
-      Printf.printf "\nUnknown value kind %s\n"
-        (Utils.name_of_ll_value_kind kind) ;
       (Value.Unknown, [])
 
 let eval_lv exp memory =
@@ -433,10 +432,13 @@ and transfer llctx instr (env : Environment.t) state =
                   (Value.location l) state )
         in
         let semantic_sig = semantic_sig_of_store env.cache v0 v1 in
+        let uses = (uses0 @ uses1) in
         State.add_trace env.cache llctx instr semantic_sig state
+        |> State.add_global_du_edges uses instr
+        |> State.add_global_use instr
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v0 instr
-        |> State.add_semantic_du_edges (uses0 @ uses1) instr
+        |> State.add_semantic_du_edges uses instr
         |> execute_instr llctx (Llvm.instr_succ instr) env
     | Load ->
         let exp0 = Llvm.operand instr 0 in
@@ -461,6 +463,7 @@ and transfer llctx instr (env : Environment.t) state =
           semantic_sig_of_unop env.cache v1 (Value.location lv1)
         in
         State.add_trace env.cache llctx instr semantic_sig state
+        |> State.add_global_use instr
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
         |> State.add_semantic_du_edges [lv1] instr
@@ -514,6 +517,7 @@ and transfer llctx instr (env : Environment.t) state =
         in
         let semantic_sig = semantic_sig_of_gep env.cache v v0 in
         State.add_trace env.cache llctx instr semantic_sig state
+        |> State.add_global_use instr
         |> add_syntactic_du_edge instr env
         |> State.add_memory lv v
         |> State.add_semantic_du_edges uses0 instr
@@ -679,6 +683,8 @@ and transfer_call llctx instr env state =
       let semantic_sig = semantic_sig_of_call env.cache args in
       State.visit_func callee_expr state
       |> State.add_trace env.cache llctx instr semantic_sig
+      |> State.add_global_du_edges uses instr
+      |> State.add_global_use instr
       |> State.add_semantic_du_edges uses instr
       |> add_syntactic_du_edge instr env
       |> State.push_stack instr
@@ -699,6 +705,7 @@ and transfer_call llctx instr env state =
       in
       let semantic_sig = semantic_sig_of_libcall env.cache (Some v) args in
       State.add_trace env.cache llctx instr semantic_sig state
+      |> State.add_global_use instr
       |> State.add_memory lv v
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
@@ -712,6 +719,7 @@ and transfer_call llctx instr env state =
       in
       let semantic_sig = semantic_sig_of_libcall env.cache None args in
       State.add_trace env.cache llctx instr semantic_sig state
+      |> State.add_global_use instr
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | exception Not_found ->
@@ -727,13 +735,13 @@ and transfer_binop llctx instr env state =
   let res = Value.binary_op instr v0 v1 in
   let semantic_sig = semantic_sig_of_binop env.cache res v0 v1 in
   State.add_trace env.cache llctx instr semantic_sig state
+  |> State.add_global_use instr
   |> State.add_memory res_lv res
   |> add_syntactic_du_edge instr env
   |> State.add_semantic_du_edges (uses0 @ uses1) instr
   |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and finish_execution llctx env state fstate =
-  Printf.printf "\nFinishing Execution\n" ;
   let target_visited = state.target_node <> None in
   let add_trace (_ : unit) : Environment.t * DUGraph.t =
     let target_node = Option.get state.target_node in

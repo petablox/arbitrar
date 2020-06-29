@@ -240,6 +240,22 @@ let indices_of_const_gep instr =
       Llvm.int64_of_const llvalue_index |> Option.map Int64.to_int)
     llvalue_indices
 
+let used_global var =
+  let kind = Llvm.classify_value var in
+  match kind with
+  | GlobalVariable | GlobalAlias -> Some var
+  | ConstantExpr -> (
+    match Llvm.constexpr_opcode var with
+    | Llvm.Opcode.GetElementPtr -> Some (Llvm.operand var 0)
+    | _ -> None)
+  | _ -> None
+
+let used_globals (instr : Llvm.llvalue) : (Llvm.llvalue list) =
+  List.init
+    (Llvm.num_operands instr)
+    (fun i -> Llvm.operand instr i)
+  |> List.filter_map used_global
+
 let exp_func_name : string -> string option =
   let asm = " asm " in
   let perc_reg = Str.regexp "%\\d+" in

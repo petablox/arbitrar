@@ -36,6 +36,8 @@ let occ_output_json = ref false
 let no_filter = ref false
 
 (* Executor Options *)
+let serial_execution = ref false
+
 let continue_extraction = ref false
 
 let max_traces = ref 50
@@ -107,7 +109,8 @@ let executor_opts_local =
   ; ("-no-reduction", Arg.Set no_reduction, "Do not reduce graphs")
   ; ( "-no-path-constraint"
     , Arg.Set no_path_constraint
-    , "Do not use path constraint" ) ]
+    , "Do not use path constraint" )
+  ; ("-serial", Arg.Set serial_execution, "Execute in serial as opposed to parallel") ]
 
 let extractor_opts_local =
   [ ( "-continue"

@@ -22,6 +22,7 @@ def setup_parser(parser):
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
   parser.add_argument('--no-path-constraint', action='store_true')
   parser.add_argument('--include-fn', type=str, default="", help='Only include functions')
+  parser.add_argument('--serial', action='store_true', help='Execute in serial mode')
   parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
   parser.add_argument('--redo-occurrence', action='store_true', help='Only do occurrence extraction')
   parser.add_argument('--pretty-json', action='store_true', help='Prettify JSON')
@@ -120,6 +121,10 @@ def run_analyzer(db, bc_file, args):
     if args.no_path_constraint:
       print(f"No path constraint")
       cmd += ['-no-path-constraint']
+
+    if args.serial:
+      print(f"Execute in serial")
+      cmd += ['-serial']
 
     if args.verbose != None:
       print(f"Setting verbose level to {args.verbose}")

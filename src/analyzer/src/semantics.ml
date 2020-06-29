@@ -305,6 +305,8 @@ module Variable = struct
   type t = Llvm.llvalue
 
   let to_json cache t = `String (Utils.EnvCache.string_of_exp cache t)
+
+  let compare = compare
 end
 
 module Address = struct
@@ -358,6 +360,12 @@ module Location = struct
   let unknown = Unknown
 
   let count = ref (-1)
+
+  let rec global_variable_of v =
+    match v with
+    | Global s -> Some s
+    | Gep (l, _) -> global_variable_of l
+    | _ -> None
 
   let new_address () =
     count := !count + 1 ;
@@ -905,6 +913,12 @@ module PathConstraints = struct
     solver
 end
 
+module GlobalValueMap = Map.Make (struct
+  type t = string
+
+  let compare = compare
+end)
+
 module State = struct
   type t =
     { stack: Stack.t
@@ -918,7 +932,8 @@ module State = struct
     ; target_instr: Llvm.llvalue option
     ; target_node: Node.t option
     ; prev_blk: Llvm.llbasicblock option
-    ; path_cons: PathConstraints.t }
+    ; path_cons: PathConstraints.t
+    ; global_use: Llvm.llvalue GlobalValueMap.t }
 
   let empty =
     { stack= Stack.empty
@@ -932,7 +947,8 @@ module State = struct
     ; target_instr= None
     ; target_node= None
     ; prev_blk= None
-    ; path_cons= PathConstraints.empty }
+    ; path_cons= PathConstraints.empty
+    ; global_use= GlobalValueMap.empty }
 
   let instr_count = ref (-1)
 
@@ -1008,4 +1024,31 @@ module State = struct
 
   let add_path_cons cons b s =
     {s with path_cons= PathConstraints.append cons b s.path_cons}
+
+  let add_global_du_edges lv_list instr state =
+    let dugraph =
+      List.fold_left
+        (fun dugraph lv ->
+          match Location.global_variable_of lv with
+          | Some v -> (
+              match GlobalValueMap.find_opt v state.global_use with
+              | Some used_instr -> (
+                  let src = InstrMap.find_opt used_instr state.instrmap in
+                  let dst = InstrMap.find_opt instr state.instrmap in
+                  match src, dst with
+                  | Some src, Some dst -> DUGraph.add_edge dugraph src dst
+                  | _ -> dugraph)
+              | None -> dugraph)
+          | _ -> dugraph)
+        state.dugraph lv_list
+    in
+    {state with dugraph}
+
+  let use_global global_var expr s =
+    {s with global_use= GlobalValueMap.update (Llvm.value_name global_var) (fun _ -> Some expr) s.global_use}
+
+  let add_global_use (expr : Llvm.llvalue) (s : t) =
+    List.fold_left
+      (fun s global_var -> use_global global_var expr s)
+      s (Utils.used_globals expr)
 end
