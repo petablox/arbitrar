@@ -79,12 +79,7 @@ class CausalityFeatureGroup(FeatureGroup):
 
 
 class FeatureGroups:
-  def __init__(self,
-               sample_feature_json,
-               enable_causality=True,
-               enable_retval=True,
-               enable_argval=True,
-               fix_groups=[]):
+  def __init__(self, sample_feature_json, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
     self.groups = []
     if enable_causality:
       for invoked_type in InvokedType:

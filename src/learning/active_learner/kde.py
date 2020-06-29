@@ -20,6 +20,7 @@ DensityFunction = Callable[[IdVecs, int, Vec], float]
 
 ScoreFunction = Callable[[int, Vec, IdVecs, IdVecs, float], float]
 
+
 def nparr_of_idvecs(idvecs: IdVecs):
   return np.array([x for _, x in idvecs])
 
@@ -73,12 +74,13 @@ def score_4(i, u, ts, os, p_t) -> float:
   return p_t * s_t + (1. - p_t) * s_o
 
 
-score_functions : Dict[str, ScoreFunction] = {
+score_functions: Dict[str, ScoreFunction] = {
     'score_1': score_1,
     'score_2': score_2,
     'score_3': score_3,
     'score_4': score_4
 }
+
 
 def argmin(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, p_t: float) -> Tuple[int, float]:
   """

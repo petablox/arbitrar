@@ -1,28 +1,31 @@
 import numpy as np
+import cvxopt
 
 from ..models.get_kernel import get_kernel
 from ..models.saad_convex import ConvexSSAD
 from .meta import ActiveLearner
 
+
 class SSADLearner(ActiveLearner):
   def __init__(self, datapoints, xs, amount, args):
-    super().__init__(datapoints, xs, amount, args, log_newline=True)
+    if args.ssad_show_progress:
+      super().__init__(datapoints, xs, amount, args, log_newline=True)
+    else:
+      super().__init__(datapoints, xs, amount, args)
+      cvxopt.solvers.options['show_progress'] = False
     self.X = np.transpose(np.array(self.xs))
     self.Y = np.zeros(len(xs), dtype=np.int)
 
-    print(self.X.shape)
-    print(self.Y.shape)
-
   @staticmethod
   def setup_parser(parser):
-    pass
+    parser.add_argument("--ssad-show-progress", action="store_true")
 
   def select(self, ps):
     train_kernel = get_kernel(self.X, self.X)
     ssad = ConvexSSAD(train_kernel, self.Y)
     ssad.fit()
 
-    test_x = np.array([x for (_, x) in ps]).T
+    test_x = np.transpose(np.array([x for (_, x) in ps]))
     test_kernel = get_kernel(test_x, self.X[:, ssad.svs])
     res = ssad.apply(test_kernel)
 

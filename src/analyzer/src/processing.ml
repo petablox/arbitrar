@@ -189,6 +189,7 @@ module Location = struct
     | Variable of string
     | SymExpr of SymExpr.t
     | Gep of t * int option list
+    | Global of string
     | Unknown
   [@@deriving yojson {exn= true}]
 end
@@ -200,6 +201,7 @@ module Value = struct
     | Int of Int64.t
     | Location of Location.t
     | Argument of int
+    | Global of string
     | Unknown
   [@@deriving yojson {exn= true}]
 

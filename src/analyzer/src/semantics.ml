@@ -305,6 +305,8 @@ module Variable = struct
   type t = Llvm.llvalue
 
   let to_json cache t = `String (Utils.EnvCache.string_of_exp cache t)
+
+  let compare = compare
 end
 
 module Address = struct
@@ -318,6 +320,7 @@ module Location = struct
     | Address of Address.t
     | Argument of int
     | Variable of Variable.t
+    | Global of string
     | SymExpr of SymExpr.t
     | Gep of t * int option list
     | Unknown
@@ -337,6 +340,8 @@ module Location = struct
           [ `String "Gep"
           ; to_json cache e
           ; `List (List.map (function Some i -> `Int i | None -> `Null) is) ]
+    | Global s ->
+        `List [`String "Global"; `String s]
     | Unknown ->
         `List [`String "Unknown"]
 
@@ -350,9 +355,17 @@ module Location = struct
 
   let gep_of is l = Gep (l, is)
 
+  let global s = Global s
+
   let unknown = Unknown
 
   let count = ref (-1)
+
+  let rec global_variable_of v =
+    match v with
+    | Global s -> Some s
+    | Gep (l, _) -> global_variable_of l
+    | _ -> None
 
   let new_address () =
     count := !count + 1 ;
@@ -374,6 +387,8 @@ module Location = struct
     | Gep (l, is) ->
         F.fprintf fmt "Gep(%a, [%s])" pp l
           (String.concat "," (List.filter_map (Option.map string_of_int) is))
+    | Global s ->
+        F.fprintf fmt "Global%s" s
     | Unknown ->
         F.fprintf fmt "Unknown"
 
@@ -393,6 +408,7 @@ module Value = struct
     | Int of Int64.t
     | Location of Location.t
     | Argument of int
+    | Global of string
     | Unknown
 
   let to_json cache v =
@@ -407,6 +423,8 @@ module Value = struct
         `List [`String "Location"; Location.to_json cache l]
     | Argument i ->
         `List [`String "Argument"; `Int i]
+    | Global s ->
+        `List [`String "Global"; `String s]
     | Unknown ->
         `List [`String "Unknown"]
 
@@ -415,6 +433,8 @@ module Value = struct
   let location l = Location l
 
   let func v = Function v
+
+  let global s = Global s
 
   let unknown = Unknown
 
@@ -604,6 +624,8 @@ module Value = struct
         Location.pp fmt l
     | Argument i ->
         F.fprintf fmt "Arg%d" i
+    | Global s ->
+        F.fprintf fmt "Global %s" s
     | Unknown ->
         F.fprintf fmt "Unknown"
 end
@@ -710,7 +732,7 @@ module FinishState = struct
     | ExceedingMaxInstructionExplored
     | UnreachableStatement
   [@@deriving show, yojson {exn= true}]
-end 
+end
 
 module DUGraph = struct
   module Edge = struct
@@ -796,8 +818,8 @@ module DUGraph = struct
       [ ("vertex", `List vertices)
       ; ("du_edge", `List du_edges)
       ; ("cf_edge", `List cf_edges)
-      ; ("target", `Int target_id) 
-      ; ("finish_state", (FinishState.to_yojson fstate)) ]
+      ; ("target", `Int target_id)
+      ; ("finish_state", FinishState.to_yojson fstate) ]
 end
 
 module InstrMap = Map.Make (struct
@@ -891,6 +913,12 @@ module PathConstraints = struct
     solver
 end
 
+module GlobalValueMap = Map.Make (struct
+  type t = string
+
+  let compare = compare
+end)
+
 module State = struct
   type t =
     { stack: Stack.t
@@ -904,7 +932,8 @@ module State = struct
     ; target_instr: Llvm.llvalue option
     ; target_node: Node.t option
     ; prev_blk: Llvm.llbasicblock option
-    ; path_cons: PathConstraints.t }
+    ; path_cons: PathConstraints.t
+    ; global_use: Llvm.llvalue GlobalValueMap.t }
 
   let empty =
     { stack= Stack.empty
@@ -918,7 +947,8 @@ module State = struct
     ; target_instr= None
     ; target_node= None
     ; prev_blk= None
-    ; path_cons= PathConstraints.empty }
+    ; path_cons= PathConstraints.empty
+    ; global_use= GlobalValueMap.empty }
 
   let instr_count = ref (-1)
 
@@ -994,4 +1024,31 @@ module State = struct
 
   let add_path_cons cons b s =
     {s with path_cons= PathConstraints.append cons b s.path_cons}
+
+  let add_global_du_edges lv_list instr state =
+    let dugraph =
+      List.fold_left
+        (fun dugraph lv ->
+          match Location.global_variable_of lv with
+          | Some v -> (
+              match GlobalValueMap.find_opt v state.global_use with
+              | Some used_instr -> (
+                  let src = InstrMap.find_opt used_instr state.instrmap in
+                  let dst = InstrMap.find_opt instr state.instrmap in
+                  match src, dst with
+                  | Some src, Some dst -> DUGraph.add_edge dugraph src dst
+                  | _ -> dugraph)
+              | None -> dugraph)
+          | _ -> dugraph)
+        state.dugraph lv_list
+    in
+    {state with dugraph}
+
+  let use_global global_var expr s =
+    {s with global_use= GlobalValueMap.update (Llvm.value_name global_var) (fun _ -> Some expr) s.global_use}
+
+  let add_global_use (expr : Llvm.llvalue) (s : t) =
+    List.fold_left
+      (fun s global_var -> use_global global_var expr s)
+      s (Utils.used_globals expr)
 end

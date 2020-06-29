@@ -213,7 +213,7 @@ class MCMCFeatureGroupSelection(FeatureSelection):
           turn_zero_i += 1
           if turn_zero_i == turn_zero_index:
             new_mask[i] = 1
-        else: # n == 1
+        else:  # n == 1
           if not self.groups[i].fixed:
             turn_one_i += 1
             if turn_one_i == turn_one_index:

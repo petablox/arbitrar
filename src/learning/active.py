@@ -14,7 +14,6 @@ from .unifier import unify_features
 from .feature_group import FeatureGroups
 from .active_learner import kde, dual_occ, bin_svm, rand, ssad
 
-
 # Learner :: (List<DataPoint>, NP.ndarray, int  , Args) -> (List<(DataPoint, Score)>, List<float>)
 #         :: (Datapoints     , X         , Count, args) -> (alarms                  , AUC_Graph  )
 learners = {
@@ -33,6 +32,7 @@ def setup_parser(parser):
   parser.add_argument('--evaluate-count', type=int)
   parser.add_argument('--evaluate-percentage', type=float)
   parser.add_argument('--evaluate-with-alarms', action='store_true')
+  parser.add_argument('--num-outliers', type=int)
   parser.add_argument('--num-alarms', type=int, default=100)
   parser.add_argument('--mark-similar', action='store_true')
 
@@ -71,10 +71,13 @@ def main(args):
   model = active_learner(datapoints, xs, amount_to_evaluate, args)
   alarms, auc_graph, alarms_perc_graph = model.run()
 
-  print("Running Random Baseline...")
-  random_learner = learners["random"]
-  random_model = random_learner(datapoints, xs, amount_to_evaluate, args)
-  _, random_auc_graph, _ = random_model.run()
+  if args.ground_truth:
+    print("Running Random Baseline...")
+    random_learner = learners["random"]
+    random_model = random_learner(datapoints, xs, amount_to_evaluate, args)
+    _, random_auc_graph, _ = random_model.run()
+  else:
+    random_auc_graph = None
 
   # Dump lots of things
   print("Dumping result...")
@@ -135,6 +138,8 @@ def fps_from_tps(tps):
 """
 return the AUC value
 """
+
+
 def compute_and_dump_auc_graph(auc_graph, baseline, title, exp_dir) -> float:
   auc_fig, auc_ax = plt.subplots()
 
@@ -145,12 +150,15 @@ def compute_and_dump_auc_graph(auc_graph, baseline, title, exp_dir) -> float:
   tps, (fps, auc) = auc_graph, fps_from_tps(auc_graph)
   y_eq_x = range(fps[-1])
 
-  baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
+  if baseline:
+    baseline_tps, (baseline_fps, _) = baseline, fps_from_tps(baseline)
 
   # Plot
   auc_ax.plot(fps, tps, label='Ours')
   auc_ax.plot(y_eq_x, y_eq_x, '--', label='y = x')
-  auc_ax.plot(baseline_fps, baseline_tps, label='Random Baseline')
+
+  if baseline:
+    auc_ax.plot(baseline_fps, baseline_tps, label='Random Baseline')
 
   # Legend
   auc_ax.legend()

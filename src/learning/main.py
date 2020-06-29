@@ -1,10 +1,7 @@
 from . import unsupervised, supervised, active
 
-learners = {
-    'unsupervised': unsupervised,
-    'supervised': supervised,
-    'active': active
-}
+learners = {'unsupervised': unsupervised, 'supervised': supervised, 'active': active}
+
 
 def setup_parser(parser):
   subparsers = parser.add_subparsers(dest='learner')
