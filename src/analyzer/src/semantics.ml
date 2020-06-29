@@ -320,7 +320,7 @@ module Location = struct
     | Address of Address.t
     | Argument of int
     | Variable of Variable.t
-    | Global of string
+    | Global of Llvm.llvalue
     | SymExpr of SymExpr.t
     | Gep of t * int option list
     | Unknown
@@ -340,8 +340,8 @@ module Location = struct
           [ `String "Gep"
           ; to_json cache e
           ; `List (List.map (function Some i -> `Int i | None -> `Null) is) ]
-    | Global s ->
-        `List [`String "Global"; `String s]
+    | Global g ->
+        `List [`String "Global"; `String (Llvm.value_name g)]
     | Unknown ->
         `List [`String "Unknown"]
 
@@ -387,8 +387,8 @@ module Location = struct
     | Gep (l, is) ->
         F.fprintf fmt "Gep(%a, [%s])" pp l
           (String.concat "," (List.filter_map (Option.map string_of_int) is))
-    | Global s ->
-        F.fprintf fmt "Global%s" s
+    | Global g ->
+        F.fprintf fmt "Global%s" (Llvm.value_name g)
     | Unknown ->
         F.fprintf fmt "Unknown"
 
@@ -408,7 +408,7 @@ module Value = struct
     | Int of Int64.t
     | Location of Location.t
     | Argument of int
-    | Global of string
+    | Global of Llvm.llvalue
     | Unknown
 
   let to_json cache v =
@@ -423,8 +423,8 @@ module Value = struct
         `List [`String "Location"; Location.to_json cache l]
     | Argument i ->
         `List [`String "Argument"; `Int i]
-    | Global s ->
-        `List [`String "Global"; `String s]
+    | Global g ->
+        `List [`String "Global"; `String (Llvm.value_name g)]
     | Unknown ->
         `List [`String "Unknown"]
 
@@ -624,8 +624,8 @@ module Value = struct
         Location.pp fmt l
     | Argument i ->
         F.fprintf fmt "Arg%d" i
-    | Global s ->
-        F.fprintf fmt "Global %s" s
+    | Global g ->
+        F.fprintf fmt "Global %s" (Llvm.value_name g)
     | Unknown ->
         F.fprintf fmt "Unknown"
 end
@@ -835,7 +835,7 @@ module PathConstraints = struct
 
   let append cond b bid t = (cond, b, bid) :: t
 
-  let remove_append cond b bid t = 
+  let remove_append cond b bid t =
     if List.exists (fun (_, _, id) -> id = bid) t then
       List.filter (fun (_, _, id) -> id = bid) t
     else
@@ -920,7 +920,7 @@ module PathConstraints = struct
 end
 
 module GlobalValueMap = Map.Make (struct
-  type t = string
+  type t = Llvm.llvalue
 
   let compare = compare
 end)
@@ -939,7 +939,7 @@ module State = struct
     ; target_node: Node.t option
     ; prev_blk: Llvm.llbasicblock option
     ; path_cons: PathConstraints.t
-    ; branchmap: int InstrMap.t 
+    ; branchmap: int InstrMap.t
     ; global_use: Llvm.llvalue GlobalValueMap.t }
 
   let empty =
@@ -968,7 +968,7 @@ module State = struct
 
   let new_branch_count () =
     branch_count := !branch_count + 1 ;
-    !branch_count 
+    !branch_count
 
   let push_stack x s = {s with stack= Stack.push x s.stack}
 
@@ -1071,7 +1071,7 @@ module State = struct
     {state with dugraph}
 
   let use_global global_var expr s =
-    {s with global_use= GlobalValueMap.update (Llvm.value_name global_var) (fun _ -> Some expr) s.global_use}
+    {s with global_use= GlobalValueMap.update global_var (fun _ -> Some expr) s.global_use}
 
   let add_global_use (expr : Llvm.llvalue) (s : t) =
     List.fold_left
@@ -1083,7 +1083,7 @@ module State = struct
     | None ->
       let bid = new_branch_count () in
       {s with branchmap=InstrMap.add instr bid s.branchmap}
-    | _ -> s 
+    | _ -> s
 
   let get_branch_id instr s = InstrMap.find instr s.branchmap
 

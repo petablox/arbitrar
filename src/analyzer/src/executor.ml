@@ -193,13 +193,12 @@ let eval cache exp (memory : Memory.t) =
       let lv = Location.variable exp in
       (Memory.find lv memory, [lv])
   | GlobalVariable ->
-      let name = Llvm.value_name exp in
-      (Value.Global name, [Location.Global name])
+      (Value.Global exp, [Location.Global exp])
   | ConstantExpr -> (
     match Llvm.constexpr_opcode exp with
     | Llvm.Opcode.GetElementPtr ->
         let global_var = Llvm.operand exp 0 in
-        let source = Llvm.value_name global_var |> Location.global in
+        let source = Location.global global_var in
         let indices = Utils.indices_of_const_gep exp in
         let lv = Location.gep_of indices source in
         (Value.Location lv, [lv])
@@ -389,7 +388,7 @@ and execute_instr llctx instr env state =
 and transfer llctx instr (env : Environment.t) state =
   if !Options.verbose > 1 then
     prerr_endline (Llvm.string_of_llvalue instr) ;
-    (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *) 
+    (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state FinishState.ExceedingMaxInstructionExplored
   else
