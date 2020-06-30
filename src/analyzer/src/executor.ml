@@ -334,7 +334,7 @@ let reduce_dugraph target orig =
       (fun v g ->
         let is_connected =
           DUGraph.fold_vertex
-            (fun v_p connected -> connected || Path.check_path du_checker v v_p)
+            (fun v_p connected -> connected || Path.check_path du_checker v_p v)
             g false
         in
         if is_connected then DUGraph.add_vertex g v else g)
