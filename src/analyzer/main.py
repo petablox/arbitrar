@@ -79,10 +79,10 @@ def run_analyzer(db, bc_file, args):
   occurrence_finished = has_temp_dir and has_occurrence_finished_file
 
   # Run occurrence if not finished
-  if args.redo or args.redo_occurrence or not occurrence_finished:
+  if args.redo_occurrence or not occurrence_finished:
     cmd = ['./analyzer', 'occurrence', bc_file, '-json', '-exclude-fn', exclude_fn, '-outdir', temp_outdir]
 
-    run = subprocess.run(cmd, cwd=this_path)
+    subprocess.run(cmd, cwd=this_path)
 
     shutil.copy(f"{temp_outdir}/occurrence.json", f"{db.occurrence_dir()}/{bc_name}.json")
 

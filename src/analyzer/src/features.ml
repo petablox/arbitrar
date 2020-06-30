@@ -7,8 +7,8 @@ module type FEATURE = sig
   (* The name of the feature, will be the name of the feature JSON *)
   val name : string
 
-  (* Take in a trace folder, do some internal mutation *)
-  val init : string -> string -> unit
+  (* Take in a single trace, do some internal mutation *)
+  val init_with_trace : Function.t -> Trace.t -> unit
 
   (* Take in a function definition (name + type), return whether we
      should include the feature *)
@@ -33,7 +33,7 @@ module RetvalFeature = struct
 
   let name = "retval_check"
 
-  let init _ _ = ()
+  let init_with_trace _ _ = ()
 
   let filter func = RetValChecker.filter func
 
@@ -81,7 +81,7 @@ module ArgvalFeature (A : ARG_INDEX) = struct
 
   let name = Printf.sprintf "argval_%d_check" A.index
 
-  let init _ _ = ()
+  let init_with_trace _ _ = ()
 
   let filter = AVC.filter
 
@@ -252,21 +252,14 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
       (fun (f, id) -> if function_filter f then Some (f, id) else None)
       results
 
-  let init_helper checker slices_json_dir dugraphs_dir =
-    let dict =
-      fold_traces slices_json_dir dugraphs_dir
-        (fun dict ((func_name, _, num_traces), trace) ->
-          Printf.printf "Initializing #%d-#%d \r" trace.slice_id trace.trace_id ;
-          let results = caused_funcs_helper trace checker in
-          List.fold_left
-            (fun dict caused_func_name ->
-              FunctionCausalityDictionary.add dict num_traces func_name
-                caused_func_name)
-            dict (List.map fst results))
-        FunctionCausalityDictionary.empty
+  let init_with_trace_helper checker (func_name, _, num_traces) trace =
+    let results = caused_funcs_helper trace checker in
+    let dict = List.fold_left
+      (fun dict caused_func_name ->
+        FunctionCausalityDictionary.add dict num_traces func_name caused_func_name)
+      !dictionary (List.map fst results)
     in
-    dictionary := dict ;
-    ()
+    dictionary := dict
 
   let filter _ = true
 
@@ -341,7 +334,7 @@ module InvokedBeforeFeature = struct
 
   let name = "invoked_before"
 
-  let init = init_helper CausalityChecker.check_trace
+  let init_with_trace = init_with_trace_helper CausalityChecker.check_trace
 
   let extract = extract_helper CausalityChecker.check_trace
 end
@@ -353,7 +346,7 @@ module InvokedAfterFeature = struct
 
   let name = "invoked_after"
 
-  let init = init_helper CausalityChecker.check_trace_backward
+  let init_with_trace = init_with_trace_helper CausalityChecker.check_trace_backward
 
   let extract = extract_helper CausalityChecker.check_trace_backward
 end
@@ -409,12 +402,15 @@ let main input_directory =
   let slices_json_dir = input_directory ^ "/slices.json" in
   (* Initialize the extractors with traces *)
   let _ =
-    List.iter
-      (fun extractor ->
-        let module M = (val extractor : FEATURE) in
-        Printf.printf "Initializing Feature Extractor %s\n" M.name ;
-        M.init dugraphs_dir slices_json_dir)
-      feature_extractors
+    fold_traces dugraphs_dir slices_json_dir
+      (fun _ (func, trace) ->
+        Printf.printf "Initializing with trace %d/%d   \r" trace.slice_id trace.trace_id ;
+        List.iter
+          (fun extractor ->
+            let module M = (val extractor : FEATURE) in
+            M.init_with_trace func trace)
+          feature_extractors)
+      ()
   in
   (* Run extractors on every trace *)
   let _ =
