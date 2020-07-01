@@ -44,7 +44,7 @@ let max_traces = ref 50
 
 let max_length = ref max_int
 
-let max_trials = ref 2000
+let max_trials = ref 1000
 
 let max_symbols = ref 10
 

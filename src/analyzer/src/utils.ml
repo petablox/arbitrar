@@ -982,11 +982,13 @@ let json_of_instr cache instr =
   | CallBr ->
       json_of_opcode "callbr"
 
-let is_llvm_function f : bool =
+let is_dummy_function f : bool =
   let r1 = Str.regexp "llvm\\.dbg\\..+" in
   let r2 = Str.regexp "llvm\\.lifetime\\..+" in
+  let r3 = Str.regexp "__.+" in
   Str.string_match r1 (Llvm.value_name f) 0
   || Str.string_match r2 (Llvm.value_name f) 0
+  || Str.string_match r3 (Llvm.value_name f) 0
 
 let get_abs_path (name : string) =
   let is_starting_from_root = name.[0] = '/' in

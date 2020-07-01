@@ -172,7 +172,7 @@ let initialize llctx llm state =
 let need_step_into_function boundaries target f : bool =
   let dec_only = Llvm.is_declaration f in
   let in_bound = List.find_opt (( == ) f) boundaries |> Option.is_some in
-  let is_debug = Utils.is_llvm_function f in
+  let is_debug = Utils.is_dummy_function f in
   let is_target = f == target in
   (not dec_only) && in_bound && (not is_debug) && not is_target
 
@@ -667,7 +667,7 @@ and transfer_call llctx instr env state =
   let var = Location.variable callee_expr in
   let boundaries = env.boundaries in
   match Memory.find var state.State.memory with
-  | Value.Function f when Utils.is_llvm_function f ->
+  | Value.Function f when Utils.is_dummy_function f ->
       execute_instr llctx (Llvm.instr_succ instr) env state
   | Value.Function f
     when need_step_into_function boundaries env.target f

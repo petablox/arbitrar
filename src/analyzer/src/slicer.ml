@@ -178,7 +178,7 @@ module CallGraph = struct
                     in
                     if
                       Llvm.classify_value callee = Llvm.ValueKind.Function
-                      && not (Utils.is_llvm_function callee)
+                      && not (Utils.is_dummy_function callee)
                     then add_edge_e graph (func, instr, callee)
                     else graph
                 | _ ->

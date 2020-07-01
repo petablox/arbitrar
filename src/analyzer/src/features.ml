@@ -368,17 +368,18 @@ let feature_extractors : (module FEATURE) list =
       let index = 3
     end) ) ]
 
-let process_trace features_dir func trace =
+let process_trace features_dir func (trace : Trace.t) =
   let func_name, func_type, num_traces = func in
   (* Iterate through all feature extractors to generate features *)
   let features =
     List.fold_left
       (fun assoc extractor ->
         let module M = (val extractor : FEATURE) in
-        if M.filter func then
+        if M.filter func then (
+          Printf.printf "Extracting trace %d/%d with %s\r" trace.slice_id trace.trace_id M.name ;
           let result = M.extract func trace in
           let json_result = M.to_yojson result in
-          (M.name, json_result) :: assoc
+          (M.name, json_result) :: assoc)
         else assoc)
       [] feature_extractors
   in
@@ -416,7 +417,6 @@ let main input_directory =
   let _ =
     fold_traces dugraphs_dir slices_json_dir
       (fun _ (func, trace) ->
-        Printf.printf "Extracting trace #%d/#%d\r" trace.slice_id trace.trace_id ;
         flush stdout ;
         process_trace features_dir func trace)
       ()
