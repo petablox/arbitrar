@@ -16,130 +16,224 @@ Vec = np.ndarray
 
 IdVecs = List[Tuple[int, Vec]]
 
-DensityFunction = Callable[[IdVecs, int, Vec], float]
-
-ScoreFunction = Callable[[int, Vec, IdVecs, IdVecs, float], float]
-
 
 def nparr_of_idvecs(idvecs: IdVecs):
   return np.array([x for _, x in idvecs])
 
 
-def density(model, x):
-  return model.score(np.array([x]))[0]
+class ScoreFunction:
+  def __init__(self, xs, args):
+    self.bandwidth = args.kde_bandwidth
 
 
-def score_1(i, x, ts, os, p_t) -> float:
-  raise Exception("Not implemented")
+class Score1(ScoreFunction):
+  def score(self, i, u, pos, neg, p_t) -> float:
+    if len(pos) == 0:
+      return 0
+
+    poss_density = KernelDensity(bandwidth=self.bandwidth).fit(nparr_of_idvecs(pos))
+    score = poss_density.score_samples([u])[0]
+
+    return score
 
 
-def score_2(i, x, ts, os, p_t) -> float:
-  raise Exception("Not implemented")
+class Score2(ScoreFunction):
+  def score(self, i, u, pos, neg, p_t) -> float:
+    raise Exception("Not implemented")
 
 
-def score_3(i, x, ts, os, p_t) -> float:
-  raise Exception("Not implemented")
+class Score3(ScoreFunction):
+  def score(self, i, u, pos, neg, p_t) -> float:
+    raise Exception("Not implemented")
 
 
-def score_4(i, u, ts, os, p_t) -> float:
-  """
-  The higher the score is, the more likely it is a positive sample
-  """
-  if len(ts) == 0:
-    return 0
+class Score4(ScoreFunction):
+  def score(self, i, u, pos, neg, p_pos) -> float:
+    """
+    The higher the score is, the more likely it is a positive sample
+    """
+    if len(neg) == 0:
+      return 0
 
-  ts_arr = nparr_of_idvecs(ts)
-  os_arr = nparr_of_idvecs(os)
-  ts_plus_u_arr = nparr_of_idvecs(ts + [(i, u)])
-  os_plus_u_arr = nparr_of_idvecs(os + [(i, u)])
+    ts_arr = nparr_of_idvecs(neg)
+    os_arr = nparr_of_idvecs(pos)
+    ts_plus_u_arr = nparr_of_idvecs(neg + [(i, u)])
+    os_plus_u_arr = nparr_of_idvecs(pos + [(i, u)])
 
-  ts_density = KernelDensity(bandwidth=0.1).fit(ts_arr)
-  f_plus_u = KernelDensity(bandwidth=0.1).fit(os_plus_u_arr)
-  # os_density = KernelDensity(bandwidth=0.1).fit(os_arr)
+    ts_density = KernelDensity(bandwidth=self.bandwidth).fit([u])
+    f_plus_u = KernelDensity(bandwidth=self.bandwidth).fit(os_plus_u_arr)
+    # os_density = KernelDensity(bandwidth=0.1).fit(os_arr)
 
-  s_t_1 = (np.sum(ts_density.score_samples(ts_plus_u_arr))) / (len(ts) + 1)
-  if len(os) == 0:
-    s_t_2 = 0
-  else:
-    s_t_2 = np.sum(f_plus_u.score_samples(os_arr)) / len(os)
-  s_t = s_t_1 - s_t_2
+    s_t_1 = (np.sum(ts_density.score_samples(ts_plus_u_arr))) / (len(neg) + 1)
+    if len(pos) == 0:
+      s_t_2 = 0
+    else:
+      s_t_2 = np.sum(f_plus_u.score_samples(os_arr)) / len(pos)
+    s_t = s_t_1 - s_t_2
 
-  if len(ts) == 0:
-    s_o_1 = 0
-  else:
-    s_o_1 = np.sum(ts_density.score_samples(ts_arr)) / len(ts)
-  s_o_2 = np.sum(ts_density.score_samples(os_plus_u_arr)) / (len(os) + 1)
-  s_o = s_o_1 - s_o_2
+    if len(neg) == 0:
+      s_o_1 = 0
+    else:
+      s_o_1 = np.sum(ts_density.score_samples(ts_arr)) / len(neg)
+    s_o_2 = np.sum(ts_density.score_samples(os_plus_u_arr)) / (len(pos) + 1)
+    s_o = s_o_1 - s_o_2
 
-  return p_t * s_t + (1. - p_t) * s_o
-
-
-score_functions: Dict[str, ScoreFunction] = {
-    'score_1': score_1,
-    'score_2': score_2,
-    'score_3': score_3,
-    'score_4': score_4
-}
+    return p_pos * s_t + (1. - p_pos) * s_o
 
 
-def argmin(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, p_t: float) -> Tuple[int, float]:
-  """
-  Return the (index, score) of the datapoint in xs that score the highest
-  """
-  min_i = None
-  min_score = None
-  for (i, x) in ps:
-    s = score(i, x, ts, os, p_t)
-    if min_i == None or s < min_score:
-      min_i = i
-      min_score = s
-  return (min_i, min_score)
+class Score5(ScoreFunction):
+  def score(self, i, u, pos, neg, p_pos):
+    # +++++ NEW IMPLEMENTATION +++++ #
+
+    n, m = len(pos), len(neg)
+
+    if n == 0 and m == 0:
+      return 0
+
+    s_pos_1 = 0
+    if n > 0:
+      for (_i, _x_i) in pos + [(i, u)]:
+        pos_plus_u_min_i = nparr_of_idvecs([(_j, _x_j) for (_j, _x_j) in pos + [(i, u)] if _j != _i])
+        dens = KernelDensity(bandwidth=self.bandwidth).fit(pos_plus_u_min_i)
+
+        s_pos_1 += np.exp(dens.score_samples([_x_i]))[0]
+      s_pos_1 /= n + 1
+
+    dens = KernelDensity(bandwidth=self.bandwidth).fit(nparr_of_idvecs(pos + [(i, u)]))
+    s_pos_2 = np.mean(np.exp(dens.score_samples(nparr_of_idvecs(neg))))
+
+    s_pos = s_pos_1 - s_pos_2
+
+    s_neg_1, s_neg_2 = 0, 0
+    if n > 0:
+      # for (_i, _x_i) in pos:
+      #   pos_min_i = nparr_of_idvecs([(_j, _x_j) for (_j, _x_j) in pos if _j != _i])
+      #   dens = KernelDensity(bandwidth=0.1).fit(pos_min_i)
+      #   s_neg_1 += dens.score_samples([_x_i])[0]
+      # s_neg_1 /= n
+
+      dens = KernelDensity(bandwidth=self.bandwidth).fit(nparr_of_idvecs(pos))
+      s_neg_2 = np.mean(np.exp(dens.score_samples(nparr_of_idvecs(neg + [(i, u)]))))
+
+    s_neg = s_neg_1 - s_neg_2
+
+    return p_pos * s_pos + (1 - p_pos) * s_neg
 
 
-def argmax(ps: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, p_t: float) -> Tuple[int, float]:
-  max_i = None
-  max_score = None
-  for (i, x) in ps:
-    s = score(i, x, ts, os, p_t)
-    if max_i == None or s > max_score:
-      max_i = i
-      max_score = s
-  return (max_i, max_score)
+class Score6(ScoreFunction):
+  def score(self, i, u, pos, neg, p_pos):
+    pos_score = 0
+    if len(pos) > 0:
+      pos_dens = KernelDensity(bandwidth=self.bandwidth).fit(nparr_of_idvecs(pos))
+      pos_score = pos_dens.score_samples([u])[0]
+
+    neg_score = 0
+    if len(neg) > 0:
+      neg_dens = KernelDensity(bandwidth=self.bandwidth).fit(nparr_of_idvecs(neg))
+      neg_score = neg_dens.score_samples([u])[0]
+
+    return pos_score - neg_score
 
 
-def top_scored(xs: IdVecs, ts: IdVecs, os: IdVecs, score: ScoreFunction, num_alarms):
-  """
-  limit: a number between 0 and 1, indicating the portion of alarms to be reported
-  Return a list of (index, x, score) that rank the lowest on score
-  """
-  xs_with_scores = [(i, x, score(i, x, ts, os, 0.1)) for (i, x) in xs]
-  sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
-  return sorted_xs_with_scores[0:num_alarms]
+class Score7(ScoreFunction):
+  """ The same scoring function as Score6, but use dynamic programming to
+      optimize the performance """
+
+  def __init__(self, xs, args):
+    super().__init__(xs, args)
+    self.n = len(xs)
+    self.cache = np.empty([self.n, self.n])
+    self.cache.fill(-1) # Use -1 to represent nothing, as the real values will be positive definite
+
+  def index(self, i, j):
+    return (i, j) if i < j else (j, i)
+
+  def gaussian(self, x, y):
+    b = self.bandwidth
+    return np.exp(-(np.linalg.norm(x - y)) ** 2 / (2 * b ** 2)) / (b * np.sqrt(2 * np.pi))
+
+  def gaussian_cached(self, i, x, j, y):
+    index = self.index(i, j)
+    if self.cache[index] == -1:
+      self.cache[index] = self.gaussian(x, y)
+    return self.cache[index]
+
+  def score(self, i, x, pos, neg, p_pos):
+    score = 0
+    for (j, y) in pos:
+      score += self.gaussian_cached(i, x, j, y)
+    for (j, y) in neg:
+      score -= self.gaussian_cached(i, x, j, y)
+    return score
 
 
 class KDELearner(ActiveLearner):
+  score_functions: Dict[str, ScoreFunction] = {
+      'score_1': Score1,
+      'score_2': Score2,
+      'score_3': Score3,
+      'score_4': Score4,
+      'score_5': Score5,
+      'score_6': Score6,
+      'score_7': Score7
+  }
+
   def __init__(self, datapoints, xs, amount, args):
     super().__init__(datapoints, xs, amount, args)
-    self.score_function = score_functions[args.kde_score]
-    self.ts = []
-    self.os = []
+    self.score_function = self.score_functions[args.kde_score](xs, args)
+    self.pos = []
+    self.neg = []
 
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
-    parser.add_argument('--kde-score', type=str, default="score_4", help='Score Function')
+    parser.add_argument('--kde-score', type=str, default="score_7", help='Score Function')
+    parser.add_argument('--kde-bandwidth', type=float, default=1)
 
-  def select(self, ps):
-    (p_i, _) = argmax(ps, self.ts, self.os, self.score_function, self.args.limit)
+  def select(self, unlabeled):
+    (p_i, _) = self._argmax(unlabeled, self.pos, self.neg, self.args.limit)
     return p_i
 
   def feedback(self, item, is_alarm):
     if is_alarm:
-      self.os.append(item)
+      self.pos.append(item)
     else:
-      self.ts.append(item)
+      self.neg.append(item)
 
   def alarms(self, num_alarms):
-    alarm_id_scores = top_scored(list(enumerate(self.xs)), self.ts, self.os, self.score_function, num_alarms)
+    alarm_id_scores = self._top_scored(list(enumerate(self.xs)), self.pos, self.neg, num_alarms)
     alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
     return alarms
+
+  def _argmin(self, ps: IdVecs, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
+    """
+    Return the (index, score) of the datapoint in xs that scores the highest
+    """
+    min_i = None
+    min_score = None
+    for (i, x) in ps:
+      s = self.score_function.score(i, x, pos, neg, p_t)
+      if min_i == None or s < min_score:
+        min_i = i
+        min_score = s
+    return (min_i, min_score)
+
+  def _argmax(self, ps: IdVecs, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
+    max_i = None
+    max_score = None
+    for (i, x) in ps:
+      s = self.score_function.score(i, x, pos, neg, p_t)
+      if max_i == None or s > max_score:
+        max_i = i
+        max_score = s
+    return (max_i, max_score)
+
+  def _top_scored(self, xs: IdVecs, pos: IdVecs, neg: IdVecs, num_alarms):
+    """
+    limit: a number between 0 and 1, indicating the portion of alarms to be reported
+    Return a list of (index, x, score) that rank the lowest on score
+    """
+    return []
+    # xs_with_scores = [(i, x, score(i, x, pos, neg, 0.1)) for (i, x) in xs]
+    # sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
+    # return sorted_xs_with_scores[0:num_alarms]
