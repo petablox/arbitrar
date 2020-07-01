@@ -6,6 +6,8 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KernelDensity
+from sklearn.model_selection import GridSearchCV
+import scipy.spatial.distance
 
 from src.database import Database, DataPoint
 from src.database.helpers import SourceFeatureVisualizer
@@ -22,8 +24,8 @@ def nparr_of_idvecs(idvecs: IdVecs):
 
 
 class ScoreFunction:
-  def __init__(self, xs, args):
-    self.bandwidth = args.kde_bandwidth
+  def __init__(self, xs, bandwidth):
+    self.bandwidth = bandwidth
 
 
 class Score1(ScoreFunction):
@@ -139,8 +141,8 @@ class Score7(ScoreFunction):
   """ The same scoring function as Score6, but use dynamic programming to
       optimize the performance """
 
-  def __init__(self, xs, args):
-    super().__init__(xs, args)
+  def __init__(self, xs, bandwidth):
+    super().__init__(xs, bandwidth)
     self.n = len(xs)
     self.cache = np.empty([self.n, self.n])
     self.cache.fill(-1) # Use -1 to represent nothing, as the real values will be positive definite
@@ -180,7 +182,11 @@ class KDELearner(ActiveLearner):
 
   def __init__(self, datapoints, xs, amount, args):
     super().__init__(datapoints, xs, amount, args)
-    self.score_function = self.score_functions[args.kde_score](xs, args)
+    if args.kde_bandwidth != None:
+      self.bandwidth = args.kde_bandwidth
+    else:
+      self.bandwidth = self._auto_bandwidth(xs)
+    self.score_function = self.score_functions[args.kde_score](xs, self.bandwidth)
     self.pos = []
     self.neg = []
 
@@ -188,7 +194,7 @@ class KDELearner(ActiveLearner):
   def setup_parser(parser):
     parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
     parser.add_argument('--kde-score', type=str, default="score_7", help='Score Function')
-    parser.add_argument('--kde-bandwidth', type=float, default=1)
+    parser.add_argument('--kde-bandwidth', type=float)
 
   def select(self, unlabeled):
     (p_i, _) = self._argmax(unlabeled, self.pos, self.neg, self.args.limit)
@@ -204,6 +210,18 @@ class KDELearner(ActiveLearner):
     alarm_id_scores = self._top_scored(list(enumerate(self.xs)), self.pos, self.neg, num_alarms)
     alarms = [(self.datapoints[i], score) for (i, _, score) in alarm_id_scores]
     return alarms
+
+  def _auto_bandwidth(self, xs):
+    print("Auto Selecting Bandwidth...")
+    X = np.array(xs)
+    dists = scipy.spatial.distance.pdist(X)
+    mean_dist = np.mean(dists)
+    low, high = mean_dist / 10.0, mean_dist * 10.0
+    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=10)
+    grid.fit(X)
+    bandwidth = grid.best_params_['bandwidth']
+    print(f"Selected bandwidth: {bandwidth}")
+    return bandwidth
 
   def _argmin(self, ps: IdVecs, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
     """
