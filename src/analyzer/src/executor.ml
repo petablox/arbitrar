@@ -711,6 +711,8 @@ and transfer_call llctx instr env state =
       |> State.add_memory lv v
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
+  | _ when Utils.is_dummy_function_slow instr ->
+      execute_instr llctx (Llvm.instr_succ instr) env state
   | _ ->
       let args =
         List.init

@@ -40,6 +40,11 @@ def setup_parser(parser):
   parser.add_argument('--source', type=str, help='The source program to refer to')
   parser.add_argument('--ground-truth', type=str)
 
+  # Feature Settings
+  parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')
+  parser.add_argument('--no-retval', action='store_true', help='Does not include retval features')
+  parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
+
   # Setup learner specific arguments
   for learner in learners.values():
     learner.setup_parser(parser)
@@ -56,6 +61,11 @@ def main(args):
   sample_feature_json = feature_jsons[0]
 
   print("Generating Feature Groups and Encoder")
+  feature_groups = FeatureGroups(sample_feature_json,
+                                 enable_causality=not args.no_causality,
+                                 enable_retval=not args.no_retval,
+                                 enable_argval=not args.no_argval)
+
   feature_groups = FeatureGroups(sample_feature_json)
 
   print("Encoding Features...")

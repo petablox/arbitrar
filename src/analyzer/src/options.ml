@@ -42,7 +42,7 @@ let continue_extraction = ref false
 
 let max_traces = ref 50
 
-let max_length = ref max_int
+let max_length = ref 1000
 
 let max_trials = ref 1000
 
