@@ -7,10 +7,11 @@ class LabelAction(Executor):
   def setup_parser(parser):
     parser.add_argument('label', type=str, help="The label that you want to label")
     parser.add_argument('function', type=str, help="The function that the trace is about")
-    parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
-    parser.add_argument('slice-id', type=int, help='The slice id')
+    parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to", nargs="?")
+    parser.add_argument('slice-id', type=int, help='The slice id', nargs="?")
     parser.add_argument('trace-id', type=int, help='The trace id', nargs="?")
     parser.add_argument('-e', '--erase', action="store_true", help='Erase the given label')
+    parser.add_argument('--filter', type=str)
 
   @staticmethod
   def execute(args):
@@ -24,6 +25,8 @@ class LabelAction(Executor):
 
     # Get function and slice information
     fn = args.function
+
+    # Slice id
     slice_id = var_args["slice-id"]
 
     # Check if we need to generate multiple dots

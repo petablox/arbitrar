@@ -161,12 +161,13 @@ class Score7(ScoreFunction):
     return self.cache[index]
 
   def score(self, i, x, pos, neg, p_pos):
-    score = 0
+    n, m = len(pos), len(neg)
+    pos_score, neg_score = 0, 0
     for (j, y) in pos:
-      score += self.gaussian_cached(i, x, j, y)
+      pos_score += self.gaussian_cached(i, x, j, y)
     for (j, y) in neg:
-      score -= self.gaussian_cached(i, x, j, y)
-    return score
+      neg_score += self.gaussian_cached(i, x, j, y)
+    return pos_score / n - neg_score / m
 
 
 class KDELearner(ActiveLearner):
@@ -192,12 +193,12 @@ class KDELearner(ActiveLearner):
 
   @staticmethod
   def setup_parser(parser):
-    parser.add_argument('--kde-pdf', type=str, default="gaussian", help='Density Function')
     parser.add_argument('--kde-score', type=str, default="score_7", help='Score Function')
     parser.add_argument('--kde-bandwidth', type=float)
+    parser.add_argument('--p-pos', type=float, default=0.1)
 
   def select(self, unlabeled):
-    (p_i, _) = self._argmax(unlabeled, self.pos, self.neg, self.args.limit)
+    (p_i, _) = self._argmax(unlabeled, self.pos, self.neg, self.args.p_pos)
     return p_i
 
   def feedback(self, item, is_alarm):
@@ -217,7 +218,8 @@ class KDELearner(ActiveLearner):
     dists = scipy.spatial.distance.pdist(X)
     mean_dist = np.mean(dists)
     low, high = mean_dist / 10.0, mean_dist * 10.0
-    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=10)
+    print(f"Selecting bandwidth from {low} to {high} with log scale...")
+    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 30)}, cv=10)
     grid.fit(X)
     bandwidth = grid.best_params_['bandwidth']
     print(f"Selected bandwidth: {bandwidth}")
