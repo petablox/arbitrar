@@ -140,19 +140,18 @@ class Score6(ScoreFunction):
 class Score7(ScoreFunction):
   """ The same scoring function as Score6, but use dynamic programming to
       optimize the performance """
-
   def __init__(self, xs, bandwidth):
     super().__init__(xs, bandwidth)
     self.n = len(xs)
     self.cache = np.empty([self.n, self.n])
-    self.cache.fill(-1) # Use -1 to represent nothing, as the real values will be positive definite
+    self.cache.fill(-1)  # Use -1 to represent nothing, as the real values will be positive definite
 
   def index(self, i, j):
     return (i, j) if i < j else (j, i)
 
   def gaussian(self, x, y):
     b = self.bandwidth
-    return np.exp(-(np.linalg.norm(x - y)) ** 2 / (2 * b ** 2)) / (b * np.sqrt(2 * np.pi))
+    return np.exp(-(np.linalg.norm(x - y))**2 / (2 * b**2)) / (b * np.sqrt(2 * np.pi))
 
   def gaussian_cached(self, i, x, j, y):
     index = self.index(i, j)

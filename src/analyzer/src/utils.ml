@@ -243,17 +243,19 @@ let indices_of_const_gep instr =
 let used_global var =
   let kind = Llvm.classify_value var in
   match kind with
-  | GlobalVariable | GlobalAlias -> Some var
+  | GlobalVariable | GlobalAlias ->
+      Some var
   | ConstantExpr -> (
     match Llvm.constexpr_opcode var with
-    | Llvm.Opcode.GetElementPtr -> Some (Llvm.operand var 0)
-    | _ -> None)
-  | _ -> None
+    | Llvm.Opcode.GetElementPtr ->
+        Some (Llvm.operand var 0)
+    | _ ->
+        None )
+  | _ ->
+      None
 
-let used_globals (instr : Llvm.llvalue) : (Llvm.llvalue list) =
-  List.init
-    (Llvm.num_operands instr)
-    (fun i -> Llvm.operand instr i)
+let used_globals (instr : Llvm.llvalue) : Llvm.llvalue list =
+  List.init (Llvm.num_operands instr) (fun i -> Llvm.operand instr i)
   |> List.filter_map used_global
 
 let exp_func_name : string -> string option =
@@ -997,7 +999,6 @@ let is_dummy_function_slow f : bool =
   Str.string_partial_match r1 (Llvm.value_name f) 0
   || Str.string_partial_match r2 (Llvm.value_name f) 0
   || Str.string_partial_match r3 (Llvm.value_name f) 0
-
 
 let get_abs_path (name : string) =
   let is_starting_from_root = name.[0] = '/' in

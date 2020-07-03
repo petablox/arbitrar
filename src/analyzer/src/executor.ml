@@ -386,9 +386,8 @@ and execute_instr llctx instr env state =
       transfer llctx instr env state
 
 and transfer llctx instr (env : Environment.t) state =
-  if !Options.verbose > 1 then
-    prerr_endline (Llvm.string_of_llvalue instr) ;
-    (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
+  if !Options.verbose > 1 then prerr_endline (Llvm.string_of_llvalue instr) ;
+  (* prerr_endline (Utils.EnvCache.string_of_exp env.Environment.cache instr) ; *)
   if Trace.length state.State.trace > !Options.max_length then
     finish_execution llctx env state FinishState.ExceedingMaxInstructionExplored
   else
@@ -431,7 +430,7 @@ and transfer llctx instr (env : Environment.t) state =
                   (Value.location l) state )
         in
         let semantic_sig = semantic_sig_of_store env.cache v0 v1 in
-        let uses = (uses0 @ uses1) in
+        let uses = uses0 @ uses1 in
         State.add_trace env.cache llctx instr semantic_sig state
         |> State.add_global_du_edges uses instr
         |> State.add_global_use instr
@@ -712,8 +711,7 @@ and transfer_call llctx instr env state =
       let semantic_sig = semantic_sig_of_libcall env.cache (Some v) args in
       State.add_trace env.cache llctx instr semantic_sig state
       |> State.add_global_du_edges uses instr
-      |> State.add_global_use instr
-      |> State.add_memory lv v
+      |> State.add_global_use instr |> State.add_memory lv v
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | _ when Utils.is_dummy_function_slow instr ->
@@ -783,10 +781,8 @@ and finish_execution llctx env state fstate =
         else
           let env = Environment.add_discarded state.State.trace env in
           {env with metadata= Metadata.incr_rejected env.metadata}
-      else
-        {env with metadata= Metadata.incr_duplicated env.metadata}
-    else
-      {env with metadata= Metadata.incr_target_unvisited env.metadata}
+      else {env with metadata= Metadata.incr_duplicated env.metadata}
+    else {env with metadata= Metadata.incr_target_unvisited env.metadata}
   in
   if !Options.verbose > 2 then (
     Memory.pp F.std_formatter state.State.memory ;

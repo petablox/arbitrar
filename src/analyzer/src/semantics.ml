@@ -363,9 +363,12 @@ module Location = struct
 
   let rec global_variable_of v =
     match v with
-    | Global s -> Some s
-    | Gep (l, _) -> global_variable_of l
-    | _ -> None
+    | Global s ->
+        Some s
+    | Gep (l, _) ->
+        global_variable_of l
+    | _ ->
+        None
 
   let new_address () =
     count := !count + 1 ;
@@ -838,14 +841,15 @@ module PathConstraints = struct
   let remove_append cond b bid t =
     if List.exists (fun (_, _, id) -> id = bid) t then
       List.filter (fun (_, _, id) -> id = bid) t
-    else
-      append cond b bid t
+    else append cond b bid t
 
   let empty = []
 
   let pp fmt pc =
     F.fprintf fmt "===== Path =====\n" ;
-    List.iter (fun (v, b, bid) -> F.fprintf fmt "%d :: %b = %a\n" bid b Value.pp v) pc ;
+    List.iter
+      (fun (v, b, bid) -> F.fprintf fmt "%d :: %b = %a\n" bid b Value.pp v)
+      pc ;
     F.fprintf fmt "================\n"
 
   let mk_solver ctx pc =
@@ -1027,10 +1031,7 @@ module State = struct
           | v ->
               let src = InstrMap.find v s.instrmap in
               let dst = InstrMap.find instr s.instrmap in
-              if src != dst then
-                DUGraph.add_edge dugraph src dst
-              else
-                dugraph
+              if src != dst then DUGraph.add_edge dugraph src dst else dugraph
           | exception Not_found ->
               dugraph)
         s.dugraph lv_list
@@ -1060,25 +1061,27 @@ module State = struct
         (fun dugraph lv ->
           match Location.global_variable_of lv with
           | Some v -> (
-              match GlobalValueMap.find_opt v state.global_use with
-              | Some used_instr -> (
-                  let src = InstrMap.find_opt used_instr state.instrmap in
-                  let dst = InstrMap.find_opt instr state.instrmap in
-                  match src, dst with
-                  | Some src, Some dst ->
-                      Printf.printf "Adding Global DU Edge between %s and %s\n" (Node.label src) (Node.label dst) ;
-                      if not (src = dst) then
-                        DUGraph.add_edge dugraph src dst
-                      else dugraph
-                  | _ -> dugraph)
-              | None -> dugraph)
-          | _ -> dugraph)
+            match GlobalValueMap.find_opt v state.global_use with
+            | Some used_instr -> (
+                let src = InstrMap.find_opt used_instr state.instrmap in
+                let dst = InstrMap.find_opt instr state.instrmap in
+                match (src, dst) with
+                | Some src, Some dst ->
+                    DUGraph.add_edge dugraph src dst
+                | _ ->
+                    dugraph )
+            | None ->
+                dugraph )
+          | _ ->
+              dugraph)
         state.dugraph lv_list
     in
     {state with dugraph}
 
   let use_global global_var expr s =
-    {s with global_use= GlobalValueMap.update global_var (fun _ -> Some expr) s.global_use}
+    { s with
+      global_use=
+        GlobalValueMap.update global_var (fun _ -> Some expr) s.global_use }
 
   let add_global_use (expr : Llvm.llvalue) (s : t) =
     List.fold_left
@@ -1088,10 +1091,10 @@ module State = struct
   let add_branch instr s =
     match InstrMap.find_opt instr s.branchmap with
     | None ->
-      let bid = new_branch_count () in
-      {s with branchmap=InstrMap.add instr bid s.branchmap}
-    | _ -> s
+        let bid = new_branch_count () in
+        {s with branchmap= InstrMap.add instr bid s.branchmap}
+    | _ ->
+        s
 
   let get_branch_id instr s = InstrMap.find instr s.branchmap
-
 end

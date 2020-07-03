@@ -254,10 +254,12 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
 
   let init_with_trace_helper checker (func_name, _, num_traces) trace =
     let results = caused_funcs_helper trace checker in
-    let dict = List.fold_left
-      (fun dict caused_func_name ->
-        FunctionCausalityDictionary.add dict num_traces func_name caused_func_name)
-      !dictionary (List.map fst results)
+    let dict =
+      List.fold_left
+        (fun dict caused_func_name ->
+          FunctionCausalityDictionary.add dict num_traces func_name
+            caused_func_name)
+        !dictionary (List.map fst results)
     in
     dictionary := dict
 
@@ -346,7 +348,8 @@ module InvokedAfterFeature = struct
 
   let name = "invoked_after"
 
-  let init_with_trace = init_with_trace_helper CausalityChecker.check_trace_backward
+  let init_with_trace =
+    init_with_trace_helper CausalityChecker.check_trace_backward
 
   let extract = extract_helper CausalityChecker.check_trace_backward
 end
@@ -376,10 +379,11 @@ let process_trace features_dir func (trace : Trace.t) =
       (fun assoc extractor ->
         let module M = (val extractor : FEATURE) in
         if M.filter func then (
-          Printf.printf "Extracting trace %d/%d with %s\r" trace.slice_id trace.trace_id M.name ;
+          Printf.printf "Extracting trace %d/%d with %s\r" trace.slice_id
+            trace.trace_id M.name ;
           let result = M.extract func trace in
           let json_result = M.to_yojson result in
-          (M.name, json_result) :: assoc)
+          (M.name, json_result) :: assoc )
         else assoc)
       [] feature_extractors
   in
@@ -405,7 +409,8 @@ let main input_directory =
   let _ =
     fold_traces dugraphs_dir slices_json_dir
       (fun _ (func, trace) ->
-        Printf.printf "Initializing with trace %d/%d   \r" trace.slice_id trace.trace_id ;
+        Printf.printf "Initializing with trace %d/%d   \r" trace.slice_id
+          trace.trace_id ;
         List.iter
           (fun extractor ->
             let module M = (val extractor : FEATURE) in

@@ -110,7 +110,9 @@ let executor_opts_local =
   ; ( "-no-path-constraint"
     , Arg.Set no_path_constraint
     , "Do not use path constraint" )
-  ; ("-serial", Arg.Set serial_execution, "Execute in serial as opposed to parallel") ]
+  ; ( "-serial"
+    , Arg.Set serial_execution
+    , "Execute in serial as opposed to parallel" ) ]
 
 let extractor_opts_local =
   [ ( "-continue"

@@ -86,11 +86,12 @@ let execute lc outdir llctx llm slices =
   let t0 = Sys.time () in
   let initial_state = Executor.initialize llctx llm State.empty in
   let num_slices = List.length slices in
-  if num_slices > 0 then
+  if num_slices > 0 then (
     if !Options.serial_execution then
       List.iteri
         (fun i slice ->
-          Printf.printf "Doing symbolic execution on %d/%d slice\r" (i + 1) num_slices ;
+          Printf.printf "Doing symbolic execution on %d/%d slice\r" (i + 1)
+            num_slices ;
           flush stdout ;
           let _ = run_one_slice lc outdir llctx llm initial_state i slice in
           ())
@@ -99,17 +100,20 @@ let execute lc outdir llctx llm slices =
       let array_slices = Array.of_list slices in
       ignore
         (Parmap.parmap
-          (fun idx ->
-            let slice = array_slices.(idx) in
-            let _ = run_one_slice lc outdir llctx llm initial_state idx slice in
-            Printf.printf "Doing symbolic execution on %d slice %c\r" num_slices
-              (loading idx) ;
-            flush stdout)
-          (Parmap.L (Utils.range num_slices))) ;
-  let msg =
-    Printf.sprintf "Symbolic Execution complete in %f sec\n" (Sys.time () -. t0)
-  in
-  Printf.printf "\n%s" msg ; flush stdout ; Printf.fprintf lc "%s" msg
+           (fun idx ->
+             let slice = array_slices.(idx) in
+             let _ =
+               run_one_slice lc outdir llctx llm initial_state idx slice
+             in
+             Printf.printf "Doing symbolic execution on %d slice %c\r"
+               num_slices (loading idx) ;
+             flush stdout)
+           (Parmap.L (Utils.range num_slices))) ;
+      let msg =
+        Printf.sprintf "Symbolic Execution complete in %f sec\n"
+          (Sys.time () -. t0)
+      in
+      Printf.printf "\n%s" msg ; flush stdout ; Printf.fprintf lc "%s" msg )
 
 let main input_file =
   Printf.printf "Running extractor on %s...\n" input_file ;
