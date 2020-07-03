@@ -169,7 +169,7 @@ class Score7(ScoreFunction):
     if m > 0:
       for (j, y) in neg:
         neg_score += self.gaussian_cached(i, x, j, y)
-      neg_score /= n
+      neg_score /= m
     return pos_score - neg_score
 
 
