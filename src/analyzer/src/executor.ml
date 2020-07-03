@@ -462,6 +462,7 @@ and transfer llctx instr (env : Environment.t) state =
           semantic_sig_of_unop env.cache v1 (Value.location lv1)
         in
         State.add_trace env.cache llctx instr semantic_sig state
+        |> State.add_global_du_edges [lv1] instr
         |> State.add_global_use instr
         |> add_syntactic_du_edge instr env
         |> State.add_memory_def lv v1 instr
@@ -516,6 +517,7 @@ and transfer llctx instr (env : Environment.t) state =
         in
         let semantic_sig = semantic_sig_of_gep env.cache v v0 in
         State.add_trace env.cache llctx instr semantic_sig state
+        |> State.add_global_du_edges uses0 instr
         |> State.add_global_use instr
         |> add_syntactic_du_edge instr env
         |> State.add_memory lv v
@@ -694,19 +696,22 @@ and transfer_call llctx instr env state =
   | Value.Function f
     when Llvm.type_of f |> Llvm.return_type |> Utils.is_void_type |> not ->
       let lv = eval_lv instr state.State.memory in
-      let args =
+      let eval_results =
         List.init
           (Llvm.num_operands instr - 1)
           (fun i ->
             let arg = Llvm.operand instr i in
-            eval env.cache arg state.State.memory |> fst)
+            eval env.cache arg state.State.memory)
       in
+      let args = List.map fst eval_results in
+      let uses = List.flatten (List.map snd eval_results) in
       let v =
         SymExpr.new_ret (Llvm.value_name f) (List.map Value.to_symexpr args)
         |> Value.of_symexpr
       in
       let semantic_sig = semantic_sig_of_libcall env.cache (Some v) args in
       State.add_trace env.cache llctx instr semantic_sig state
+      |> State.add_global_du_edges uses instr
       |> State.add_global_use instr
       |> State.add_memory lv v
       |> add_syntactic_du_edge instr env
@@ -723,7 +728,6 @@ and transfer_call llctx instr env state =
       in
       let semantic_sig = semantic_sig_of_libcall env.cache None args in
       State.add_trace env.cache llctx instr semantic_sig state
-      |> State.add_global_use instr
       |> add_syntactic_du_edge instr env
       |> execute_instr llctx (Llvm.instr_succ instr) env
   | exception Not_found ->
@@ -735,14 +739,16 @@ and transfer_binop llctx instr env state =
   let exp1 = Llvm.operand instr 1 in
   let v0, uses0 = eval env.cache exp0 state.State.memory in
   let v1, uses1 = eval env.cache exp1 state.State.memory in
+  let uses = uses0 @ uses1 in
   let res_lv = eval_lv instr state in
   let res = Value.binary_op instr v0 v1 in
   let semantic_sig = semantic_sig_of_binop env.cache res v0 v1 in
   State.add_trace env.cache llctx instr semantic_sig state
+  |> State.add_global_du_edges uses instr
   |> State.add_global_use instr
   |> State.add_memory res_lv res
   |> add_syntactic_du_edge instr env
-  |> State.add_semantic_du_edges (uses0 @ uses1) instr
+  |> State.add_semantic_du_edges uses instr
   |> execute_instr llctx (Llvm.instr_succ instr) env
 
 and finish_execution llctx env state fstate =

@@ -1027,7 +1027,10 @@ module State = struct
           | v ->
               let src = InstrMap.find v s.instrmap in
               let dst = InstrMap.find instr s.instrmap in
-              DUGraph.add_edge dugraph src dst
+              if src != dst then
+                DUGraph.add_edge dugraph src dst
+              else
+                dugraph
           | exception Not_found ->
               dugraph)
         s.dugraph lv_list
@@ -1062,7 +1065,11 @@ module State = struct
                   let src = InstrMap.find_opt used_instr state.instrmap in
                   let dst = InstrMap.find_opt instr state.instrmap in
                   match src, dst with
-                  | Some src, Some dst -> DUGraph.add_edge dugraph src dst
+                  | Some src, Some dst ->
+                      Printf.printf "Adding Global DU Edge between %s and %s\n" (Node.label src) (Node.label dst) ;
+                      if not (src = dst) then
+                        DUGraph.add_edge dugraph src dst
+                      else dugraph
                   | _ -> dugraph)
               | None -> dugraph)
           | _ -> dugraph)
