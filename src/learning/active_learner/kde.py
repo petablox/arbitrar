@@ -162,11 +162,15 @@ class Score7(ScoreFunction):
   def score(self, i, x, pos, neg, p_pos):
     n, m = len(pos), len(neg)
     pos_score, neg_score = 0, 0
-    for (j, y) in pos:
-      pos_score += self.gaussian_cached(i, x, j, y)
-    for (j, y) in neg:
-      neg_score += self.gaussian_cached(i, x, j, y)
-    return pos_score / n - neg_score / m
+    if n > 0:
+      for (j, y) in pos:
+        pos_score += self.gaussian_cached(i, x, j, y)
+      pos_score /= n
+    if m > 0:
+      for (j, y) in neg:
+        neg_score += self.gaussian_cached(i, x, j, y)
+      neg_score /= n
+    return pos_score - neg_score
 
 
 class KDELearner(ActiveLearner):
@@ -218,7 +222,7 @@ class KDELearner(ActiveLearner):
     mean_dist = np.mean(dists)
     low, high = mean_dist / 10.0, mean_dist * 10.0
     print(f"Selecting bandwidth from {low} to {high} with log scale...")
-    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 30)}, cv=10)
+    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=10)
     grid.fit(X)
     bandwidth = grid.best_params_['bandwidth']
     print(f"Selected bandwidth: {bandwidth}")
@@ -252,7 +256,6 @@ class KDELearner(ActiveLearner):
     limit: a number between 0 and 1, indicating the portion of alarms to be reported
     Return a list of (index, x, score) that rank the lowest on score
     """
-    return []
-    # xs_with_scores = [(i, x, score(i, x, pos, neg, 0.1)) for (i, x) in xs]
-    # sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
-    # return sorted_xs_with_scores[0:num_alarms]
+    xs_with_scores = [(i, x, self.score_function.score(i, x, pos, neg, 0.1)) for (i, x) in xs]
+    sorted_xs_with_scores = sorted(xs_with_scores, key=lambda d: -d[2])
+    return sorted_xs_with_scores[0:num_alarms]
