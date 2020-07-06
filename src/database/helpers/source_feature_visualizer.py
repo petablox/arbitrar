@@ -49,7 +49,11 @@ class SourceFeatureVisualizer():
 
     slice = datapoint.slice()
     toks = slice['call_edge']['location'].split(":")
-    path, _func, line, _col = toks[0], toks[1], int(toks[2]), toks[3]
+    if (len(toks) < 4):
+        path = ""
+        line = 0
+    else:
+        path, _func, line, _col = toks[0], toks[1], int(toks[2]), toks[3]
 
     self.left_window.erase()
     self.right_window.erase()

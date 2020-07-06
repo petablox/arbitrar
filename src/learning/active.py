@@ -39,6 +39,7 @@ def setup_parser(parser):
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
   parser.add_argument('--ground-truth', type=str)
+  parser.add_argument('--function-spec', type=str, help="Path to function spec for auto learning")
 
   # Feature Settings
   parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')

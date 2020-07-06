@@ -1,4 +1,5 @@
 import os
+import json
 
 
 class DataPoint:
@@ -44,3 +45,26 @@ class DataPoint:
       return False
     else:
       return len(self.labels()) > 0
+
+
+class FunctionSpec:
+  def __init__(self, path):
+    if not os.path.exists(path):
+      raise ValueError(f"#{path} for function spec does not exist")
+    with open(path) as f:
+        self.spec_str = f.read()
+    self.spec = eval(self.spec_str)
+    print(self.spec_str)
+    print(self.spec)
+
+  def match(self, dp):
+    f = dp.feature()
+    return self.spec(f)
+
+
+
+
+
+
+
+

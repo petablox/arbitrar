@@ -1,6 +1,7 @@
 import sys
 
 from src.database.helpers import SourceFeatureVisualizer
+from src.database import FunctionSpec
 
 
 def x_to_string(x):
@@ -30,6 +31,9 @@ class ActiveLearner:
 
     if self.args.source:
       vis = SourceFeatureVisualizer(self.args.source)
+
+    if self.args.function_spec:
+      spec = FunctionSpec(self.args.function_spec)
 
     try:
       for attempt_count in range(self.amount):
@@ -68,8 +72,14 @@ class ActiveLearner:
 
           else:
             break
+
+        elif self.args.function_spec:
+            is_alarm = not spec.match(dp_i)
+            mark_whole_slice = False
+            print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
+
         else:
-          print("Must provide --ground-truth or --source. Aborting")
+          print("Must provide --ground-truth, --source, or --function-spec. Aborting")
           sys.exit()
 
         # Mark whole slice
