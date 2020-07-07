@@ -61,10 +61,3 @@ class FunctionSpec:
     f = dp.feature()
     return self.spec(f)
 
-
-
-
-
-
-
-

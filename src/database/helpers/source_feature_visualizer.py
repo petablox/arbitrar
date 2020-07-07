@@ -15,10 +15,11 @@ class SourceFeatureVisualizer():
     curses.savetty()
 
     curses.start_color()
+    curses.use_default_colors()
 
-    curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(1, curses.COLOR_YELLOW, -1)
+    curses.init_pair(2, curses.COLOR_RED, -1)
+    curses.init_pair(3, curses.COLOR_GREEN, -1)
 
     self.stdscr.clear()
 
@@ -158,7 +159,6 @@ class SourceFeatureVisualizer():
       sys.exit()
 
   def destroy(self):
-
     curses.endwin()
 
     # self.left_window.erase()
@@ -170,7 +170,6 @@ class SourceFeatureVisualizer():
     # del self.left_window
     # del self.right_window
 
-    # curses.resetty()
 
     # # Restore std screen
     # self.stdscr.touchwin()

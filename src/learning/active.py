@@ -80,7 +80,7 @@ def main(args):
   print("Active Learning...")
   active_learner = learners[args.active_learner]
   model = active_learner(datapoints, xs, amount_to_evaluate, args)
-  alarms, auc_graph, alarms_perc_graph = model.run()
+  alarms, auc_graph, alarms_perc_graph, pospoints = model.run()
 
   if args.ground_truth:
     print("Running Random Baseline...")
@@ -111,6 +111,14 @@ def main(args):
     for (dp, score) in alarms:
       s = f"{dp.bc},{dp.slice_id},{dp.trace_id},{score},\"{str(dp.alarms())}\"\n"
       f.write(s)
+
+  # Dump the yes points alarms
+  with open(f"{exp_dir}/match.csv", "w") as f:
+    f.write("bc,slice_id,trace_id,score,alarms\n")
+    for dp in pospoints:
+      s = f"{dp.bc},{dp.slice_id},{dp.trace_id},0,\"{str(dp.alarms())}\"\n"
+      f.write(s)
+
 
   # Dump the AUC graph
   auc = compute_and_dump_auc_graph(auc_graph, random_auc_graph, f"{args.function} AUC", exp_dir)

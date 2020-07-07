@@ -7,7 +7,7 @@ from ..helpers import SourceFeatureVisualizer
 class AlarmsQuery(Executor):
   @staticmethod
   def setup_parser(parser):
-    parser.add_argument('learning-dir', type=str, help="learning dir that contains alarms.csv")
+    parser.add_argument('learning-dir', type=str, help="path to alarms file")
     parser.add_argument('--source', type=str)
     parser.add_argument('--padding', type=int)
     parser.add_argument('--slice', action='store_true')
@@ -19,9 +19,9 @@ class AlarmsQuery(Executor):
 
     db = args.db
     var_args = vars(args)
-    fn = var_args["learning-dir"].split("-")[-1]
+    fn = var_args["learning-dir"].split("/")[-2].split("-")[-1]
 
-    pd = pandas.read_csv(os.path.join(var_args["learning-dir"], "alarms.csv"))
+    pd = pandas.read_csv(var_args["learning-dir"])
     nalarms = len(pd)
     lastslice = -1
     for i in range(nalarms):
@@ -44,3 +44,5 @@ class AlarmsQuery(Executor):
         result = vis.show(datapoint, label=f"{i}/{nalarms}")
         if not result:
           break
+
+    vis.destroy()

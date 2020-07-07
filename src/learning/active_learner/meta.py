@@ -28,6 +28,7 @@ class ActiveLearner:
     outlier_count = 0
     auc_graph = [0]
     alarms_perc_graph = []
+    pospoints = []
 
     if self.args.source:
       vis = SourceFeatureVisualizer(self.args.source)
@@ -100,8 +101,11 @@ class ActiveLearner:
 
           # Simulate the process
           if is_alarm:
+            pospoints.append(dp_i)
             outlier_count += 1
           auc_graph.append(outlier_count)
+
+
 
         # Mark similar
         # if self.args.mark_similar:
@@ -135,7 +139,7 @@ class ActiveLearner:
       print("")
 
     # return the result alarms and auc_graph
-    return self.alarms(self.args.num_alarms), auc_graph, alarms_perc_graph
+    return self.alarms(self.args.num_alarms), auc_graph, alarms_perc_graph, pospoints
 
   def select(self, ps):
     raise Exception("Child class of Active Learner should override this function")
