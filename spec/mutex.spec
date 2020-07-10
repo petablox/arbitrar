@@ -1,0 +1,1 @@
+lambda f: (f["invoked_before"]["mutex_unlock"]["invoked"] and f["invoked_before"]["mutex_unlock"]["share_argument"]) or (f["invoked_after"]["mutex_unlock"]["invoked"] and f["invoked_after"]["mutex_unlock"]["share_argument"])
