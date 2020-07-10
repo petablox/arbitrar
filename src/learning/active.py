@@ -114,9 +114,9 @@ def main(args):
 
   # Dump the yes points alarms
   with open(f"{exp_dir}/match.csv", "w") as f:
-    f.write("bc,slice_id,trace_id,score,alarms\n")
-    for dp in pospoints:
-      s = f"{dp.bc},{dp.slice_id},{dp.trace_id},0,\"{str(dp.alarms())}\"\n"
+    f.write("bc,slice_id,trace_id,score,alarms,attempt\n")
+    for (dp,attempt) in pospoints:
+      s = f"{dp.bc},{dp.slice_id},{dp.trace_id},0,\"{str(dp.alarms())}\",{attempt}\n"
       f.write(s)
 
 

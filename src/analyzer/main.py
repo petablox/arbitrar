@@ -170,10 +170,13 @@ def run_analyzer(db, bc_file, args):
         callee = slice_json["call_edge"]["callee"]
 
         # Remove existing folders
-        if (args.redo or args.redo_feature) and not callee in visited_funcs:
-          remove_path_if_existed(db.func_bc_slices_dir(callee, bc_name))
-          remove_path_if_existed(db.func_bc_dugraphs_dir(callee, bc_name))
-          remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
+        if not callee in visited_funcs:
+          if args.redo:
+            remove_path_if_existed(db.func_bc_slices_dir(callee, bc_name))
+            remove_path_if_existed(db.func_bc_dugraphs_dir(callee, bc_name))
+            remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
+          elif args.redo_feature:
+            remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
         visited_funcs.add(callee)
 
         # Calculate counts

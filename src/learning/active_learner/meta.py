@@ -101,7 +101,7 @@ class ActiveLearner:
 
           # Simulate the process
           if is_alarm:
-            pospoints.append(dp_i)
+            pospoints.append((dp_i,attempt_count))
             outlier_count += 1
           auc_graph.append(outlier_count)
 
