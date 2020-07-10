@@ -343,7 +343,10 @@ module IcmpBranchChecker = struct
   (* Predicate, Compare Against, Branch Taken, Immediate Branch *)
   (* Note: Immediate branch means the branch happens right after icmp, indicating there's no other
      variable involved in the branching decision. *)
-  type t = Checked of Predicate.t * int64 * Branch.t * bool | NoCheck
+  type t = 
+    | Checked of Predicate.t * int64 * Branch.t * bool 
+    | CheckedAgainstVar of Predicate.t * Branch.t
+    | NoCheck
 
   let rec find_br dugraph node level fringe : (Branch.t * bool) option =
     let immediate = level = 0 in
@@ -388,11 +391,16 @@ module IcmpBranchChecker = struct
               | Some (br, immediate) ->
                   let is_op0_const = Value.is_const op0 in
                   let is_op1_const = Value.is_const op1 in
-                  if is_op0_const && Value.sem_equal op1 var then
+                  let retval_is_op0 = Value.sem_equal op0 var in
+                  let retval_is_op1 = Value.sem_equal op1 var in
+                  if is_op0_const && retval_is_op1 then
                     Checked (pred, Value.get_const op0, br, immediate) :: result
-                  else if is_op1_const && Value.sem_equal op0 var then
+                  else if is_op1_const && retval_is_op0 then
                     Checked (pred, Value.get_const op1, br, immediate) :: result
-                  else result
+                  else if Value.sem_equal op1 var || Value.sem_equal op0 var then
+                    CheckedAgainstVar (pred, br) :: result
+                  else
+                    result
               | _ ->
                   result )
             | _ ->

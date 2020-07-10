@@ -58,6 +58,13 @@ module RetvalFeature = struct
         ; check_branch_taken= Some (br = Branch.Then)
         ; branch_is_zero= Some is_zero
         ; branch_not_zero= Some not_zero }
+    | IcmpBranchChecker.CheckedAgainstVar (pred, br) :: _ ->
+        { has_retval_check= true
+        ; check_predicate= Some pred
+        ; check_against= None
+        ; check_branch_taken= Some (br = Branch.Then)
+        ; branch_is_zero= None
+        ; branch_not_zero= None }
     | _ ->
         { has_retval_check= false
         ; check_predicate= None
