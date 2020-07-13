@@ -273,12 +273,27 @@ module Stmt = struct
         let callee_llvalue = Llvm.operand instr (num_of_operands - 1) in
         let callee_exp = Utils.EnvCache.string_of_exp cache callee_llvalue in
         let callee_type = Slicer.FunctionType.from_llvalue callee_llvalue in
+        let arg_exps =
+          List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i)
+        in
         let args =
-          List.fold_left
-            (fun args a ->
-              args @ [`String (Utils.EnvCache.string_of_exp cache a)])
-            []
-            (List.init (num_of_operands - 1) (fun i -> Llvm.operand instr i))
+          List.map
+            (fun a -> `String (Utils.EnvCache.string_of_exp cache a))
+            arg_exps
+        in
+        let arg_types =
+          List.map
+            (fun a ->
+              let arg =
+                match Llvm.classify_value a with
+                | Llvm.ValueKind.Instruction Llvm.Opcode.BitCast ->
+                    Llvm.operand a 0
+                | _ ->
+                    a
+              in
+              Slicer.TypeKind.to_json
+                (Slicer.TypeKind.from_lltype (Llvm.type_of arg)))
+            arg_exps
         in
         match Utils.exp_func_name callee_exp with
         | Some callee ->
@@ -287,13 +302,15 @@ module Stmt = struct
               ; ("result", result)
               ; ("func", `String callee)
               ; ("func_type", Slicer.FunctionType.to_json callee_type)
-              ; ("args", `List args) ]
+              ; ("args", `List args)
+              ; ("arg_types", `List arg_types) ]
         | None ->
             `Assoc
               [ opcode
               ; ("result", result)
               ; ("func", `String callee_exp)
-              ; ("args", `List args) ] )
+              ; ("args", `List args)
+              ; ("arg_types", `List arg_types) ] )
     | Select ->
         json_of_opcode "select"
     | UserOp1 ->
