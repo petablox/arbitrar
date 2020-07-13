@@ -51,10 +51,10 @@ class SourceFeatureVisualizer():
     slice = datapoint.slice()
     toks = slice['call_edge']['location'].split(":")
     if (len(toks) < 4):
-        path = ""
-        line = 0
+      path = ""
+      line = 0
     else:
-        path, _func, line, _col = toks[0], toks[1], int(toks[2]), toks[3]
+      path, _func, line, _col = toks[0], toks[1], int(toks[2]), toks[3]
 
     self.left_window.erase()
     self.right_window.erase()
@@ -169,7 +169,6 @@ class SourceFeatureVisualizer():
     # Delete windows
     # del self.left_window
     # del self.right_window
-
 
     # # Restore std screen
     # self.stdscr.touchwin()

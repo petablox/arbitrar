@@ -75,9 +75,9 @@ class ActiveLearner:
             break
 
         elif self.args.function_spec:
-            is_alarm = not spec.match(dp_i)
-            mark_whole_slice = False
-            print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
+          is_alarm = not spec.match(dp_i)
+          mark_whole_slice = False
+          print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
 
         else:
           print("Must provide --ground-truth, --source, or --function-spec. Aborting")
@@ -101,11 +101,9 @@ class ActiveLearner:
 
           # Simulate the process
           if is_alarm:
-            pospoints.append((dp_i,attempt_count))
+            pospoints.append((dp_i, attempt_count))
             outlier_count += 1
           auc_graph.append(outlier_count)
-
-
 
         # Mark similar
         # if self.args.mark_similar:

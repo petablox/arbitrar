@@ -115,10 +115,9 @@ def main(args):
   # Dump the yes points alarms
   with open(f"{exp_dir}/match.csv", "w") as f:
     f.write("bc,slice_id,trace_id,score,alarms,attempt\n")
-    for (dp,attempt) in pospoints:
+    for (dp, attempt) in pospoints:
       s = f"{dp.bc},{dp.slice_id},{dp.trace_id},0,\"{str(dp.alarms())}\",{attempt}\n"
       f.write(s)
-
 
   # Dump the AUC graph
   auc = compute_and_dump_auc_graph(auc_graph, random_auc_graph, f"{args.function} AUC", exp_dir)
