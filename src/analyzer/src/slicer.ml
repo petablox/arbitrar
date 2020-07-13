@@ -206,6 +206,8 @@ module TypeKind = struct
     | Other
   [@@deriving yojson {exn= true}]
 
+  let compare = compare
+
   let list_from_array arr = Array.fold_right (fun a ls -> a :: ls) arr []
 
   let from_lltype ty =
@@ -287,6 +289,133 @@ module Slice = struct
     let functions = LlvalueSet.elements function_set in
     let target_type = FunctionType.from_llvalue callee in
     {functions; entry; call_edge; target_type}
+
+  let have_common_prefix f1 f2 =
+    let n1 = Llvm.value_name f1 in
+    let n2 = Llvm.value_name f2 in
+    let common_length = min (String.length n1) (String.length n2) in
+    let chars = List.init common_length (fun i -> (n1.[i], n2.[i])) in
+    let common_prefix_length, _ =
+      List.fold_left
+        (fun (len, is_prefix) (c1, c2) ->
+          if is_prefix && c1 == c2 then (len + 1, true) else (len, false))
+        (0, true) chars
+    in
+    common_prefix_length > 0
+
+  module StringSet = Set.Make (String)
+  module TypeKindSet = Set.Make (TypeKind)
+
+  let used_structs ty =
+    let rec used_structs_helper used fringe =
+      match TypeKindSet.choose_opt fringe with
+      | Some ty -> (
+          let new_fringe = TypeKindSet.remove ty fringe in
+          match ty with
+          | TypeKind.NamedStruct name ->
+              let new_used = StringSet.add name used in
+              used_structs_helper new_used new_fringe
+          | Function (ret_ty, arg_tys) ->
+              used_structs_helper used
+                (TypeKindSet.union
+                   (TypeKindSet.of_list (ret_ty :: arg_tys))
+                   new_fringe)
+          | Array (ty, _) ->
+              used_structs_helper used (TypeKindSet.add ty new_fringe)
+          | Pointer ty ->
+              used_structs_helper used (TypeKindSet.add ty new_fringe)
+          | Vector (ty, _) ->
+              used_structs_helper used (TypeKindSet.add ty new_fringe)
+          | _ ->
+              used_structs_helper used new_fringe )
+      | None ->
+          used
+    in
+    used_structs_helper StringSet.empty (TypeKindSet.singleton ty)
+
+  let have_common_struct_type f1 f2 =
+    let r1, a1 = FunctionType.from_llvalue f1 in
+    let r2, a2 = FunctionType.from_llvalue f2 in
+    let structs1 = used_structs (TypeKind.Function (r1, a1)) in
+    let structs2 = used_structs (TypeKind.Function (r2, a2)) in
+    not (StringSet.disjoint structs1 structs2)
+
+  let within_function_group f1 f2 =
+    if f1 == f2 then true
+    else if have_common_prefix f1 f2 then true
+    else have_common_struct_type f1 f2
+
+  module LlvalueMap = Map.Make (struct
+    type t = Llvm.llvalue
+
+    let compare = compare
+  end)
+
+  let merge_map (m1 : 'a LlvalueMap.t) (m2 : 'a LlvalueMap.t)
+      (f : 'a -> 'a -> 'a) : 'a LlvalueMap.t =
+    LlvalueMap.fold
+      (fun key v2 map ->
+        match LlvalueMap.find_opt key map with
+        | Some v1 ->
+            LlvalueMap.update key (fun _ -> Some (f v1 v2)) map
+        | None ->
+            LlvalueMap.add key v2 map)
+      m2 m1
+
+  let reduce call_graph slice =
+    let target = slice.call_edge.callee in
+    let slice_fn_set = LlvalueSet.of_list slice.functions in
+    let rec is_related visited is_related_map fn =
+      match LlvalueMap.find_opt fn is_related_map with
+      | Some _ ->
+          (visited, is_related_map)
+      | None ->
+          if LlvalueSet.mem fn visited then
+            (* Stop when visiting the same function e.g. recursion *)
+            (visited, is_related_map)
+          else
+            let visited = LlvalueSet.add fn visited in
+            let directly_related = within_function_group target fn in
+            if directly_related then
+              (visited, LlvalueMap.update fn (fun _ -> Some true) is_related_map)
+            else if LlvalueSet.mem fn slice_fn_set then
+              let callees = CallGraph.succ call_graph fn in
+              let visited, is_related_map, fn_is_related =
+                List.fold_left
+                  (fun (visited, is_related_map, fn_is_related) callee ->
+                    let visited, is_related_map =
+                      is_related visited is_related_map callee
+                    in
+                    let callee_is_related =
+                      match LlvalueMap.find_opt callee is_related_map with
+                      | Some b ->
+                          b
+                      | None ->
+                          false
+                    in
+                    (visited, is_related_map, callee_is_related))
+                  (visited, is_related_map, false)
+                  callees
+              in
+              ( visited
+              , LlvalueMap.update fn
+                  (fun _ -> Some fn_is_related)
+                  is_related_map )
+            else
+              ( visited
+              , LlvalueMap.update fn (fun _ -> Some false) is_related_map )
+    in
+    let _, is_related_map =
+      List.fold_left
+        (fun (visited, is_related_map) fn ->
+          is_related visited is_related_map fn)
+        (LlvalueSet.empty, LlvalueMap.empty)
+        slice.functions
+    in
+    let functions =
+      List.filter (fun fn -> LlvalueMap.find fn is_related_map) slice.functions
+    in
+    {slice with functions}
 
   let to_json llm slice : Yojson.Safe.t =
     let functions =
@@ -557,6 +686,10 @@ let slice llctx llm depth : Slices.t =
               let location = Utils.string_of_location cache llctx instr in
               let slice =
                 Slice.create callees entry caller instr callee location
+              in
+              let slice =
+                if !Options.reduce_slice then Slice.reduce call_graph slice
+                else slice
               in
               (num_slices + 1, slice :: acc))
             entries (num_slices, slices)

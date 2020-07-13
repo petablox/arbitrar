@@ -27,6 +27,8 @@ let include_func = ref ""
 
 let exclude_func = ref ""
 
+let reduce_slice = ref false
+
 (* Occurrence Options *)
 let occ_output_csv = ref true
 
@@ -83,7 +85,8 @@ let slicer_opts_local =
     , Arg.Set_int min_freq
     , "Target function requires minimum amount of slices" )
   ; ("-include-fn", Arg.Set_string include_func, "Target function regex")
-  ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex") ]
+  ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex")
+  ; ("-reduce-slice", Arg.Set reduce_slice, "Reduce Slice") ]
 
 let occurrence_opts_local =
   [("-json", Arg.Set occ_output_json, "Output .json file")]
