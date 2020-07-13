@@ -386,7 +386,7 @@ let process_trace features_dir func (trace : Trace.t) =
       (fun assoc extractor ->
         let module M = (val extractor : FEATURE) in
         if M.filter func then (
-          Printf.printf "Extracting trace %d/%d with %s\r" trace.slice_id
+          Printf.printf "Extracting trace %d/%d with %s    \r" trace.slice_id
             trace.trace_id M.name ;
           let result = M.extract func trace in
           let json_result = M.to_yojson result in
@@ -418,6 +418,7 @@ let main input_directory =
       (fun _ (func, trace) ->
         Printf.printf "Initializing with trace %d/%d   \r" trace.slice_id
           trace.trace_id ;
+        flush stdout ;
         List.iter
           (fun extractor ->
             let module M = (val extractor : FEATURE) in
