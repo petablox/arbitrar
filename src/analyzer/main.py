@@ -64,29 +64,23 @@ def run_analyzer(db, bc_file, args):
     temp_outdir = f"{temp_dir}/{bc_name}"
 
   # Marker files
-  occurrence_finished_file = f"{temp_outdir}/occur_fin.txt"
+  occurrence_file = db.occurrence_json_dir(bc_name)
   analyze_finished_file = f"{temp_outdir}/anal_fin.txt"
   move_finished_file = f"{temp_outdir}/move_fin.txt"
 
-  # Clear the files in the analysis/ if we need to redo anything
-  # if args.redo or args.commit:
-  #   db.clear_analysis_of_bc(bc_file)
-
+  # Check temporary directory
   has_temp_dir = os.path.exists(temp_outdir)
 
   # Check if occurrence analysis is finished
-  has_occurrence_finished_file = os.path.exists(occurrence_finished_file)
-  occurrence_finished = has_temp_dir and has_occurrence_finished_file
+  has_occurrence_file = os.path.exists(occurrence_file)
 
   # Run occurrence if not finished
-  if args.redo_occurrence or not occurrence_finished:
+  if args.redo_occurrence or not has_occurrence_file:
     cmd = ['./analyzer', 'occurrence', bc_file, '-json', '-exclude-fn', exclude_fn, '-outdir', temp_outdir]
 
     subprocess.run(cmd, cwd=this_path)
 
-    shutil.copy(f"{temp_outdir}/occurrence.json", f"{db.occurrence_dir()}/{bc_name}.json")
-
-    open(occurrence_finished_file, 'a').close()
+    shutil.copy(f"{temp_outdir}/occurrence.json", occurrence_file)
   else:
     print(f"Skipping occurrence counting of {bc_name}")
 
