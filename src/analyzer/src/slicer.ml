@@ -198,6 +198,7 @@ module TypeKind = struct
     | Double
     | Integer
     | Function of t * t list
+    | NamedStruct of string
     | Struct of t list
     | Array of t * int
     | Pointer of t
@@ -227,9 +228,13 @@ module TypeKind = struct
             let ll_ret = Llvm.return_type ty in
             let ll_args = list_from_array (Llvm.param_types ty) in
             Function (recur ll_ret, List.map recur ll_args)
-        | Llvm.TypeKind.Struct ->
-            let ll_elems = list_from_array (Llvm.struct_element_types ty) in
-            Struct (List.map recur ll_elems)
+        | Llvm.TypeKind.Struct -> (
+          match Llvm.struct_name ty with
+          | Some name ->
+              NamedStruct name
+          | None ->
+              let ll_elems = list_from_array (Llvm.struct_element_types ty) in
+              Struct (List.map recur ll_elems) )
         | Llvm.TypeKind.Array ->
             let elem = Llvm.element_type ty in
             let length = Llvm.array_length ty in
