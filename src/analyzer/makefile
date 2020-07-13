@@ -19,7 +19,9 @@ tests/%.bc: tests/%.c
 	$(RM) "./a.out" ".$(*F).o" "$(*F).o"
 	$(MV) ".$(*F).o.bc" "$@"
 
-clean:
+clean: clean-analyzer clean-tests
+
+clean-analyzer:
 	$(OCAMLBUILD) -clean
 
 clean-tests:
