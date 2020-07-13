@@ -343,8 +343,8 @@ module IcmpBranchChecker = struct
   (* Predicate, Compare Against, Branch Taken, Immediate Branch *)
   (* Note: Immediate branch means the branch happens right after icmp, indicating there's no other
      variable involved in the branching decision. *)
-  type t = 
-    | Checked of Predicate.t * int64 * Branch.t * bool 
+  type t =
+    | Checked of Predicate.t * int64 * Branch.t * bool
     | CheckedAgainstVar of Predicate.t * Branch.t
     | NoCheck
 
@@ -397,10 +397,9 @@ module IcmpBranchChecker = struct
                     Checked (pred, Value.get_const op0, br, immediate) :: result
                   else if is_op1_const && retval_is_op0 then
                     Checked (pred, Value.get_const op1, br, immediate) :: result
-                  else if Value.sem_equal op1 var || Value.sem_equal op0 var then
-                    CheckedAgainstVar (pred, br) :: result
-                  else
-                    result
+                  else if Value.sem_equal op1 var || Value.sem_equal op0 var
+                  then CheckedAgainstVar (pred, br) :: result
+                  else result
               | _ ->
                   result )
             | _ ->
