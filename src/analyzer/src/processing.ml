@@ -221,7 +221,11 @@ end
 
 module Statement = struct
   type t =
-    | Call of {func: string; args: Value.t list; result: Value.t option}
+    | Call of
+        { func: string
+        ; func_type: FunctionType.t
+        ; args: Value.t list
+        ; result: Value.t option }
     | Assume of {pred: Predicate.t; op0: Value.t; op1: Value.t; result: Value.t}
     | ConditionalBranch of {br: Branch.t}
     | UnconditionalBranch
@@ -244,6 +248,9 @@ module Statement = struct
 
   let call_from_json json : t =
     let func = Utils.string_from_json_field json "func" in
+    let func_type =
+      Utils.get_field json "func_type" |> FunctionType.from_json
+    in
     let args =
       Utils.list_from_json (Utils.get_field json "args_sem")
       |> List.map Value.of_json
@@ -255,7 +262,7 @@ module Statement = struct
       | _ ->
           None
     in
-    Call {func; args; result}
+    Call {func; func_type; args; result}
 
   let return_from_json json : t =
     let op0 =
