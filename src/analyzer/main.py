@@ -6,6 +6,8 @@ import shutil
 import re
 import string
 
+from .utils import Timer
+
 this_path = os.path.dirname(os.path.realpath(__file__))
 
 exclude_fn = r'^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
@@ -56,6 +58,8 @@ def remove_path_if_existed(path):
 
 
 def run_analyzer(db, bc_file, args):
+  all_timer = Timer()
+
   bc_name = ntpath.basename(bc_file)
   temp_dir = db.temp_dir(create=True)
   if "include_fn" in args and args.include_fn:
@@ -77,11 +81,15 @@ def run_analyzer(db, bc_file, args):
 
   # Run occurrence if not finished
   if args.redo_occurrence or not has_occurrence_file:
+    print("Calculating function occurrences...")
+    occurrence_timer = Timer()
     cmd = ['./analyzer', 'occurrence', bc_file, '-json', '-exclude-fn', exclude_fn, '-outdir', temp_outdir]
-
-    subprocess.run(cmd, cwd=this_path)
-
-    shutil.copy(f"{temp_outdir}/occurrence.json", occurrence_file)
+    run = subprocess.run(cmd, cwd=this_path)
+    if run.returncode != 0:
+      print("Occurrence Failed")
+    else:
+      shutil.copy(f"{temp_outdir}/occurrence.json", occurrence_file)
+      print(f"Occurrence Finished. Elapsed {occurrence_timer.time():0.2f}s")
   else:
     print(f"Skipping occurrence counting of {bc_name}")
 
@@ -91,6 +99,9 @@ def run_analyzer(db, bc_file, args):
 
   # Analyze if not finished
   if args.redo or not analyze_finished:
+    print("Starting Analysis...")
+    analysis_timer = Timer()
+
     cmd = [
         './analyzer', bc_file, '-no-analysis', '-n',
         str(args.slice_size), '-exclude-fn', exclude_fn, '-causality-dict-size',
@@ -136,26 +147,31 @@ def run_analyzer(db, bc_file, args):
       print(run.stderr)
       return
 
+    print(f"Analysis finished in {analysis_timer.time():0.2f}s")
+
     # Save a file indicating the state of analysis
     open(analyze_finished_file, 'a').close()
 
   # Only run feature extraction
   elif args.redo_feature:
+    print("Extracting Features...")
+    feature_extraction_timer = Timer()
     run = subprocess.run([
         './analyzer', 'feature', '-exclude-fn', exclude_fn, '-causality-dict-size',
         str(args.causality_dict_size), temp_outdir
     ],
                          cwd=this_path)
-
     if run.returncode != 0:
       print(f"Analysis of {bc_name} failed")
       return
-
+    print(f"Feature Extraction Finished in {feature_extraction_timer.time():0.2f}s")
   else:
     print(f"Skipping analysis of {bc_name}")
 
   # Check if database commit needs to be done
   if args.redo or args.commit or args.redo_feature or not os.path.exists(move_finished_file):
+    print("Storing Analyzed Database...")
+    commit_timer = Timer()
 
     visited_funcs = set()
 
@@ -217,7 +233,7 @@ def run_analyzer(db, bc_file, args):
 
     # Store the status
     open(move_finished_file, "a").close()
-
-    print(f"\nFinished analysis of {bc_name}")
+    print(f"\nCommitting Analysis Data Finished in {commit_timer.time():0.2f}s")
+    print(f"Finished analysis of {bc_name} in {all_timer.time():0.2f}s")
   else:
     print(f"Skipping committing analysis data of {bc_name}")
