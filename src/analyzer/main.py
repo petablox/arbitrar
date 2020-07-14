@@ -133,6 +133,7 @@ def run_analyzer(db, bc_file, args):
 
     if run.returncode != 0:
       print(f"\nAnalysis of {bc_name} failed")
+      print(run.stderr)
       return
 
     # Save a file indicating the state of analysis

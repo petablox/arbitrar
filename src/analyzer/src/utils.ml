@@ -35,12 +35,6 @@ let contains s1 s2 =
     false
   with Exit -> true
 
-let range n =
-  let rec aux acc i =
-    if i = 0 then i :: acc else aux ((i - 1) :: acc) (i - 1)
-  in
-  aux [] n
-
 let name_of_ll_value_kind (vk : Llvm.ValueKind.t) : string =
   match vk with
   | Llvm.ValueKind.NullValue ->

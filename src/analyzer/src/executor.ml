@@ -620,6 +620,7 @@ and transfer_switch llctx instr env state =
   let state = {state with State.prev_blk= Some (Llvm.instr_parent instr)} in
   let _switch_target_ = Llvm.operand instr 0 in
   let default_block = Llvm.block_of_value (Llvm.operand instr 1) in
+  let num_cases = (Llvm.num_operands instr - 2) / 2 in
   let cases : (Int64.t * Llvm.llbasicblock) list =
     List.map
       (fun i ->
@@ -634,7 +635,7 @@ and transfer_switch llctx instr env state =
             (case, target_block)
         | None ->
             raise Utils.InvalidSwitchCase)
-      (Utils.range ((Llvm.num_operands instr - 2) / 2))
+      (Utils.range num_cases)
   in
   let env_with_works =
     List.fold_left
