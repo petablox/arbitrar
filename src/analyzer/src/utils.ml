@@ -679,21 +679,25 @@ let is_void_type t =
 
 let function_of_instr instr = Llvm.instr_parent instr |> Llvm.block_parent
 
-let is_dummy_function f : bool =
-  let r1 = Str.regexp "llvm\\.dbg\\..+" in
-  let r2 = Str.regexp "llvm\\.lifetime\\..+" in
-  let r3 = Str.regexp "__asan_.+" in
-  Str.string_match r1 (Llvm.value_name f) 0
-  || Str.string_match r2 (Llvm.value_name f) 0
-  || Str.string_match r3 (Llvm.value_name f) 0
+let is_dummy_function =
+  let r0 = Str.regexp "__.+" in
+  let r1 = Str.regexp "llvm\\..+" in
+  let r2 = Str.regexp "__asan_.+" in
+  fun f ->
+    let fn_name = Llvm.value_name f in
+    Str.string_match r0 fn_name 0
+    || Str.string_match r1 fn_name 0
+    || Str.string_match r2 fn_name 0
 
-let is_dummy_function_slow f : bool =
-  let r1 = Str.regexp "llvm\\.dbg\\..+" in
-  let r2 = Str.regexp "llvm\\.lifetime\\..+" in
-  let r3 = Str.regexp "__asan_.+" in
-  Str.string_partial_match r1 (Llvm.value_name f) 0
-  || Str.string_partial_match r2 (Llvm.value_name f) 0
-  || Str.string_partial_match r3 (Llvm.value_name f) 0
+let is_dummy_function_slow =
+  let r0 = Str.regexp "__.+" in
+  let r1 = Str.regexp "llvm\\..+" in
+  let r2 = Str.regexp "__asan_.+" in
+  fun f ->
+    let fn_name = Llvm.value_name f in
+    Str.string_match r0 fn_name 0
+    || Str.string_match r1 fn_name 0
+    || Str.string_match r2 fn_name 0
 
 let get_abs_path (name : string) =
   let is_starting_from_root = name.[0] = '/' in

@@ -365,55 +365,51 @@ module Slice = struct
   let reduce call_graph slice =
     let target = slice.call_edge.callee in
     let slice_fn_set = LlvalueSet.of_list slice.functions in
-    let rec is_related visited is_related_map fn =
-      match LlvalueMap.find_opt fn is_related_map with
-      | Some _ ->
-          (visited, is_related_map)
-      | None ->
-          if LlvalueSet.mem fn visited then
-            (* Stop when visiting the same function e.g. recursion *)
-            (visited, is_related_map)
+    let rec is_related visited is_related_map queue =
+      match queue with
+      | fn :: tl ->
+          if LlvalueMap.mem fn is_related_map || LlvalueSet.mem fn visited then
+            is_related visited is_related_map tl
           else
             let visited = LlvalueSet.add fn visited in
             let directly_related = within_function_group target fn in
             if directly_related then
-              (visited, LlvalueMap.update fn (fun _ -> Some true) is_related_map)
+              is_related visited (LlvalueMap.add fn true is_related_map) tl
             else if LlvalueSet.mem fn slice_fn_set then
               let callees = CallGraph.succ call_graph fn in
-              let visited, is_related_map, fn_is_related =
+              let fn_is_related, callee_need_work =
                 List.fold_left
-                  (fun (visited, is_related_map, fn_is_related) callee ->
-                    let visited, is_related_map =
-                      is_related visited is_related_map callee
-                    in
-                    let callee_is_related =
-                      match LlvalueMap.find_opt callee is_related_map with
-                      | Some b ->
-                          b
-                      | None ->
-                          false
-                    in
-                    (visited, is_related_map, callee_is_related))
-                  (visited, is_related_map, false)
-                  callees
+                  (fun (fn_is_related, callee_need_work) callee ->
+                    if LlvalueSet.mem callee visited then
+                      let callee_is_related =
+                        match LlvalueMap.find_opt callee is_related_map with
+                        | Some callee_is_related -> callee_is_related
+                        | None -> false
+                      in
+                      (fn_is_related || callee_is_related, callee_need_work)
+                    else
+                      (fn_is_related, callee :: callee_need_work))
+                  (false, []) callees
               in
-              ( visited
-              , LlvalueMap.update fn
-                  (fun _ -> Some fn_is_related)
-                  is_related_map )
+              if List.length callee_need_work > 0 then
+                is_related visited is_related_map (callee_need_work @ queue)
+              else
+                is_related visited (LlvalueMap.add fn fn_is_related is_related_map) tl
             else
-              ( visited
-              , LlvalueMap.update fn (fun _ -> Some false) is_related_map )
+              is_related visited (LlvalueMap.add fn false is_related_map) tl
+      | [] -> (visited, is_related_map)
     in
     let _, is_related_map =
       List.fold_left
         (fun (visited, is_related_map) fn ->
-          is_related visited is_related_map fn)
+          is_related visited is_related_map [fn])
         (LlvalueSet.empty, LlvalueMap.empty)
         slice.functions
     in
     let functions =
-      List.filter (fun fn -> LlvalueMap.find fn is_related_map) slice.functions
+      List.filter
+        (fun fn -> LlvalueMap.find_opt fn is_related_map |> Option.value ~default:false)
+        slice.functions
     in
     {slice with functions}
 
@@ -674,7 +670,7 @@ let slice llctx llm depth : Slices.t =
               let entry_set = LlvalueSet.singleton entry in
               let callees =
                 let all_callees =
-                  find_callees (2 * depth) call_graph callee entry_set entry_set
+                  find_callees (depth + 1) call_graph callee entry_set entry_set
                 in
                 LlvalueSet.filter
                   (fun callee ->

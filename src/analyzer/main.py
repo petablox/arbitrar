@@ -28,6 +28,7 @@ def setup_parser(parser):
   parser.add_argument('--pretty-json', action='store_true', help='Prettify JSON')
   parser.add_argument('--causality-dict-size', type=int, default=5)
   parser.add_argument('--commit', action='store_true', help='Commit the analysis data to the database')
+  parser.add_argument('--reduce-slice', action='store_true')
 
 
 def main(args):
@@ -92,7 +93,7 @@ def run_analyzer(db, bc_file, args):
   if args.redo or not analyze_finished:
     cmd = [
         './analyzer', bc_file, '-no-analysis', '-n',
-        str(args.slice_size), '-reduce-slice', '-exclude-fn', exclude_fn, '-causality-dict-size',
+        str(args.slice_size), '-exclude-fn', exclude_fn, '-causality-dict-size',
         str(args.causality_dict_size), '-outdir', temp_outdir
     ]
 
@@ -124,10 +125,14 @@ def run_analyzer(db, bc_file, args):
       print(f"Setting verbose level to {args.verbose}")
       cmd += ['-verbose', str(args.verbose)]
 
+    if args.reduce_slice:
+      print(f"Use slice reduction")
+      cmd += ['-reduce-slice']
+
     run = subprocess.run(cmd, cwd=this_path)
 
     if run.returncode != 0:
-      print(f"Analysis of {bc_name} failed")
+      print(f"\nAnalysis of {bc_name} failed")
       return
 
     # Save a file indicating the state of analysis
