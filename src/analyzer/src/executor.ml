@@ -794,9 +794,10 @@ and finish_execution llctx env state fstate =
   in
   let out_of_explored = env.metadata.num_explored > !Options.max_trials in
   if Worklist.is_empty env.worklist || out_of_traces || out_of_explored then env
-  else
+  else (
+    Gc.compact () ;
     let (blk, state), wl = Worklist.pop env.worklist in
-    execute_block llctx blk {env with worklist= wl} state
+    execute_block llctx blk {env with worklist= wl} state )
 
 let find_starting_point initial =
   let starting =

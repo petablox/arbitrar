@@ -383,21 +383,24 @@ module Slice = struct
                     if LlvalueSet.mem callee visited then
                       let callee_is_related =
                         match LlvalueMap.find_opt callee is_related_map with
-                        | Some callee_is_related -> callee_is_related
-                        | None -> false
+                        | Some callee_is_related ->
+                            callee_is_related
+                        | None ->
+                            false
                       in
                       (fn_is_related || callee_is_related, callee_need_work)
-                    else
-                      (fn_is_related, callee :: callee_need_work))
+                    else (fn_is_related, callee :: callee_need_work))
                   (false, []) callees
               in
               if List.length callee_need_work > 0 then
                 is_related visited is_related_map (callee_need_work @ queue)
               else
-                is_related visited (LlvalueMap.add fn fn_is_related is_related_map) tl
-            else
-              is_related visited (LlvalueMap.add fn false is_related_map) tl
-      | [] -> (visited, is_related_map)
+                is_related visited
+                  (LlvalueMap.add fn fn_is_related is_related_map)
+                  tl
+            else is_related visited (LlvalueMap.add fn false is_related_map) tl
+      | [] ->
+          (visited, is_related_map)
     in
     let _, is_related_map =
       List.fold_left
@@ -408,7 +411,8 @@ module Slice = struct
     in
     let functions =
       List.filter
-        (fun fn -> LlvalueMap.find_opt fn is_related_map |> Option.value ~default:false)
+        (fun fn ->
+          LlvalueMap.find_opt fn is_related_map |> Option.value ~default:false)
         slice.functions
     in
     {slice with functions}
@@ -416,8 +420,9 @@ module Slice = struct
   let to_json llm slice : Yojson.Safe.t =
     let functions =
       `List
-        (List.map
-           (fun f -> `String (Utils.GlobalCache.ll_func f |> Option.get))
+        (List.filter_map
+           (fun f ->
+             Utils.GlobalCache.ll_func f |> Option.map (fun s -> `String s))
            slice.functions)
     in
     let fn_type = FunctionType.to_json slice.target_type in
@@ -465,12 +470,10 @@ module Slices = struct
   type t = Slice.t list
 
   let to_json llm slices =
-    let count = ref 0 in
     `List
-      (List.map
-         (fun slice ->
-           Printf.printf "Converting slice #%d to json...\r" !count ;
-           count := !count + 1 ;
+      (List.mapi
+         (fun i slice ->
+           Printf.printf "Converting slice #%d to json...\r" i ;
            flush stdout ;
            Slice.to_json llm slice)
          slices)

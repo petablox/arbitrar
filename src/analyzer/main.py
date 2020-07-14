@@ -140,11 +140,11 @@ def run_analyzer(db, bc_file, args):
       print(f"Use slice reduction")
       cmd += ['-reduce-slice']
 
-    run = subprocess.run(cmd, cwd=this_path)
+    run = subprocess.run(cmd, cwd=this_path, env={'OCAMLRUNPARAM': 'b'})
 
     if run.returncode != 0:
       print(f"\nAnalysis of {bc_name} failed")
-      print(run.stderr)
+      print("Stderr: ", run.stderr)
       return
 
     print(f"Analysis finished in {analysis_timer.time():0.2f}s")

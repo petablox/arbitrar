@@ -55,9 +55,14 @@ let setup_ll_module input_file =
 
 let slice lc outdir llctx llm : Slicer.Slices.t =
   let t0 = Sys.time () in
-  (* Generate slices and dump json *)
+  (* Generate slices *)
   let slices = Slicer.slice llctx llm !Options.slice_depth in
+  (* Clean up GC *)
+  Gc.compact () ;
+  (* Dump json *)
   Slicer.Slices.dump_json ~prefix:outdir llm slices ;
+  (* Clean up GC *)
+  Gc.compact () ;
   (* Log and print *)
   let str = Printf.sprintf "Slicing complete in %f sec\n" (Sys.time () -. t0) in
   Printf.printf "%s" str ;
@@ -105,6 +110,7 @@ let execute lc outdir llctx llm slices =
              let _ =
                run_one_slice lc outdir llctx llm initial_state idx slice
              in
+             Gc.compact () ;
              Printf.printf "Doing symbolic execution on %d slice %c\r"
                num_slices (loading idx) ;
              flush stdout)
