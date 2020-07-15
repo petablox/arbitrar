@@ -555,6 +555,8 @@ module EdgeEntriesMap = struct
             Some entries)
       map
 
+  let size map = EdgeMap.cardinal map
+
   let empty = EdgeMap.empty
 
   let fold = EdgeMap.fold
@@ -631,21 +633,38 @@ let gen_filter inc exc : string -> bool =
   let is_excluding = gen_exc_filter exc in
   fun str -> is_including str && not (is_excluding str)
 
-let slice llctx llm depth : Slices.t =
-  let is_excluding = gen_exc_filter !Options.exclude_func in
-  let filter = gen_filter !Options.include_func !Options.exclude_func in
-  let call_graph = CallGraph.from_llm llm in
-  if !Options.output_callgraph then dump_call_graph call_graph ;
+module SlicingContext = struct
+  type t =
+    { llctx: Llvm.llcontext
+    ; llm: Llvm.llmodule
+    ; is_excluding: string -> bool
+    ; filter: string -> bool
+    ; call_graph: CallGraph.t
+    ; depth: int
+    ; cache: Utils.EnvCache.t }
+
+  let create llctx llm depth : t =
+    let is_excluding = gen_exc_filter !Options.exclude_func in
+    let filter = gen_filter !Options.include_func !Options.exclude_func in
+    let call_graph = CallGraph.from_llm llm in
+    let cache = Utils.EnvCache.empty () in
+    {llctx; llm; is_excluding; filter; call_graph; depth; cache}
+end
+
+let call_edges (slicing_ctx : SlicingContext.t) :
+    FunctionCounter.t * EdgeEntriesMap.t =
   let _, func_counter, edge_entries =
     CallGraph.fold_edges_instr_set
       (fun edge (i, func_counter, edge_entries) ->
         Printf.printf "Slicing edge #%d...\r" i ;
         flush stdout ;
         let caller, _, callee = edge in
-        if filter (Utils.GlobalCache.ll_func callee |> Option.get) then
+        if slicing_ctx.filter (Utils.GlobalCache.ll_func callee |> Option.get)
+        then
           let singleton_caller = LlvalueSet.singleton caller in
           let entries =
-            find_entries depth call_graph singleton_caller LlvalueSet.empty
+            find_entries slicing_ctx.depth slicing_ctx.call_graph
+              singleton_caller LlvalueSet.empty
           in
           let num_entries = LlvalueSet.cardinal entries in
           let func_counter =
@@ -654,46 +673,61 @@ let slice llctx llm depth : Slices.t =
           let edge_entries = EdgeEntriesMap.add edge_entries edge entries in
           (i + 1, func_counter, edge_entries)
         else (i + 1, func_counter, edge_entries))
-      call_graph
+      slicing_ctx.call_graph
       (0, FunctionCounter.empty, EdgeEntriesMap.empty)
   in
-  Printf.printf "\nDone creating edge entries map\n" ;
+  (func_counter, edge_entries)
+
+let slices_from_edges (func_counter : FunctionCounter.t)
+    (edge_entries : EdgeEntriesMap.t) (slicing_ctx : SlicingContext.t) :
+    int * Slices.t =
+  EdgeEntriesMap.fold
+    (fun edge entries (num_slices, slices) ->
+      let caller, instr, callee = edge in
+      let count = FunctionCounter.get func_counter callee in
+      if count >= !Options.min_freq then
+        LlvalueSet.fold
+          (fun entry (num_slices, acc) ->
+            Printf.printf "Processing slice #%d...\r" num_slices ;
+            flush stdout ;
+            let entry_set = LlvalueSet.singleton entry in
+            let callees =
+              let all_callees =
+                find_callees (slicing_ctx.depth + 1) slicing_ctx.call_graph
+                  callee entry_set entry_set
+              in
+              LlvalueSet.filter
+                (fun callee ->
+                  not
+                    (slicing_ctx.is_excluding
+                       (Utils.GlobalCache.ll_func callee |> Option.get)))
+                all_callees
+            in
+            let location =
+              Utils.string_of_location slicing_ctx.cache slicing_ctx.llctx instr
+            in
+            let slice =
+              Slice.create callees entry caller instr callee location
+            in
+            let slice =
+              if !Options.reduce_slice then
+                Slice.reduce slicing_ctx.call_graph slice
+              else slice
+            in
+            (num_slices + 1, slice :: acc))
+          entries (num_slices, slices)
+      else (num_slices, slices))
+    edge_entries (0, [])
+
+let slice llctx llm depth : Slices.t =
+  let slicing_ctx = SlicingContext.create llctx llm depth in
+  if !Options.output_callgraph then dump_call_graph slicing_ctx.call_graph ;
+  let func_counter, edge_entries = call_edges slicing_ctx in
+  Printf.printf "\nDone creating edge entries map containing %d call edges\n"
+    (EdgeEntriesMap.size edge_entries) ;
   flush stdout ;
-  let cache = Utils.EnvCache.empty () in
   let num_slices, slices =
-    EdgeEntriesMap.fold
-      (fun edge entries (num_slices, slices) ->
-        let caller, instr, callee = edge in
-        let count = FunctionCounter.get func_counter callee in
-        if count >= !Options.min_freq then
-          LlvalueSet.fold
-            (fun entry (num_slices, acc) ->
-              Printf.printf "Processing slice #%d...\r" num_slices ;
-              flush stdout ;
-              let entry_set = LlvalueSet.singleton entry in
-              let callees =
-                let all_callees =
-                  find_callees (depth + 1) call_graph callee entry_set entry_set
-                in
-                LlvalueSet.filter
-                  (fun callee ->
-                    not
-                      (is_excluding
-                         (Utils.GlobalCache.ll_func callee |> Option.get)))
-                  all_callees
-              in
-              let location = Utils.string_of_location cache llctx instr in
-              let slice =
-                Slice.create callees entry caller instr callee location
-              in
-              let slice =
-                if !Options.reduce_slice then Slice.reduce call_graph slice
-                else slice
-              in
-              (num_slices + 1, slice :: acc))
-            entries (num_slices, slices)
-        else (num_slices, slices))
-      edge_entries (0, [])
+    slices_from_edges func_counter edge_entries slicing_ctx
   in
   Printf.printf "\nSlicer done creating %d slices\n" num_slices ;
   flush stdout ;

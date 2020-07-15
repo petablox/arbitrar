@@ -402,19 +402,25 @@ let process_trace features_dir func (trace : Trace.t) =
   in
   Yojson.Safe.to_file outfile json
 
-let init_features_dir input_directory =
-  let features_dir = input_directory ^ "/features" in
-  Utils.mkdir features_dir ; features_dir
+let init_features_dirs input_directory =
+  if !Options.use_batch then
+    List.map
+      (fun batch_folder ->
+        let batch_feature_dir = batch_folder ^ "/features" in
+        Utils.mkdir batch_feature_dir ;
+        (batch_folder, batch_feature_dir))
+      (batch_folders input_directory)
+  else
+    let features_dir = input_directory ^ "/features" in
+    Utils.mkdir features_dir ; [(input_directory, features_dir)]
 
 let main input_directory =
   Printf.printf "Extracting Features for %s...\n" input_directory ;
   flush stdout ;
-  let features_dir = init_features_dir input_directory in
-  let dugraphs_dir = input_directory ^ "/dugraphs" in
-  let slices_json_dir = input_directory ^ "/slices.json" in
+  let out_dirs = init_features_dirs input_directory in
   (* Initialize the extractors with traces *)
   let _ =
-    fold_traces dugraphs_dir slices_json_dir
+    fold_traces input_directory
       (fun _ (func, trace) ->
         Printf.printf "Initializing with trace %d/%d   \r" trace.slice_id
           trace.trace_id ;
@@ -428,11 +434,16 @@ let main input_directory =
   in
   (* Run extractors on every trace *)
   let _ =
-    fold_traces dugraphs_dir slices_json_dir
-      (fun _ (func, trace) ->
-        flush stdout ;
-        process_trace features_dir func trace)
-      ()
+    List.iteri
+      (fun i (batch_dir, batch_feature_dir) ->
+        if !Options.use_batch then
+          Printf.printf "Doing feature extraction on batch %d...\n" i ;
+        fold_traces_normal batch_dir
+          (fun _ (func, trace) ->
+            flush stdout ;
+            process_trace batch_feature_dir func trace)
+          ())
+      out_dirs
   in
   Printf.printf "Done Feature Extraction\n" ;
   ()

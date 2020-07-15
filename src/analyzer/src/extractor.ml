@@ -35,8 +35,6 @@ let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
   Executor.dump_dugraphs ~prefix:dugraphs_prefix env ;
   env
 
-(* This should never happen *)
-
 let log_command log_channel : unit =
   Printf.fprintf log_channel "Command:\n# " ;
   Array.iter (fun arg -> Printf.fprintf log_channel "%s " arg) Sys.argv ;
@@ -121,15 +119,76 @@ let execute lc outdir llctx llm slices =
       in
       Printf.printf "\n%s" msg ; flush stdout ; Printf.fprintf lc "%s" msg )
 
-let main input_file =
+let extractor_main input_file =
   Printf.printf "Running extractor on %s...\n" input_file ;
   flush stdout ;
   let outdir = Options.outdir () in
   Utils.initialize_output_directories outdir ;
+  flush stdout ;
   let log_channel = setup_loc_channel outdir in
+  Printf.printf "Loading input file %s...\n" input_file ;
+  flush stdout ;
   let llctx, llm = setup_ll_module input_file in
   Printf.printf "Slicing program...\n" ;
   flush stdout ;
   let slices = get_slices log_channel outdir llctx llm in
   let _ = execute log_channel outdir llctx llm slices in
   close_out log_channel
+
+let get_batches edge_entries =
+  let _, last_batch, batches =
+    Slicer.EdgeEntriesMap.fold
+      (fun edge entries (index, curr_batch, batches) ->
+        if index > 0 && index mod !Options.batch_size == 0 then
+          ( index + 1
+          , Slicer.EdgeEntriesMap.add Slicer.EdgeEntriesMap.empty edge entries
+          , curr_batch :: batches )
+        else
+          (index + 1, Slicer.EdgeEntriesMap.add curr_batch edge entries, batches))
+      edge_entries
+      (0, Slicer.EdgeEntriesMap.empty, [])
+  in
+  last_batch :: batches
+
+let batched_extractor_main input_file =
+  Printf.printf "Running extractor with batch size %d on %s...\n"
+    !Options.batch_size input_file ;
+  flush stdout ;
+  let outdir = Options.outdir () in
+  Utils.mkdir outdir ;
+  Printf.printf "Loading input file %s...\n" input_file ;
+  flush stdout ;
+  let llctx, llm = setup_ll_module input_file in
+  Printf.printf "Generating slicing context...\n" ;
+  flush stdout ;
+  let slicing_ctx =
+    Slicer.SlicingContext.create llctx llm !Options.slice_depth
+  in
+  Printf.printf "Generating call edges...\n" ;
+  flush stdout ;
+  let func_counter, edge_entries = Slicer.call_edges slicing_ctx in
+  Printf.printf "Generating batches with %d call edges...\n"
+    (Slicer.EdgeEntriesMap.size edge_entries) ;
+  flush stdout ;
+  let batches = get_batches edge_entries in
+  Printf.printf "Dividing into %d batches...\n" (List.length batches) ;
+  flush stdout ;
+  List.iteri
+    (fun i batched_edge_entries ->
+      Printf.printf "Executing batch %d with %d edges...\n" i
+        (Slicer.EdgeEntriesMap.size batched_edge_entries) ;
+      flush stdout ;
+      let outdir = Options.batched_outdir i in
+      Utils.initialize_output_directories outdir ;
+      let log_channel = setup_loc_channel outdir in
+      let num_slices, slices =
+        Slicer.slices_from_edges func_counter batched_edge_entries slicing_ctx
+      in
+      Slicer.Slices.dump_json ~prefix:outdir llm slices ;
+      let _ = execute log_channel outdir llctx llm slices in
+      close_out log_channel)
+    batches
+
+let main input_file =
+  if !Options.use_batch then batched_extractor_main input_file
+  else extractor_main input_file

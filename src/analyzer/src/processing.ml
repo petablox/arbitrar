@@ -479,7 +479,18 @@ let func_type_from_slice_json slice_json : FunctionType.t =
   let func_type_json = Utils.get_field slice_json "target_type" in
   FunctionType.of_yojson_exn func_type_json
 
-let fold_traces dugraphs_dir slices_json_dir
+let batch_folders input_directory : string list =
+  let batch_dirs = Sys.readdir input_directory in
+  Array.fold_left
+    (fun acc batch_dir ->
+      if String.length batch_dir > 6 && String.sub batch_dir 0 5 = "batch" then
+        let full_batch_dir = input_directory ^ "/" ^ batch_dir in
+        full_batch_dir :: acc
+      else
+        acc)
+    [] batch_dirs
+
+let fold_traces_with_dirs dugraphs_dir slices_json_dir
     (f : 'a -> Function.t * Trace.t -> 'a) (base : 'a) =
   let slices_json = Yojson.Safe.from_file slices_json_dir in
   let slice_json_list = Utils.list_from_json slices_json in
@@ -512,10 +523,21 @@ let fold_traces dugraphs_dir slices_json_dir
   in
   result
 
-let fold_traces_with_filter dugraphs_dir slices_json_dir filter f base =
-  fold_traces dugraphs_dir slices_json_dir
-    (fun acc info -> if filter info then f acc info else acc)
-    base
+let fold_traces_normal dir f base =
+  let dugraphs_dir = dir ^ "/dugraphs" in
+  let slices_json_dir = dir ^ "/slices.json" in
+  fold_traces_with_dirs dugraphs_dir slices_json_dir f base
+
+let fold_traces dir (f : 'a -> Function.t * Trace.t -> 'a) (base : 'a) =
+  if !Options.use_batch then
+    List.fold_left
+      (fun acc batch_folder -> fold_traces_normal batch_folder f acc)
+      base (batch_folders dir)
+  else
+    fold_traces_normal dir f base
+
+let fold_traces_with_filter dir filter f base =
+  fold_traces dir (fun acc info -> if filter info then f acc info else acc) base
 
 module IdSet = struct
   module SliceIdMap = Map.Make (struct
@@ -561,7 +583,9 @@ module IdSet = struct
     | _ ->
         raise Utils.InvalidJSON
 
-  let label dugraphs_dir label bugs : unit =
+  let label dir label bugs : unit =
+    (* TODO: Support reading from root directory *)
+    let dugraphs_dir = dir ^ "/dugraphs" in
     SliceIdMap.iter
       (fun (func_name, slice_id) trace_ids ->
         let dugraph_json_dir =

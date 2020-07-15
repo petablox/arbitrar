@@ -112,7 +112,7 @@ let needs_run_checker checker_name : bool =
   if String.equal !Options.checker "all" then true
   else String.equal checker_name !Options.checker
 
-let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
+let run_one_checker dir ana_dir i cs_mod =
   let module M = (val cs_mod : CHECKER_STATS) in
   if needs_run_checker M.Checker.name then (
     Printf.printf "Running checker #%d: %s...\n" i M.Checker.name ;
@@ -122,7 +122,7 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
       (not (Trace.has_label "no-context" trace)) && M.Checker.filter func
     in
     let stats, checked_traces =
-      fold_traces_with_filter dug_dir slcs_dir filter
+      fold_traces_with_filter dir filter
         (fun ((stats, idset) : M.stats * IdSet.t)
              ((func_name, func_type, num_traces), trace) ->
           Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
@@ -163,7 +163,7 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
     let bugs_brief_oc = open_out (checker_dir ^ "/bugs_brief.csv") in
     Printf.fprintf bugs_brief_oc "%s" brief_header ;
     let bugs, _ =
-      fold_traces_with_filter dug_dir slcs_dir filter
+      fold_traces_with_filter dir filter
         (fun (bugs, last_slice) (func, trace) ->
           Printf.printf "%d slices loaded (trace_id: %d)\r" (trace.slice_id + 1)
             trace.trace_id ;
@@ -200,9 +200,9 @@ let run_one_checker dug_dir slcs_dir ana_dir i cs_mod =
     Printf.printf "\nLabeling bugs in-place...\n" ;
     flush stdout ;
     let alarm_label = M.Checker.name ^ "-alarm" in
-    IdSet.label dug_dir alarm_label bugs ;
+    IdSet.label dir alarm_label bugs ;
     let checked_label = M.Checker.name ^ "-checked" in
-    IdSet.label dug_dir checked_label checked_traces ;
+    IdSet.label dir checked_label checked_traces ;
     close_out results_oc ;
     close_out bugs_oc ;
     close_out bugs_brief_oc )
@@ -234,8 +234,6 @@ let main (input_directory : string) =
   Printf.printf "Analyzing %s...\n" input_directory ;
   flush stdout ;
   let analysis_dir = init_analysis_dir input_directory in
-  let dugraphs_dir = input_directory ^ "/dugraphs" in
-  let slices_json_dir = input_directory ^ "/slices.json" in
   List.iteri
-    (run_one_checker dugraphs_dir slices_json_dir analysis_dir)
+    (run_one_checker input_directory analysis_dir)
     checker_stats_modules

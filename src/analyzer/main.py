@@ -31,6 +31,8 @@ def setup_parser(parser):
   parser.add_argument('--causality-dict-size', type=int, default=5)
   parser.add_argument('--commit', action='store_true', help='Commit the analysis data to the database')
   parser.add_argument('--reduce-slice', action='store_true')
+  parser.add_argument('--use-batch', action='store_true')
+  parser.add_argument('--batch-size', type=int)
 
 
 def main(args):
@@ -140,6 +142,14 @@ def run_analyzer(db, bc_file, args):
       print(f"Use slice reduction")
       cmd += ['-reduce-slice']
 
+    if args.use_batch:
+      print(f"Use batched execution")
+      cmd += ['-use-batch']
+
+    if args.batch_size != None:
+      print(f"Use batch size {args.batch_size}")
+      cmd += ['-batch-size', str(args.batch_size)]
+
     run = subprocess.run(cmd, cwd=this_path, env={'OCAMLRUNPARAM': 'b'})
 
     if run.returncode != 0:
@@ -156,11 +166,21 @@ def run_analyzer(db, bc_file, args):
   elif args.redo_feature:
     print("Extracting Features...")
     feature_extraction_timer = Timer()
-    run = subprocess.run([
+
+    cmd = [
         './analyzer', 'feature', '-exclude-fn', exclude_fn, '-causality-dict-size',
         str(args.causality_dict_size), temp_outdir
-    ],
-                         cwd=this_path)
+    ]
+
+    if args.use_batch:
+      print(f"Use batched execution")
+      cmd += ['-use-batch']
+
+    if args.batch_size != None:
+      print(f"Use batch size {args.batch_size}")
+      cmd += ['-batch-size', str(args.batch_size)]
+
+    run = subprocess.run(cmd, cwd=this_path)
     if run.returncode != 0:
       print(f"Analysis of {bc_name} failed")
       return
@@ -175,61 +195,70 @@ def run_analyzer(db, bc_file, args):
 
     visited_funcs = set()
 
-    # Move files over to real location
-    # First we move slices
-    with open(f"{temp_outdir}/slices.json") as f:
-      func_counts = {}
-      slices_json = json.load(f)
-      for slice_id, slice_json in enumerate(slices_json):
-        print(f"Commiting slice #{slice_id}", end="\r")
+    if args.use_batch:
+      outdirs = [os.path.join(temp_outdir, d) for d in os.listdir(temp_outdir) if "batch_" in d]
+    else:
+      outdirs = [temp_outdir]
 
-        callee = slice_json["call_edge"]["callee"]
+    slice_count = 0
+    func_counts = {}
+    for outdir in outdirs:
 
-        # Remove existing folders
-        if not callee in visited_funcs:
-          if args.redo:
-            remove_path_if_existed(db.func_bc_slices_dir(callee, bc_name))
-            remove_path_if_existed(db.func_bc_dugraphs_dir(callee, bc_name))
-            remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
-          elif args.redo_feature:
-            remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
-        visited_funcs.add(callee)
+      # Move files over to real location
+      # First we move slices
+      with open(f"{outdir}/slices.json") as f:
+        slices_json = json.load(f)
+        for local_slice_id, slice_json in enumerate(slices_json):
+          slice_count += 1
+          print(f"Commiting slice #{slice_count}", end="\r")
 
-        # Calculate counts
-        if callee in func_counts:
-          index = func_counts[callee]
-          func_counts[callee] += 1
-        else:
-          index = 0
-          func_counts[callee] = 1
+          callee = slice_json["call_edge"]["callee"]
 
-        # If we are not redoing feature
-        if not args.redo_feature:
+          # Remove existing folders
+          if not callee in visited_funcs:
+            if args.redo:
+              remove_path_if_existed(db.func_bc_slices_dir(callee, bc_name))
+              remove_path_if_existed(db.func_bc_dugraphs_dir(callee, bc_name))
+              remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
+            elif args.redo_feature:
+              remove_path_if_existed(db.func_bc_features_dir(callee, bc_name))
+          visited_funcs.add(callee)
 
-          # Move slices
-          fpd = db.func_bc_slices_dir(callee, bc_name, create=True)
-          with open(f"{fpd}/{index}.json", "w") as out:
-            json.dump(slice_json, out)
+          # Calculate counts
+          if callee in func_counts:
+            index = func_counts[callee]
+            func_counts[callee] += 1
+          else:
+            index = 0
+            func_counts[callee] = 1
 
-          # Then we move dugraphs
-          dugraphs_dir = db.func_bc_slice_dugraphs_dir(callee, bc_name, index, create=True)
-          with open(f"{temp_outdir}/dugraphs/{callee}-{slice_id}.json") as dgs_file:
-            dgs_json = json.load(dgs_file)
-            num_traces = len(dgs_json)
-            for trace_id, dg_json in enumerate(dgs_json):
-              with open(f"{dugraphs_dir}/{trace_id}.json", "w") as out:
-                json.dump(dg_json, out)
-        else:
-          with open(f"{temp_outdir}/dugraphs/{callee}-{slice_id}.json") as dgs_file:
-            dgs_json = json.load(dgs_file)
-            num_traces = len(dgs_json)
+          # If we are not redoing feature
+          if not args.redo_feature:
 
-        # We move extracted features
-        features_dir = db.func_bc_slice_features_dir(callee, bc_name, index, create=True)
-        for trace_id in range(num_traces):
-          source = f"{temp_outdir}/features/{callee}/{slice_id}-{trace_id}.json"
-          target = f"{features_dir}/{trace_id}.json"
-          shutil.copyfile(source, target)
+            # Move slices
+            fpd = db.func_bc_slices_dir(callee, bc_name, create=True)
+            with open(f"{fpd}/{index}.json", "w") as out:
+              json.dump(slice_json, out)
+
+            # Then we move dugraphs
+            dugraphs_dir = db.func_bc_slice_dugraphs_dir(callee, bc_name, index, create=True)
+            with open(f"{outdir}/dugraphs/{callee}-{local_slice_id}.json") as dgs_file:
+              dgs_json = json.load(dgs_file)
+              num_traces = len(dgs_json)
+              for trace_id, dg_json in enumerate(dgs_json):
+                with open(f"{dugraphs_dir}/{trace_id}.json", "w") as out:
+                  json.dump(dg_json, out)
+          else:
+            with open(f"{outdir}/dugraphs/{callee}-{local_slice_id}.json") as dgs_file:
+              dgs_json = json.load(dgs_file)
+              num_traces = len(dgs_json)
+
+          # We move extracted features
+          features_dir = db.func_bc_slice_features_dir(callee, bc_name, index, create=True)
+          for trace_id in range(num_traces):
+            source = f"{outdir}/features/{callee}/{local_slice_id}-{trace_id}.json"
+            target = f"{features_dir}/{trace_id}.json"
+            shutil.copyfile(source, target)
 
     # Store the status
     open(move_finished_file, "a").close()

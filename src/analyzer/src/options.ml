@@ -8,6 +8,8 @@ let outdir_ = ref "llextractor-out"
 
 let outdir () = Utils.get_abs_path !outdir_
 
+let batched_outdir i = outdir () ^ Printf.sprintf "/batch_%d" i
+
 let verbose = ref 0
 
 let pretty_json = ref false
@@ -28,6 +30,10 @@ let include_func = ref ""
 let exclude_func = ref ""
 
 let reduce_slice = ref false
+
+let use_batch = ref false
+
+let batch_size = ref 500
 
 (* Occurrence Options *)
 let occ_output_csv = ref true
@@ -86,7 +92,9 @@ let slicer_opts_local =
     , "Target function requires minimum amount of slices" )
   ; ("-include-fn", Arg.Set_string include_func, "Target function regex")
   ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex")
-  ; ("-reduce-slice", Arg.Set reduce_slice, "Reduce Slice") ]
+  ; ("-reduce-slice", Arg.Set reduce_slice, "Reduce Slice")
+  ; ("-use-batch", Arg.Set use_batch, "Use batched execution")
+  ; ("-batch-size", Arg.Set_int batch_size, "Batch size") ]
 
 let occurrence_opts_local =
   [("-json", Arg.Set occ_output_json, "Output .json file")]

@@ -295,22 +295,18 @@ module Stmt = struct
                 (Slicer.TypeKind.from_lltype (Llvm.type_of arg)))
             arg_exps
         in
-        match Utils.exp_func_name callee_exp with
-        | Some callee ->
-            `Assoc
-              [ opcode
-              ; ("result", result)
-              ; ("func", `String callee)
-              ; ("func_type", Slicer.FunctionType.to_json callee_type)
-              ; ("args", `List args)
-              ; ("arg_types", `List arg_types) ]
-        | None ->
-            `Assoc
-              [ opcode
-              ; ("result", result)
-              ; ("func", `String callee_exp)
-              ; ("args", `List args)
-              ; ("arg_types", `List arg_types) ] )
+        let callee_str =
+          match Utils.exp_func_name callee_exp with
+          | Some callee -> callee
+          | None -> callee_exp
+        in
+        `Assoc
+          [ opcode
+          ; ("result", result)
+          ; ("func", `String callee_str)
+          ; ("func_type", Slicer.FunctionType.to_json callee_type)
+          ; ("args", `List args)
+          ; ("arg_types", `List arg_types) ] )
     | Select ->
         json_of_opcode "select"
     | UserOp1 ->

@@ -9,7 +9,7 @@ TEST_BC_FILES = $(patsubst tests/%.c, tests/%.bc, $(TEST_C_FILES))
 all: build tests
 
 build:
-	$(OCAMLBUILD) -tag thread -tag debug src/main.native
+	$(OCAMLBUILD) -tag thread src/main.native
 	$(MV) main.native analyzer
 
 tests: $(TEST_BC_FILES)

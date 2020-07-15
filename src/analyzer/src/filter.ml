@@ -106,13 +106,10 @@ let has_context (trace : Trace.t) : bool =
 
 let do_filter_and_label input_directory =
   Printf.printf "Filtering %s...\n" input_directory ;
-  flush stdout ;
-  let dugraphs_dir = input_directory ^ "/dugraphs" in
-  let slices_json_dir = input_directory ^ "/slices.json" in
   Printf.printf "Loading traces...\n" ;
   flush stdout ;
   let no_contexts =
-    fold_traces dugraphs_dir slices_json_dir
+    fold_traces input_directory
       (fun acc (_, trace) ->
         let keep = has_context trace in
         if not keep then
@@ -124,7 +121,7 @@ let do_filter_and_label input_directory =
   in
   Printf.printf "Labeling filter result...\n" ;
   flush stdout ;
-  IdSet.label dugraphs_dir "no-context" no_contexts
+  IdSet.label input_directory "no-context" no_contexts
 
 let main input_directory : unit =
   if not !Options.no_filter then do_filter_and_label input_directory
