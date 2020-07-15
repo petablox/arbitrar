@@ -25,10 +25,23 @@ class FeatureGroup:
 
   def encode(self, feature_json) -> List[int]:
     j = utils.get_dot_separated_field(feature_json, self.field())
-    if j != None:
+    if j != None and isinstance(j, dict):
       return [int(j[f]) if j[f] != None else -1 for f in self.fields]
     else:
       raise Exception(f"Cannot get field {self.field()} from json {feature_json}")
+
+
+class ContextFeatureGroup(FeatureGroup):
+  fields = ["no_context"]
+
+  def __init__(self, fixed):
+    super().__init__(fixed)
+
+  def field(self) -> str:
+    return "context"
+
+  def meaning_of(self, i) -> str:
+    return f"context.{self.fields[i]}"
 
 
 class ArgvalFeatureGroup(FeatureGroup):
@@ -77,10 +90,21 @@ class CausalityFeatureGroup(FeatureGroup):
   def meaning_of(self, i) -> str:
     return f"{self.invoked_type.value}.{self.function_name}.{self.fields[i]}"
 
+  @staticmethod
+  def default() -> dict:
+    return {f: False for f in CausalityFeatureGroup.fields}
+
 
 class FeatureGroups:
-  def __init__(self, sample_feature_json, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
+  def __init__(self, sample_feature_json, enable_no_context=True, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
     self.groups = []
+
+    if enable_no_context:
+      context_group = ContextFeatureGroup(False)
+      if FeatureGroups.should_be_fixed(context_group, fix_groups):
+        context_group.fixed = True
+      self.groups.append(context_group)
+
     if enable_causality:
       for invoked_type in InvokedType:
         for function_name in sample_feature_json[invoked_type.value]:
@@ -88,12 +112,14 @@ class FeatureGroups:
           if FeatureGroups.should_be_fixed(caus_group, fix_groups):
             caus_group.fixed = True
           self.groups.append(caus_group)
+
     if enable_retval:
       retval_group = RetvalFeatureGroup(False)
       if utils.has_dot_separated_field(sample_feature_json, retval_group.field()):
         if FeatureGroups.should_be_fixed(retval_group, fix_groups):
           retval_group.fixed = True
         self.groups.append(retval_group)
+
     if enable_argval:
       for arg_i in [0, 1, 2, 3]:
         ith_argval_group = ArgvalFeatureGroup(False, arg_i)

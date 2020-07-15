@@ -1,3 +1,5 @@
+from .feature_group import CausalityFeatureGroup
+
 def unify_features_with_sample(datapoints, unified):
   def unify_feature(datapoint, unified):
     feature = datapoint.feature()
@@ -26,10 +28,10 @@ def unify_features(datapoints):
     # First invoked before
     for func in invoked_before.keys():
       if not func in feature["invoked_before"]:
-        feature["invoked_before"][func] = False
+        feature["invoked_before"][func] = CausalityFeatureGroup.default()
     # Then invoked after
     for func in invoked_after.keys():
       if not func in feature["invoked_after"]:
-        feature["invoked_after"][func] = False
+        feature["invoked_after"][func] = CausalityFeatureGroup.default()
 
   return features

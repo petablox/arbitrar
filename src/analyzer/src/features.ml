@@ -21,10 +21,10 @@ module type FEATURE = sig
   val to_yojson : t -> Yojson.Safe.t
 end
 
-module NoContextFeature = struct
-  type t = bool [@@deriving to_yojson]
+module ContextFeature = struct
+  type t = {no_context: bool} [@@deriving to_yojson]
 
-  let name = "no_context"
+  let name = "context"
 
   let init_with_trace _ _ = ()
 
@@ -135,7 +135,7 @@ module NoContextFeature = struct
 
   let extract _ trace =
     let has_context = args_initialized trace || result_used trace in
-    not has_context
+    {no_context= not has_context}
 end
 
 module RetvalFeature = struct
@@ -488,7 +488,7 @@ module InvokedAfterFeature = struct
 end
 
 let feature_extractors : (module FEATURE) list =
-  [ (module NoContextFeature)
+  [ (module ContextFeature)
   ; (module RetvalFeature)
   ; (module InvokedAfterFeature)
   ; (module InvokedBeforeFeature)

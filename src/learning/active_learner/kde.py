@@ -198,6 +198,7 @@ class KDELearner(ActiveLearner):
   def setup_parser(parser):
     parser.add_argument('--kde-score', type=str, default="score_7", help='Score Function')
     parser.add_argument('--kde-bandwidth', type=float)
+    parser.add_argument('--kde-cv', type=int, default=10)
     parser.add_argument('--p-pos', type=float, default=0.1)
 
   def select(self, unlabeled):
@@ -222,7 +223,7 @@ class KDELearner(ActiveLearner):
     mean_dist = np.mean(dists)
     low, high = mean_dist / 10.0, mean_dist * 10.0
     print(f"Selecting bandwidth from {low} to {high} with log scale...")
-    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=10)
+    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=self.args.kde_cv)
     grid.fit(X)
     bandwidth = grid.best_params_['bandwidth']
     print(f"Selected bandwidth: {bandwidth}")
