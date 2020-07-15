@@ -635,7 +635,7 @@ let slice llctx llm depth : Slices.t =
   let is_excluding = gen_exc_filter !Options.exclude_func in
   let filter = gen_filter !Options.include_func !Options.exclude_func in
   let call_graph = CallGraph.from_llm llm in
-  dump_call_graph call_graph ;
+  if !Options.output_callgraph then dump_call_graph call_graph ;
   let _, func_counter, edge_entries =
     CallGraph.fold_edges_instr_set
       (fun edge (i, func_counter, edge_entries) ->
