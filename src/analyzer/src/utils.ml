@@ -298,7 +298,7 @@ let initialize_output_directories outdir =
 (* LLVM utility functions *)
 
 let is_control_flow = function
-  | Llvm.Opcode.Ret | Llvm.Opcode.Br | Llvm.Opcode.Switch ->
+  | Llvm.Opcode.Ret | Llvm.Opcode.Br | Llvm.Opcode.Switch | Llvm.Opcode.Call ->
       true
   | _ ->
       false
