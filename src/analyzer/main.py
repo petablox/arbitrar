@@ -182,7 +182,7 @@ def run_analyzer(db, bc_file, args):
 
     run = subprocess.run(cmd, cwd=this_path)
     if run.returncode != 0:
-      print(f"Analysis of {bc_name} failed")
+      print(f"Analysis of {bc_name} failed after {feature_extraction_timer.time():0.2f}s")
       return
     print(f"Feature Extraction Finished in {feature_extraction_timer.time():0.2f}s")
   else:
@@ -192,7 +192,6 @@ def run_analyzer(db, bc_file, args):
   if args.redo or args.commit or args.redo_feature or not os.path.exists(move_finished_file):
     print("Storing Analyzed Database...")
     commit_timer = Timer()
-
     visited_funcs = set()
 
     if args.use_batch:

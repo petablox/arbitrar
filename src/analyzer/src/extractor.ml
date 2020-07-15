@@ -175,6 +175,7 @@ let batched_extractor_main input_file =
   flush stdout ;
   List.iteri
     (fun i batched_edge_entries ->
+      Gc.compact () ;
       Printf.printf "Executing batch %d with %d edges...\n" i
         (Slicer.EdgeEntriesMap.size batched_edge_entries) ;
       flush stdout ;

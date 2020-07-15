@@ -640,15 +640,13 @@ module SlicingContext = struct
     ; is_excluding: string -> bool
     ; filter: string -> bool
     ; call_graph: CallGraph.t
-    ; depth: int
-    ; cache: Utils.EnvCache.t }
+    ; depth: int }
 
   let create llctx llm depth : t =
     let is_excluding = gen_exc_filter !Options.exclude_func in
     let filter = gen_filter !Options.include_func !Options.exclude_func in
     let call_graph = CallGraph.from_llm llm in
-    let cache = Utils.EnvCache.empty () in
-    {llctx; llm; is_excluding; filter; call_graph; depth; cache}
+    {llctx; llm; is_excluding; filter; call_graph; depth}
 end
 
 let call_edges (slicing_ctx : SlicingContext.t) :
@@ -681,6 +679,7 @@ let call_edges (slicing_ctx : SlicingContext.t) :
 let slices_from_edges (func_counter : FunctionCounter.t)
     (edge_entries : EdgeEntriesMap.t) (slicing_ctx : SlicingContext.t) :
     int * Slices.t =
+  let cache = Utils.EnvCache.empty () in
   EdgeEntriesMap.fold
     (fun edge entries (num_slices, slices) ->
       let caller, instr, callee = edge in
@@ -704,7 +703,7 @@ let slices_from_edges (func_counter : FunctionCounter.t)
                 all_callees
             in
             let location =
-              Utils.string_of_location slicing_ctx.cache slicing_ctx.llctx instr
+              Utils.string_of_location cache slicing_ctx.llctx instr
             in
             let slice =
               Slice.create callees entry caller instr callee location
