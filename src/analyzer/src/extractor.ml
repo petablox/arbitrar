@@ -8,7 +8,7 @@ let run_one_slice lc outdir llctx llm initial_state idx (slice : Slicer.Slice.t)
   let entry = slice.entry in
   let target = poi.instr in
   let initial_state = State.set_target_instr target initial_state in
-  let env = Executor.Environment.empty target in
+  let env = Executor.Environment.empty llctx target in
   let env =
     Executor.execute_function llctx entry
       {env with boundaries; initial_state}

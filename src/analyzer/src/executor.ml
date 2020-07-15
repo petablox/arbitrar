@@ -25,8 +25,8 @@ module Traces = struct
 
   let length = List.length
 
-  let to_json cache t =
-    let l = List.map (Trace.to_json cache) t in
+  let to_json llctx cache t =
+    let l = List.map (Trace.to_json llctx cache) t in
     `List l
 end
 
@@ -101,7 +101,8 @@ module Path = Graph.Path.Check (DUGraph)
 
 module Environment = struct
   type t =
-    { metadata: Metadata.t
+    { llctx: Llvm.llcontext
+    ; metadata: Metadata.t
     ; initial_state: State.t
     ; worklist: Worklist.t
     ; traces: Traces.t
@@ -112,8 +113,9 @@ module Environment = struct
     ; z3_ctx: Z3.context
     ; discarded: Traces.t }
 
-  let empty target =
-    { metadata= Metadata.empty
+  let empty llctx target =
+    { llctx
+    ; metadata= Metadata.empty
     ; initial_state= State.empty
     ; worklist= Worklist.empty ()
     ; traces= Traces.empty
@@ -831,27 +833,27 @@ let find_target_instr llm =
 let print_report oc env =
   Printf.fprintf oc "# Traces: %d\n" (Traces.length env.Environment.traces)
 
-let dump_traces ?(prefix = "") env =
-  let json = Traces.to_json env.Environment.cache env.traces in
+let dump_traces ?(prefix = "") (env : Environment.t) =
+  let json = Traces.to_json env.llctx env.cache env.traces in
   let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc json ;
   close_out oc
 
-let dump_discarded ?(prefix = "") env =
-  let json = Traces.to_json env.Environment.cache env.discarded in
+let dump_discarded ?(prefix = "") (env : Environment.t) =
+  let json = Traces.to_json env.llctx env.cache env.discarded in
   let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc json ;
   close_out oc
 
-let dump_dots ?(prefix = "") env =
+let dump_dots ?(prefix = "") (env : Environment.t) =
   List.iteri
     (fun idx (g, _) ->
       let oc = open_out (prefix ^ "-" ^ string_of_int idx ^ ".dot") in
       GraphViz.output_graph oc g ; close_out oc)
     env.Environment.dugraphs
 
-let dump_dugraphs ?(prefix = "") env =
-  let json = List.map (DUGraph.to_json env.Environment.cache) env.dugraphs in
+let dump_dugraphs ?(prefix = "") (env : Environment.t) =
+  let json = List.map (DUGraph.to_json env.llctx env.Environment.cache) env.dugraphs in
   let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc (`List json) ;
   close_out oc

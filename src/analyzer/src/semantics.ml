@@ -96,7 +96,7 @@ module Stmt = struct
     | True ->
         `String "true"
 
-  let json_of_instr cache instr =
+  let json_of_instr llctx cache instr =
     let num_of_operands = Llvm.num_operands instr in
     match Llvm.instr_opcode instr with
     | Llvm.Opcode.Invalid ->
@@ -123,7 +123,8 @@ module Stmt = struct
           | _ ->
               `Null
         in
-        `Assoc [opcode; ("cond", cond)]
+        let is_loop = Utils.is_loop llctx instr in
+        `Assoc [opcode; ("cond", cond); ("is_loop", `Bool is_loop)]
     | Switch ->
         let opcode = ("opcode", `String "switch") in
         let op0 =
@@ -352,7 +353,7 @@ module Stmt = struct
     | CallBr ->
         json_of_opcode "callbr"
 
-  let to_json cache s =
+  let to_json llctx cache s =
     let common = [("location", `String s.location)] in
     let common =
       if !Options.include_instr then
@@ -360,7 +361,7 @@ module Stmt = struct
         :: common
       else common
     in
-    match json_of_instr cache s.instr with
+    match json_of_instr llctx cache s.instr with
     | `Assoc l ->
         `Assoc (common @ l)
     | _ ->
@@ -1034,8 +1035,8 @@ module Node = struct
 
   let label v = "[" ^ v.stmt.location ^ "]\n" ^ Stmt.to_string v.stmt
 
-  let to_json cache v =
-    match (Stmt.to_json cache v.stmt, v.semantic_sig) with
+  let to_json llctx cache v =
+    match (Stmt.to_json llctx cache v.stmt, v.semantic_sig) with
     | `Assoc j, `Assoc k ->
         `Assoc ([("id", `Int v.id)] @ j @ k)
     | _ ->
@@ -1055,8 +1056,8 @@ module Trace = struct
 
   let length = List.length
 
-  let to_json cache t =
-    let l = List.fold_left (fun l x -> Node.to_json cache x :: l) [] t in
+  let to_json llctx cache t =
+    let l = List.fold_left (fun l x -> Node.to_json llctx cache x :: l) [] t in
     `List l
 end
 
@@ -1132,12 +1133,12 @@ module DUGraph = struct
 
   let default_vertex_attributes g = [`Shape `Box]
 
-  let to_json cache (g, fstate) =
+  let to_json llctx cache (g, fstate) =
     let vertices, target_id =
       fold_vertex
         (fun v (l, t) ->
           let t = if v.Node.is_target then v.Node.id else t in
-          let vertex = Node.to_json cache v in
+          let vertex = Node.to_json llctx cache v in
           (vertex :: l, t))
         g ([], -1)
     in

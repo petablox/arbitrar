@@ -668,6 +668,10 @@ let string_of_location cache llctx instr =
   | None ->
       func ^ ":0:0"
 
+let is_loop llctx instr =
+  let loop = Llvm.metadata instr (Llvm.mdkind_id llctx "llvm.loop") in
+  Option.is_some loop
+
 let is_void_type t =
   match Llvm.classify_type t with Llvm.TypeKind.Void -> true | _ -> false
 
