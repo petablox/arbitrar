@@ -33,7 +33,7 @@ let reduce_slice = ref false
 
 let use_batch = ref false
 
-let batch_size = ref 500
+let batch_size = ref 200
 
 (* Occurrence Options *)
 let occ_output_csv = ref true

@@ -225,6 +225,7 @@ module Statement = struct
         { func: string
         ; func_type: FunctionType.t
         ; args: Value.t list
+        ; arg_types: TypeKind.t list
         ; result: Value.t option }
     | Assume of {pred: Predicate.t; op0: Value.t; op1: Value.t; result: Value.t}
     | ConditionalBranch of {br: Branch.t}
@@ -255,6 +256,10 @@ module Statement = struct
       Utils.list_from_json (Utils.get_field json "args_sem")
       |> List.map Value.of_json
     in
+    let arg_types =
+      Utils.list_from_json (Utils.get_field json "arg_types")
+      |> List.map TypeKind.from_json
+    in
     let result =
       match Utils.get_field_not_null json "result" with
       | Some _ ->
@@ -262,7 +267,7 @@ module Statement = struct
       | _ ->
           None
     in
-    Call {func; func_type; args; result}
+    Call {func; func_type; args; arg_types; result}
 
   let return_from_json json : t =
     let op0 =

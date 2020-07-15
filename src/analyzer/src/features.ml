@@ -213,6 +213,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     { invoked: bool
     ; invoked_more_than_once: bool
     ; share_argument: bool
+    ; share_argument_type: bool
     ; share_return_value: bool
     ; same_context: bool }
 
@@ -220,12 +221,14 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
       { invoked
       ; invoked_more_than_once
       ; share_argument
+      ; share_argument_type
       ; share_return_value
       ; same_context } =
     `Assoc
       [ ("invoked", `Bool invoked)
       ; ("invoked_more_than_once", `Bool invoked_more_than_once)
       ; ("share_argument", `Bool share_argument)
+      ; ("share_argument_type", `Bool share_argument_type)
       ; ("share_return_value", `Bool share_return_value)
       ; ("same_context", `Bool same_context) ]
 
@@ -237,6 +240,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     { invoked= false
     ; invoked_more_than_once= false
     ; share_argument= false
+    ; share_argument_type= false
     ; share_return_value= false
     ; same_context= false }
 
@@ -275,18 +279,21 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
   let share_value (v1s : Value.t list) (v2s : Value.t list) : bool =
     List.fold_left (fun acc v1 -> acc || List.mem v1 v2s) false v1s
 
+  let share_type (ts1 : TypeKind.t list) (ts2 : TypeKind.t list) : bool =
+    List.fold_left (fun acc t1 -> acc || List.mem t1 ts2) false ts1
+
   let share_value_opt (ret : Value.t option) (vs : Value.t list) : bool =
     match ret with Some ret -> List.mem ret vs | None -> false
 
-  let res_and_args (node : Node.t) : Value.t option * Value.t list =
+  let res_and_args (node : Node.t) : (Value.t option * Value.t list * TypeKind.t list) =
     match node.stmt with
-    | Statement.Call {result; args} ->
-        (result, args)
+    | Statement.Call {result; args; arg_types} ->
+        (result, args, arg_types)
     | _ ->
         failwith "[res_and_args] Node should be a call statement"
 
   let extract_helper checker (func_name, _, _) (trace : Trace.t) =
-    let target_result, target_args = res_and_args trace.target_node in
+    let target_result, target_args, target_arg_types = res_and_args trace.target_node in
     let target_context = Node.context trace.target_node in
     let results = caused_funcs_helper trace checker in
     let maybe_caused_dict =
@@ -307,8 +314,9 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                       let invoked = true in
                       let invoked_more_than_once = acc.invoked in
                       let node = Trace.node trace id in
-                      let node_result, node_args = res_and_args node in
+                      let node_result, node_args, node_arg_types = res_and_args node in
                       let share_argument = share_value target_args node_args in
+                      let share_argument_type = share_type target_arg_types node_arg_types in
                       let share_return_value =
                         share_value_opt node_result target_args
                         || share_value_opt target_result node_args
@@ -320,6 +328,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                       { invoked
                       ; invoked_more_than_once
                       ; share_argument= acc.share_argument || share_argument
+                      ; share_argument_type= acc.share_argument_type || share_argument_type
                       ; share_return_value=
                           acc.share_return_value || share_return_value
                       ; same_context= acc.same_context || same_context }
