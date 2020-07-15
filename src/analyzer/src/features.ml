@@ -21,6 +21,123 @@ module type FEATURE = sig
   val to_yojson : t -> Yojson.Safe.t
 end
 
+module NoContextFeature = struct
+  type t = bool [@@deriving to_yojson]
+
+  let name = "no_context"
+
+  let init_with_trace _ _ = ()
+
+  let filter _ = true
+
+  let rec used_in_location (ret : Value.t) (loc : Location.t) : bool =
+  match loc with
+  | Location.SymExpr e ->
+      ret = Value.SymExpr e
+  | Location.Gep (l, _) ->
+      used_in_location ret l
+  | _ ->
+      false
+
+  (* Assuming store/load/ret does not count as "use" *)
+  let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
+    match stmt with
+    | Call {args} ->
+        List.find_opt (( = ) ret) args |> Option.is_some
+    | Assume {op0; op1} ->
+        op0 = ret || op1 = ret
+    | Binary {op0; op1} ->
+        op0 = ret || op1 = ret
+    | Store {loc; value} ->
+        let used_in_loc =
+          match loc with
+          | Location loc ->
+              used_in_location ret loc
+          | _ ->
+              loc = ret
+        in
+        used_in_loc || value = ret
+    | GetElementPtr {op0} ->
+        op0 = ret
+    | _ ->
+        false
+
+  let initialized_in_stmt (arg : Value.t) (stmt : Statement.t) : bool =
+    match stmt with
+    | Call {result= Some res} ->
+        arg = res
+    | Assume {result} ->
+        arg = result
+    | Load {result} ->
+        arg = result
+    | Alloca {result} ->
+        arg = result
+    | Binary {result} ->
+        arg = result
+    | _ ->
+        false
+
+  let rec arg_initialized dugraph explored fringe arg =
+    match NodeSet.choose_opt fringe with
+    | Some hd ->
+        let rst = NodeSet.remove hd fringe in
+        if NodeSet.mem hd explored then arg_initialized dugraph explored rst arg
+        else if initialized_in_stmt arg hd.stmt then true
+        else
+          let explored = NodeSet.add hd explored in
+          let predecessors = NodeSet.of_list (NodeGraph.pred dugraph hd) in
+          let fringe = NodeSet.union predecessors rst in
+          arg_initialized dugraph explored fringe arg
+    | None ->
+        false
+
+  let args_initialized (trace : Trace.t) : bool =
+    match trace.target_node.stmt with
+    | Call {args} ->
+        let non_const_args =
+          List.filter (fun arg -> Value.is_const arg |> not) args
+        in
+        if List.length non_const_args = 0 then false
+        else
+          let fringe = NodeSet.singleton trace.target_node in
+          List.map
+            (arg_initialized trace.dugraph NodeSet.empty fringe)
+            non_const_args
+          |> List.fold_left ( && ) true
+    | _ ->
+        false
+
+  let rec result_used_helper ret dugraph explored fringe =
+    match NodeSet.choose_opt fringe with
+    | Some hd ->
+        if NodeSet.mem hd explored then false
+        else if used_in_stmt ret hd.stmt then true
+        else
+          let rst = NodeSet.remove hd fringe in
+          let explored = NodeSet.add hd explored in
+          let successors = NodeSet.of_list (NodeGraph.succ dugraph hd) in
+          let fringe = NodeSet.union successors rst in
+          result_used_helper ret dugraph explored fringe
+    | None ->
+        false
+
+  let result_used (trace : Trace.t) : bool =
+    match trace.target_node.stmt with
+    | Call {result} -> (
+      match result with
+      | Some ret ->
+          let sgt_target = NodeSet.singleton trace.target_node in
+          result_used_helper ret trace.dugraph NodeSet.empty sgt_target
+      | None ->
+          false )
+    | _ ->
+        false
+
+  let extract _ trace =
+    let has_context = args_initialized trace || result_used trace in
+    not has_context
+end
+
 module RetvalFeature = struct
   type t =
     { has_retval_check: bool
@@ -371,7 +488,8 @@ module InvokedAfterFeature = struct
 end
 
 let feature_extractors : (module FEATURE) list =
-  [ (module RetvalFeature)
+  [ (module NoContextFeature)
+  ; (module RetvalFeature)
   ; (module InvokedAfterFeature)
   ; (module InvokedBeforeFeature)
   ; ( module ArgvalFeature (struct

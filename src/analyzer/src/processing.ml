@@ -235,6 +235,7 @@ module Statement = struct
     | Load of {loc: Value.t; result: Value.t}
     | GetElementPtr of {op0: Value.t; result: Value.t}
     | Binary of {op: BinOp.t; op0: Value.t; op1: Value.t; result: Value.t}
+    | Alloca of {result: Value.t}
     | Other
 
   let predicate_from_stmt_json json : Predicate.t =
@@ -302,6 +303,10 @@ module Statement = struct
     | None ->
         UnconditionalBranch
 
+  let alloca_from_json json : t =
+    let result = Value.of_json (Utils.get_field json "result_sem") in
+    Alloca { result }
+
   let binary_from_json json : t =
     let op = BinOp.of_json (Utils.get_field json "opcode") in
     let op0 = Value.of_json (Utils.get_field json "op0_sem") in
@@ -327,6 +332,8 @@ module Statement = struct
           getelementptr_from_json json
       | "br" ->
           br_from_json json
+      | "alloca" ->
+          alloca_from_json json
       | s when BinOp.is_binary_op s ->
           binary_from_json json
       | _ ->

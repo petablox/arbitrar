@@ -38,6 +38,8 @@ let initialized_in_stmt (arg : Value.t) (stmt : Statement.t) : bool =
       arg = res
   | Assume {result} ->
       arg = result
+  | Alloca {result} ->
+      arg = result
   | Load {result} ->
       arg = result
   | Binary {result} ->

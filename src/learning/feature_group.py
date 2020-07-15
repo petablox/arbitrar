@@ -64,7 +64,7 @@ class InvokedType(Enum):
 
 
 class CausalityFeatureGroup(FeatureGroup):
-  fields = ["invoked", "invoked_more_than_once", "share_argument", "share_return_value", "same_context"]
+  fields = ["invoked", "invoked_more_than_once", "share_argument", "share_argument_type", "share_return_value", "same_context"]
 
   def __init__(self, fixed: bool, invoked_type: InvokedType, function_name: str):
     super().__init__(fixed)
