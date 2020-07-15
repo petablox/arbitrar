@@ -487,8 +487,30 @@ module InvokedAfterFeature = struct
   let extract = extract_helper CausalityChecker.check_trace_backward
 end
 
+module LoopFeature = struct
+  type t = {contains_loop: bool} [@@deriving to_yojson]
+
+  let name = "loop"
+
+  let filter _ = true
+
+  let init_with_trace _ _ = ()
+
+  let extract _ (trace : Trace.t) =
+    let contains_loop =
+      NodeGraph.fold_vertex
+        (fun (node : Node.t) (contains_loop : bool) ->
+            match node.stmt with
+            | Statement.UnconditionalBranch { is_loop } -> contains_loop || is_loop
+            | _ -> contains_loop)
+        trace.cfgraph false
+    in
+    {contains_loop}
+end
+
 let feature_extractors : (module FEATURE) list =
-  [ (module ContextFeature)
+  [ (module LoopFeature)
+  ; (module ContextFeature)
   ; (module RetvalFeature)
   ; (module InvokedAfterFeature)
   ; (module InvokedBeforeFeature)

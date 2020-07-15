@@ -229,7 +229,7 @@ module Statement = struct
         ; result: Value.t option }
     | Assume of {pred: Predicate.t; op0: Value.t; op1: Value.t; result: Value.t}
     | ConditionalBranch of {br: Branch.t}
-    | UnconditionalBranch
+    | UnconditionalBranch of {is_loop: bool}
     | Return of Value.t option
     | Store of {value: Value.t; loc: Value.t}
     | Load of {loc: Value.t; result: Value.t}
@@ -301,7 +301,8 @@ module Statement = struct
     | Some _ ->
         raise Utils.InvalidJSON
     | None ->
-        UnconditionalBranch
+        let is_loop = Utils.bool_from_json (Utils.get_field json "is_loop") in
+        UnconditionalBranch {is_loop}
 
   let alloca_from_json json : t =
     let result = Value.of_json (Utils.get_field json "result_sem") in

@@ -31,11 +31,18 @@ class FeatureGroup:
       raise Exception(f"Cannot get field {self.field()} from json {feature_json}")
 
 
+class LoopFeatureGroup(FeatureGroup):
+  fields = ["contains_loop"]
+
+  def field(self) -> str:
+    return "loop"
+
+  def meaning_of(self, i) -> str:
+    return f"loop.{self.fields[i]}"
+
+
 class ContextFeatureGroup(FeatureGroup):
   fields = ["no_context"]
-
-  def __init__(self, fixed):
-    super().__init__(fixed)
 
   def field(self) -> str:
     return "context"
@@ -96,8 +103,14 @@ class CausalityFeatureGroup(FeatureGroup):
 
 
 class FeatureGroups:
-  def __init__(self, sample_feature_json, enable_no_context=True, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
+  def __init__(self, sample_feature_json, enable_loop=True, enable_no_context=True, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
     self.groups = []
+
+    if enable_loop:
+      loop_group = LoopFeatureGroup(False)
+      if FeatureGroups.should_be_fixed(loop_group, fix_groups):
+        loop_group.fixed = True
+      self.groups.append(loop_group)
 
     if enable_no_context:
       context_group = ContextFeatureGroup(False)
