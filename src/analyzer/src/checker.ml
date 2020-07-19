@@ -339,13 +339,19 @@ module CausalityChecker = struct
     check_trace trace |> List.map (fun (func, _) -> Causing func)
 end
 
+module LogicalOperation = struct
+  type t = And | Or [@@deriving yojson]
+end
+
 module IcmpBranchChecker = struct
   (* Predicate, Compare Against, Branch Taken, Immediate Branch *)
   (* Note: Immediate branch means the branch happens right after icmp, indicating there's no other
      variable involved in the branching decision. *)
   type t =
     | Checked of Predicate.t * int64 * Branch.t * bool
+    | CheckedOtherVar of Predicate.t * Branch.t
     | CheckedAgainstVar of Predicate.t * Branch.t
+    | UsedInLogicalFormula of LogicalOperation.t
     | NoCheck
 
   let rec find_br dugraph node level fringe : (Branch.t * bool) option =
@@ -399,9 +405,24 @@ module IcmpBranchChecker = struct
                     Checked (pred, Value.get_const op1, br, immediate) :: result
                   else if Value.sem_equal op1 var || Value.sem_equal op0 var
                   then CheckedAgainstVar (pred, br) :: result
-                  else result
+                  else CheckedOtherVar (pred, br) :: result
               | _ ->
                   result )
+            | Binary {op; op0; op1} -> (
+                let maybe_conj =
+                  if op = BinOp.And then Some LogicalOperation.And
+                  else if op = BinOp.Or then Some LogicalOperation.Or
+                  else None
+                in
+                match maybe_conj with
+                | Some conj ->
+                    let retval_is_op0 = Value.sem_equal op0 var in
+                    let retval_is_op1 = Value.sem_equal op1 var in
+                    if retval_is_op0 || retval_is_op1 then
+                      UsedInLogicalFormula conj :: result
+                    else result
+                | None -> result)
+
             | _ ->
                 result
           in

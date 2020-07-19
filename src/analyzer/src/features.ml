@@ -141,12 +141,29 @@ end
 module RetvalFeature = struct
   type t =
     { has_retval_check: bool
+    ; has_other_retval_check: bool
+    ; used_in_logical_formula: bool
     ; check_predicate: Predicate.t option
     ; check_against: Int64.t option
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
     ; branch_not_zero: bool option }
   [@@deriving to_yojson]
+
+  type temp_result =
+    | IcmpResult of t
+    | LogicalResult of t
+    | None
+
+  let base_result =
+    { has_retval_check= false
+    ; has_other_retval_check= false
+    ; used_in_logical_formula= false
+    ; check_predicate= None
+    ; check_against= None
+    ; check_branch_taken= None
+    ; branch_is_zero= None
+    ; branch_not_zero= None }
 
   let name = "retval_check"
 
@@ -156,39 +173,45 @@ module RetvalFeature = struct
 
   let extract func trace =
     let results = IcmpBranchChecker.check_retval trace in
-    match results with
-    | IcmpBranchChecker.Checked (pred, i, br, immediate) :: _ ->
-        let is_zero, not_zero =
-          match (pred, i, br, immediate) with
-          | Predicate.Eq, 0L, Branch.Then, true
-          | Predicate.Ne, 0L, Branch.Else, true ->
-              (true, false)
-          | Predicate.Eq, 0L, Branch.Else, true
-          | Predicate.Ne, 0L, Branch.Then, true ->
-              (false, true)
-          | _ ->
-              (false, false)
-        in
-        { has_retval_check= true
-        ; check_predicate= Some pred
-        ; check_against= Some i
-        ; check_branch_taken= Some (br = Branch.Then)
-        ; branch_is_zero= Some is_zero
-        ; branch_not_zero= Some not_zero }
-    | IcmpBranchChecker.CheckedAgainstVar (pred, br) :: _ ->
-        { has_retval_check= true
-        ; check_predicate= Some pred
-        ; check_against= None
-        ; check_branch_taken= Some (br = Branch.Then)
-        ; branch_is_zero= None
-        ; branch_not_zero= None }
-    | _ ->
-        { has_retval_check= false
-        ; check_predicate= None
-        ; check_against= None
-        ; check_branch_taken= None
-        ; branch_is_zero= None
-        ; branch_not_zero= None }
+    let rec recurse_results results =
+      match results with
+      | IcmpBranchChecker.Checked (pred, i, br, immediate) :: _ ->
+          let is_zero, not_zero =
+            match (pred, i, br, immediate) with
+            | Predicate.Eq, 0L, Branch.Then, true
+            | Predicate.Ne, 0L, Branch.Else, true ->
+                (true, false)
+            | Predicate.Eq, 0L, Branch.Else, true
+            | Predicate.Ne, 0L, Branch.Then, true ->
+                (false, true)
+            | _ ->
+                (false, false)
+          in
+          IcmpResult
+            { base_result with has_retval_check= true
+            ; check_predicate= Some pred
+            ; check_against= Some i
+            ; check_branch_taken= Some (br = Branch.Then)
+            ; branch_is_zero= Some is_zero
+            ; branch_not_zero= Some not_zero }
+      | IcmpBranchChecker.CheckedAgainstVar (pred, br) :: _ ->
+          IcmpResult
+            { base_result with has_retval_check= true
+            ; check_predicate= Some pred
+            ; check_branch_taken= Some (br = Branch.Then) }
+      | IcmpBranchChecker.CheckedOtherVar _ :: _ ->
+          IcmpResult {base_result with has_other_retval_check= true}
+      | (IcmpBranchChecker.UsedInLogicalFormula _) :: rs -> (
+          let rest_result = recurse_results rs in
+          match rest_result with
+          | None -> LogicalResult {base_result with used_in_logical_formula= true}
+          | _ -> rest_result)
+      | _ -> None
+    in
+    match recurse_results results with
+    | IcmpResult r -> r
+    | LogicalResult r -> r
+    | None -> base_result
 end
 
 module ArgvalFeature (A : ARG_INDEX) = struct
