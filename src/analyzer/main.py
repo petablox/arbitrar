@@ -33,6 +33,7 @@ def setup_parser(parser):
   parser.add_argument('--reduce-slice', action='store_true')
   parser.add_argument('--use-batch', action='store_true')
   parser.add_argument('--batch-size', type=int)
+  parser.add_argument('--random-worklist', action='store_true')
 
 
 def main(args):
@@ -149,6 +150,10 @@ def run_analyzer(db, bc_file, args):
     if args.batch_size != None:
       print(f"Use batch size {args.batch_size}")
       cmd += ['-batch-size', str(args.batch_size)]
+
+    if args.random_worklist:
+      print(f"Use randomized worklist")
+      cmd += ['-random-worklist']
 
     run = subprocess.run(cmd, cwd=this_path, env={'OCAMLRUNPARAM': 'b'})
 

@@ -195,11 +195,12 @@ module RetvalFeature = struct
               related_to_check= true
             ; has_retval_check= true
             ; check_branch_taken= Some (br = Branch.Then) }
-      | IcmpBranchChecker.CheckedOtherVar _ :: _ ->
+      | IcmpBranchChecker.CheckedOtherVar (_, br) :: _ ->
           IcmpResult
             { base_result with
               related_to_check= true
-            ; has_other_retval_check= true }
+            ; has_other_retval_check= true
+            ; check_branch_taken= Some (br = Branch.Then) }
       | IcmpBranchChecker.UsedInLogicalFormula _ :: rs -> (
           let rest_result = recurse_results rs in
           match rest_result with

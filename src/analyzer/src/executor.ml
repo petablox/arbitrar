@@ -1,19 +1,51 @@
 open Semantics
 
 module Worklist = struct
-  type t = (Llvm.llbasicblock * State.t) Queue.t
+  type work = Llvm.llbasicblock * State.t
 
-  let empty () = Queue.create ()
+  module WorkSet = Set.Make (struct
+    type t = work
 
-  let push x s = Queue.push x s ; s
+    let compare = compare
+  end)
 
-  let pop s =
-    let x = Queue.pop s in
-    (x, s)
+  type t = WorkQueue of work Queue.t | WorkSet of WorkSet.t
 
-  let is_empty = Queue.is_empty
+  let empty () : t =
+    if !Options.random_worklist then WorkSet WorkSet.empty
+    else
+      let queue : work Queue.t = Queue.create () in
+      WorkQueue queue
 
-  let length = Queue.length
+  let push (w : work) (wl : t) =
+    match wl with
+    | WorkQueue q ->
+        Queue.push w q ; wl
+    | WorkSet s ->
+        WorkSet (WorkSet.add w s)
+
+  let pop (wl : t) =
+    match wl with
+    | WorkQueue q ->
+        let w = Queue.pop q in
+        (w, wl)
+    | WorkSet s ->
+        let w = WorkSet.choose s in
+        (w, WorkSet (WorkSet.remove w s))
+
+  let is_empty (wl : t) =
+    match wl with
+    | WorkQueue q ->
+        Queue.is_empty q
+    | WorkSet s ->
+        WorkSet.is_empty s
+
+  let size (wl : t) =
+    match wl with
+    | WorkQueue q ->
+        Queue.length q
+    | WorkSet s ->
+        WorkSet.cardinal s
 end
 
 module Traces = struct

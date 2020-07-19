@@ -48,6 +48,8 @@ let serial_execution = ref false
 
 let continue_extraction = ref false
 
+let random_worklist = ref false
+
 let max_traces = ref 50
 
 let max_length = ref 1000
@@ -123,7 +125,8 @@ let executor_opts_local =
     , "Do not use path constraint" )
   ; ( "-serial"
     , Arg.Set serial_execution
-    , "Execute in serial as opposed to parallel" ) ]
+    , "Execute in serial as opposed to parallel" )
+  ; ("-random-worklist", Arg.Set random_worklist, "Randomize Worklist") ]
 
 let extractor_opts_local =
   [ ( "-continue"
