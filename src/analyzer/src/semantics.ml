@@ -262,7 +262,7 @@ module Stmt = struct
                  `String (fst x |> Utils.EnvCache.string_of_exp cache))
         in
         `Assoc [opcode; ("result", result); ("incoming", `List incoming)]
-    | Call -> (
+    | Call ->
         let opcode = ("opcode", `String "call") in
         let result =
           match Llvm.type_of instr |> Llvm.classify_type with
@@ -298,8 +298,10 @@ module Stmt = struct
         in
         let callee_str =
           match Utils.exp_func_name callee_exp with
-          | Some callee -> callee
-          | None -> callee_exp
+          | Some callee ->
+              callee
+          | None ->
+              callee_exp
         in
         `Assoc
           [ opcode
@@ -307,7 +309,7 @@ module Stmt = struct
           ; ("func", `String callee_str)
           ; ("func_type", Slicer.FunctionType.to_json callee_type)
           ; ("args", `List args)
-          ; ("arg_types", `List arg_types) ] )
+          ; ("arg_types", `List arg_types) ]
     | Select ->
         json_of_opcode "select"
     | UserOp1 ->

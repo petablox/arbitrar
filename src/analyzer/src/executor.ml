@@ -295,12 +295,13 @@ let rec find_viable_control_succ v orig newg =
   else None
 
 let is_related_call i1 i2 =
-  match Llvm.instr_opcode i1, Llvm.instr_opcode i2 with
+  match (Llvm.instr_opcode i1, Llvm.instr_opcode i2) with
   | Llvm.Opcode.Call, Llvm.Opcode.Call ->
       let f1 = Utils.callee_of_call_instr i1 in
       let f2 = Utils.callee_of_call_instr i2 in
       Slicer.Slice.within_function_group f1 f2
-  | _, _ -> false
+  | _, _ ->
+      false
 
 let reduce_dugraph target orig =
   let du_projection = DUGraph.du_project orig in
@@ -862,7 +863,9 @@ let dump_dots ?(prefix = "") (env : Environment.t) =
     env.Environment.dugraphs
 
 let dump_dugraphs ?(prefix = "") (env : Environment.t) =
-  let json = List.map (DUGraph.to_json env.llctx env.Environment.cache) env.dugraphs in
+  let json =
+    List.map (DUGraph.to_json env.llctx env.Environment.cache) env.dugraphs
+  in
   let oc = open_out (prefix ^ ".json") in
   Options.json_to_channel oc (`List json) ;
   close_out oc

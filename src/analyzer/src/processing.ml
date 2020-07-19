@@ -306,7 +306,7 @@ module Statement = struct
 
   let alloca_from_json json : t =
     let result = Value.of_json (Utils.get_field json "result_sem") in
-    Alloca { result }
+    Alloca {result}
 
   let binary_from_json json : t =
     let op = BinOp.of_json (Utils.get_field json "opcode") in
@@ -499,8 +499,7 @@ let batch_folders input_directory : string list =
       if String.length batch_dir > 6 && String.sub batch_dir 0 5 = "batch" then
         let full_batch_dir = input_directory ^ "/" ^ batch_dir in
         full_batch_dir :: acc
-      else
-        acc)
+      else acc)
     [] batch_dirs
 
 let fold_traces_with_dirs dugraphs_dir slices_json_dir
@@ -546,8 +545,7 @@ let fold_traces dir (f : 'a -> Function.t * Trace.t -> 'a) (base : 'a) =
     List.fold_left
       (fun acc batch_folder -> fold_traces_normal batch_folder f acc)
       base (batch_folders dir)
-  else
-    fold_traces_normal dir f base
+  else fold_traces_normal dir f base
 
 let fold_traces_with_filter dir filter f base =
   fold_traces dir (fun acc info -> if filter info then f acc info else acc) base

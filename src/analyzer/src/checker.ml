@@ -421,8 +421,8 @@ module IcmpBranchChecker = struct
                     if retval_is_op0 || retval_is_op1 then
                       UsedInLogicalFormula conj :: result
                     else result
-                | None -> result)
-
+                | None ->
+                    result )
             | _ ->
                 result
           in

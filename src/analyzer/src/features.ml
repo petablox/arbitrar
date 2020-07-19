@@ -31,13 +31,13 @@ module ContextFeature = struct
   let filter _ = true
 
   let rec used_in_location (ret : Value.t) (loc : Location.t) : bool =
-  match loc with
-  | Location.SymExpr e ->
-      ret = Value.SymExpr e
-  | Location.Gep (l, _) ->
-      used_in_location ret l
-  | _ ->
-      false
+    match loc with
+    | Location.SymExpr e ->
+        ret = Value.SymExpr e
+    | Location.Gep (l, _) ->
+        used_in_location ret l
+    | _ ->
+        false
 
   (* Assuming store/load/ret does not count as "use" *)
   let used_in_stmt (ret : Value.t) (stmt : Statement.t) : bool =
@@ -140,27 +140,22 @@ end
 
 module RetvalFeature = struct
   type t =
-    { has_retval_check: bool
+    { related_to_check: bool
+    ; has_retval_check: bool
     ; has_other_retval_check: bool
     ; used_in_logical_formula: bool
-    ; check_predicate: Predicate.t option
-    ; check_against: Int64.t option
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
     ; branch_not_zero: bool option }
   [@@deriving to_yojson]
 
-  type temp_result =
-    | IcmpResult of t
-    | LogicalResult of t
-    | None
+  type temp_result = IcmpResult of t | LogicalResult of t | None
 
   let base_result =
-    { has_retval_check= false
+    { related_to_check= false
+    ; has_retval_check= false
     ; has_other_retval_check= false
     ; used_in_logical_formula= false
-    ; check_predicate= None
-    ; check_against= None
     ; check_branch_taken= None
     ; branch_is_zero= None
     ; branch_not_zero= None }
@@ -188,30 +183,43 @@ module RetvalFeature = struct
                 (false, false)
           in
           IcmpResult
-            { base_result with has_retval_check= true
-            ; check_predicate= Some pred
-            ; check_against= Some i
+            { base_result with
+              related_to_check= true
+            ; has_retval_check= true
             ; check_branch_taken= Some (br = Branch.Then)
             ; branch_is_zero= Some is_zero
             ; branch_not_zero= Some not_zero }
-      | IcmpBranchChecker.CheckedAgainstVar (pred, br) :: _ ->
+      | IcmpBranchChecker.CheckedAgainstVar (_, br) :: _ ->
           IcmpResult
-            { base_result with has_retval_check= true
-            ; check_predicate= Some pred
+            { base_result with
+              related_to_check= true
+            ; has_retval_check= true
             ; check_branch_taken= Some (br = Branch.Then) }
       | IcmpBranchChecker.CheckedOtherVar _ :: _ ->
-          IcmpResult {base_result with has_other_retval_check= true}
-      | (IcmpBranchChecker.UsedInLogicalFormula _) :: rs -> (
+          IcmpResult
+            { base_result with
+              related_to_check= true
+            ; has_other_retval_check= true }
+      | IcmpBranchChecker.UsedInLogicalFormula _ :: rs -> (
           let rest_result = recurse_results rs in
           match rest_result with
-          | None -> LogicalResult {base_result with used_in_logical_formula= true}
-          | _ -> rest_result)
-      | _ -> None
+          | None ->
+              LogicalResult
+                { base_result with
+                  related_to_check= true
+                ; used_in_logical_formula= true }
+          | _ ->
+              rest_result )
+      | _ ->
+          None
     in
     match recurse_results results with
-    | IcmpResult r -> r
-    | LogicalResult r -> r
-    | None -> base_result
+    | IcmpResult r ->
+        r
+    | LogicalResult r ->
+        r
+    | None ->
+        base_result
 end
 
 module ArgvalFeature (A : ARG_INDEX) = struct
@@ -425,7 +433,8 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
   let share_value_opt (ret : Value.t option) (vs : Value.t list) : bool =
     match ret with Some ret -> List.mem ret vs | None -> false
 
-  let res_and_args (node : Node.t) : (Value.t option * Value.t list * TypeKind.t list) =
+  let res_and_args (node : Node.t) :
+      Value.t option * Value.t list * TypeKind.t list =
     match node.stmt with
     | Statement.Call {result; args; arg_types} ->
         (result, args, arg_types)
@@ -433,7 +442,9 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
         failwith "[res_and_args] Node should be a call statement"
 
   let extract_helper checker (func_name, _, _) (trace : Trace.t) =
-    let target_result, target_args, target_arg_types = res_and_args trace.target_node in
+    let target_result, target_args, target_arg_types =
+      res_and_args trace.target_node
+    in
     let target_context = Node.context trace.target_node in
     let results = caused_funcs_helper trace checker in
     let maybe_caused_dict =
@@ -454,9 +465,13 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                       let invoked = true in
                       let invoked_more_than_once = acc.invoked in
                       let node = Trace.node trace id in
-                      let node_result, node_args, node_arg_types = res_and_args node in
+                      let node_result, node_args, node_arg_types =
+                        res_and_args node
+                      in
                       let share_argument = share_value target_args node_args in
-                      let share_argument_type = share_type target_arg_types node_arg_types in
+                      let share_argument_type =
+                        share_type target_arg_types node_arg_types
+                      in
                       let share_return_value =
                         share_value_opt node_result target_args
                         || share_value_opt target_result node_args
@@ -468,7 +483,8 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                       { invoked
                       ; invoked_more_than_once
                       ; share_argument= acc.share_argument || share_argument
-                      ; share_argument_type= acc.share_argument_type || share_argument_type
+                      ; share_argument_type=
+                          acc.share_argument_type || share_argument_type
                       ; share_return_value=
                           acc.share_return_value || share_return_value
                       ; same_context= acc.same_context || same_context }
@@ -523,9 +539,11 @@ module LoopFeature = struct
     let contains_loop =
       NodeGraph.fold_vertex
         (fun (node : Node.t) (contains_loop : bool) ->
-            match node.stmt with
-            | Statement.UnconditionalBranch { is_loop } -> contains_loop || is_loop
-            | _ -> contains_loop)
+          match node.stmt with
+          | Statement.UnconditionalBranch {is_loop} ->
+              contains_loop || is_loop
+          | _ ->
+              contains_loop)
         trace.cfgraph false
     in
     {contains_loop}
@@ -584,7 +602,8 @@ let init_features_dirs input_directory =
       (batch_folders input_directory)
   else
     let features_dir = input_directory ^ "/features" in
-    Utils.mkdir features_dir ; [(input_directory, features_dir)]
+    Utils.mkdir features_dir ;
+    [(input_directory, features_dir)]
 
 let main input_directory =
   Printf.printf "Extracting Features for %s...\n" input_directory ;

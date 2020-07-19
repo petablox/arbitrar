@@ -1,5 +1,6 @@
 from .feature_group import CausalityFeatureGroup
 
+
 def unify_features_with_sample(datapoints, unified):
   def unify_feature(datapoint, unified):
     feature = datapoint.feature()

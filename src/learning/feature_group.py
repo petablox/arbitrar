@@ -84,7 +84,9 @@ class InvokedType(Enum):
 
 
 class CausalityFeatureGroup(FeatureGroup):
-  fields = ["invoked", "invoked_more_than_once", "share_argument", "share_return_value", "same_context", "share_argument_type"]
+  fields = [
+      "invoked", "invoked_more_than_once", "share_argument", "share_return_value", "same_context", "share_argument_type"
+  ]
 
   def __init__(self, fixed: bool, invoked_type: InvokedType, function_name: str):
     super().__init__(fixed)
@@ -103,7 +105,14 @@ class CausalityFeatureGroup(FeatureGroup):
 
 
 class FeatureGroups:
-  def __init__(self, sample_feature_json, enable_loop=True, enable_no_context=True, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
+  def __init__(self,
+               sample_feature_json,
+               enable_loop=True,
+               enable_no_context=True,
+               enable_causality=True,
+               enable_retval=True,
+               enable_argval=True,
+               fix_groups=[]):
     self.groups = []
 
     if enable_loop and "loop" in sample_feature_json:
