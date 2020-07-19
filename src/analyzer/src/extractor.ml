@@ -186,6 +186,8 @@ let batched_extractor_main input_file =
         Slicer.slices_from_edges func_counter batched_edge_entries slicing_ctx
       in
       Slicer.Slices.dump_json ~prefix:outdir llm slices ;
+      Printf.printf "Doing symbolic execution on %d slice        \r" num_slices ;
+      flush stdout ;
       let _ = execute log_channel outdir llctx llm slices in
       close_out log_channel)
     batches

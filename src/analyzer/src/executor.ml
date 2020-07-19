@@ -294,6 +294,14 @@ let rec find_viable_control_succ v orig newg =
     else find_viable_control_succ candidate orig newg
   else None
 
+let is_related_call i1 i2 =
+  match Llvm.instr_opcode i1, Llvm.instr_opcode i2 with
+  | Llvm.Opcode.Call, Llvm.Opcode.Call ->
+      let f1 = Utils.callee_of_call_instr i1 in
+      let f2 = Utils.callee_of_call_instr i2 in
+      Slicer.Slice.within_function_group f1 f2
+  | _, _ -> false
+
 let reduce_dugraph target orig =
   let du_projection = DUGraph.du_project orig in
   let du_checker = Path.create du_projection in
@@ -316,6 +324,7 @@ let reduce_dugraph target orig =
           Path.check_path du_checker v target
           || Path.check_path du_checker target v
           || Stmt.is_control_flow v.stmt
+          || is_related_call v.stmt.instr target.stmt.instr
           || connected_to_cf_nodes v
         then g
         else

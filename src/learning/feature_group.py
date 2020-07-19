@@ -84,7 +84,7 @@ class InvokedType(Enum):
 
 
 class CausalityFeatureGroup(FeatureGroup):
-  fields = ["invoked", "invoked_more_than_once", "share_argument", "share_argument_type", "share_return_value", "same_context"]
+  fields = ["invoked", "invoked_more_than_once", "share_argument", "share_return_value", "same_context", "share_argument_type"]
 
   def __init__(self, fixed: bool, invoked_type: InvokedType, function_name: str):
     super().__init__(fixed)
@@ -106,13 +106,13 @@ class FeatureGroups:
   def __init__(self, sample_feature_json, enable_loop=True, enable_no_context=True, enable_causality=True, enable_retval=True, enable_argval=True, fix_groups=[]):
     self.groups = []
 
-    if enable_loop:
+    if enable_loop and "loop" in sample_feature_json:
       loop_group = LoopFeatureGroup(False)
       if FeatureGroups.should_be_fixed(loop_group, fix_groups):
         loop_group.fixed = True
       self.groups.append(loop_group)
 
-    if enable_no_context:
+    if enable_no_context and "context" in sample_feature_json:
       context_group = ContextFeatureGroup(False)
       if FeatureGroups.should_be_fixed(context_group, fix_groups):
         context_group.fixed = True
@@ -122,6 +122,9 @@ class FeatureGroups:
       for invoked_type in InvokedType:
         for function_name in sample_feature_json[invoked_type.value]:
           caus_group = CausalityFeatureGroup(False, invoked_type, function_name)
+          # TEMPORARY: Will stablize when the data is re-run
+          if "share_argument_type" in sample_feature_json[invoked_type.value][function_name]:
+            caus_group.fields.remove("share_argument_type")
           if FeatureGroups.should_be_fixed(caus_group, fix_groups):
             caus_group.fixed = True
           self.groups.append(caus_group)
