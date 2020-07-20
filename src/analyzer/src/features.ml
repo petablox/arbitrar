@@ -362,18 +362,17 @@ module CausalityDictionary = struct
 
   let empty : t = StringMap.empty
 
-  let singleton (normalization : int) caused =
-    StringMap.singleton caused (1.0 /. float_of_int normalization)
+  let singleton (caused : string) (score : float) =
+    StringMap.singleton caused score
 
-  let add dict (normalization : int) caused =
-    let normalized = 1.0 /. float_of_int normalization in
+  let add (dict : t) (caused : string) (score : float) =
     StringMap.update caused
-      (fun maybe_count ->
-        match maybe_count with
-        | Some count ->
-            Some (count +. normalized)
+      (fun maybe_agg ->
+        match maybe_agg with
+        | Some agg ->
+            Some (agg +. score)
         | None ->
-            Some normalized)
+            Some score)
       dict
 
   let find dict f =
@@ -411,14 +410,14 @@ module FunctionCausalityDictionary = struct
 
   let empty : t = StringMap.empty
 
-  let add dict (num_traces : int) func caused_func =
+  let add dict func caused_func score =
     StringMap.update func
       (fun maybe_caused_dict ->
         match maybe_caused_dict with
         | Some caused_dict ->
-            Some (CausalityDictionary.add caused_dict num_traces caused_func)
+            Some (CausalityDictionary.add caused_dict caused_func score)
         | None ->
-            Some (CausalityDictionary.singleton num_traces caused_func))
+            Some (CausalityDictionary.singleton caused_func score))
       dict
 
   let find dict func = StringMap.find func dict
@@ -490,20 +489,24 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     in
     fun f -> (not (invalid_starting_char f)) && not (is_excluding f)
 
-  let caused_funcs_helper trace checker : (string * int) list =
+  let caused_funcs_helper trace checker : (string * FunctionType.t * int) list =
     let results = checker trace in
     List.filter_map
-      (fun (f, id) -> if function_filter f then Some (f, id) else None)
+      (fun (f, ft, id) -> if function_filter f then Some (f, ft, id) else None)
       results
 
-  let init_with_trace_helper checker (func_name, _, num_traces) trace =
+  let causal_score f1_name f1_type f2_name f2_type = 1.0
+
+  let init_with_trace_helper checker (func_name, func_type, num_traces) trace =
+    let normalize = 1.0 /. (float_of_int num_traces) in
     let results = caused_funcs_helper trace checker in
     let dict =
       List.fold_left
-        (fun dict caused_func_name ->
-          FunctionCausalityDictionary.add dict num_traces func_name
-            caused_func_name)
-        !dictionary (List.map fst results)
+        (fun dict (caused_func_name, caused_func_type, _) ->
+          let score = causal_score func_name func_type caused_func_name caused_func_type in
+          let normalized_score = score *. normalize in
+          FunctionCausalityDictionary.add dict func_name caused_func_name normalized_score)
+        !dictionary results
     in
     dictionary := dict
 
@@ -545,7 +548,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
             (fun assocs func_name ->
               let feature =
                 List.fold_left
-                  (fun acc (func, id) ->
+                  (fun acc (func, _, id) ->
                     if func = func_name then
                       let invoked = true in
                       let invoked_more_than_once = acc.invoked in

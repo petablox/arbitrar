@@ -293,50 +293,19 @@ module CausalityChecker = struct
         false
       with _ -> if s = "llvm" then false else true
 
-  let rec check_helper succ dugraph explored fringe result =
-    match NodeSet.choose_opt fringe with
-    | Some hd ->
-        let rst = NodeSet.remove hd fringe in
-        if NodeSet.mem hd explored then
-          check_helper succ dugraph explored rst result
-        else
-          let new_explored = NodeSet.add hd explored in
-          let new_fringe =
-            NodeSet.union (NodeSet.of_list (succ dugraph hd)) rst
-          in
-          let new_result =
-            match hd.stmt with
-            | Call {func} ->
-                if func_filter func then (func, hd.id) :: result else result
-            | _ ->
-                result
-          in
-          check_helper succ dugraph new_explored new_fringe new_result
-    | None ->
-        result
+  let fold (result : (string * FunctionType.t * int) list) (node : Node.t) =
+    match node.stmt with
+    | Call {func; func_type} -> if func_filter func then (func, func_type, node.id) :: result else result
+    | _ -> result
 
-  let check_trace (trace : Trace.t) : (string * int) list =
-    let explored = NodeSet.singleton trace.target_node in
-    let fringe =
-      NodeSet.of_list (NodeGraph.succ trace.cfgraph trace.target_node)
-    in
-    let results =
-      check_helper NodeGraph.succ trace.cfgraph explored fringe []
-    in
-    results
+  let check_trace (trace : Trace.t) : (string * FunctionType.t * int) list =
+    NodeGraph.traversal trace.cfgraph trace.target_node true fold []
 
-  let check_trace_backward (trace : Trace.t) : (string * int) list =
-    let explored = NodeSet.singleton trace.target_node in
-    let fringe =
-      NodeSet.of_list (NodeGraph.pred trace.cfgraph trace.target_node)
-    in
-    let results =
-      check_helper NodeGraph.pred trace.cfgraph explored fringe []
-    in
-    results
+  let check_trace_backward (trace : Trace.t) : (string * FunctionType.t * int) list =
+    NodeGraph.traversal trace.cfgraph trace.target_node false fold []
 
   let check _ trace : t list =
-    check_trace trace |> List.map (fun (func, _) -> Causing func)
+    check_trace trace |> List.map (fun (func, _, _) -> Causing func)
 end
 
 module LogicalOperation = struct
@@ -502,7 +471,7 @@ module FOpenChecker = struct
 
   let is_causing trace f : bool =
     let causings = CausalityChecker.check_trace trace in
-    List.mem f (List.map fst causings)
+    List.mem f (List.map (fun (f, _, _) -> f) causings)
 
   let check _ (trace : Trace.t) : t list =
     if retval_checked trace then
