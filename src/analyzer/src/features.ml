@@ -224,13 +224,18 @@ module RetvalFeature = struct
 end
 
 module ArgvalFeature (A : ARG_INDEX) = struct
+  type check_result = Check of bool * bool * bool | NoCheck
+
   type t =
     { has_argval_check: bool
-    ; check_predicate: Predicate.t option
-    ; check_against: Int64.t option
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
-    ; branch_not_zero: bool option }
+    ; branch_not_zero: bool option
+    ; used: bool
+    ; used_in_call: bool
+    ; used_in_store: bool
+    ; used_in_load: bool
+    ; used_in_gep: bool }
   [@@deriving to_yojson]
 
   module AVC = ArgValChecker (A)
@@ -241,7 +246,15 @@ module ArgvalFeature (A : ARG_INDEX) = struct
 
   let filter = AVC.filter
 
-  let extract _ trace =
+  let target_arg (trace : Trace.t) =
+    let target = trace.target_node in
+    match target.stmt with
+    | Statement.Call {args} ->
+        List.nth args A.index
+    | _ ->
+        raise Utils.InvalidArgument
+
+  let extract_check_result trace =
     let results = IcmpBranchChecker.check_argval trace A.index in
     match results with
     | IcmpBranchChecker.Checked (pred, i, br, immediate) :: _ ->
@@ -256,19 +269,54 @@ module ArgvalFeature (A : ARG_INDEX) = struct
           | _ ->
               (false, false)
         in
-        { has_argval_check= true
-        ; check_predicate= Some pred
-        ; check_against= Some i
-        ; check_branch_taken= Some (br = Branch.Then)
-        ; branch_is_zero= Some is_zero
-        ; branch_not_zero= Some not_zero }
+        (true, Some (br = Branch.Then), Some is_zero, Some not_zero)
     | _ ->
-        { has_argval_check= false
-        ; check_predicate= None
-        ; check_against= None
-        ; check_branch_taken= None
-        ; branch_is_zero= None
-        ; branch_not_zero= None }
+        (false, None, None, None)
+
+  type usage = UsedInCall | UsedInLoad | UsedInStore | UsedInGEP
+
+  let extract_uses (trace : Trace.t) =
+    let target = trace.target_node in
+    let arg = target_arg trace in
+    let results =
+      NodeGraph.traversal trace.cfgraph target true
+        (fun results node ->
+          match node.stmt with
+          | Statement.Call {args} ->
+              if List.mem arg args then UsedInCall :: results else results
+          | Statement.Load {loc} ->
+              if arg = loc then UsedInLoad :: results else results
+          | Statement.Store {loc} ->
+              if arg = loc then UsedInStore :: results else results
+          | Statement.GetElementPtr {op0} ->
+              if arg = op0 then UsedInGEP :: results else results
+          | _ ->
+              results)
+        []
+    in
+    let used = List.length results > 0 in
+    let used_in_call = List.mem UsedInCall results in
+    let used_in_load = List.mem UsedInLoad results in
+    let used_in_store = List.mem UsedInStore results in
+    let used_in_gep = List.mem UsedInGEP results in
+    (used, used_in_call, used_in_load, used_in_store, used_in_gep)
+
+  let extract _ trace =
+    let has_argval_check, check_branch_taken, branch_is_zero, branch_not_zero =
+      extract_check_result trace
+    in
+    let used, used_in_call, used_in_load, used_in_store, used_in_gep =
+      extract_uses trace
+    in
+    { has_argval_check
+    ; check_branch_taken
+    ; branch_is_zero
+    ; branch_not_zero
+    ; used
+    ; used_in_call
+    ; used_in_load
+    ; used_in_store
+    ; used_in_gep }
 end
 
 module StringMap = Map.Make (String)

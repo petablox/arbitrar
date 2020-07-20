@@ -391,6 +391,28 @@ module NodeGraph = struct
 
   type edge = int * int
 
+  let traversal (graph : t) (start : Node.t) (forward : bool)
+      (fold : 'a -> Node.t -> 'a) (base : 'a) =
+    let rec helper graph succ explored fringe base =
+      match NodeSet.choose_opt fringe with
+      | Some hd ->
+          let fringe = NodeSet.remove hd fringe in
+          if NodeSet.mem hd explored then helper graph succ explored fringe base
+          else
+            let explored = NodeSet.add hd explored in
+            let fringe =
+              NodeSet.union (NodeSet.of_list (succ graph hd)) fringe
+            in
+            let new_result = fold base hd in
+            helper graph succ explored fringe new_result
+      | None ->
+          base
+    in
+    let succ_func = if forward then succ else pred in
+    let fringe = NodeSet.of_list (succ_func graph start) in
+    let explored = NodeSet.empty in
+    helper graph succ_func explored fringe base
+
   let from_vertices_and_edges (nodes : Node.t list) (target : Node.t)
       (edges : edge list) =
     let with_target = add_vertex empty target in
