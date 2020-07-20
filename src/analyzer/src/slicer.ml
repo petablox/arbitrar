@@ -258,6 +258,48 @@ module TypeKind = struct
   let from_json = of_yojson_exn
 end
 
+module TypeKindHelpers = struct
+  module StringSet = Set.Make (String)
+
+  module TypeKindSet = Set.Make (struct
+    type t = TypeKind.t
+
+    let compare = compare
+  end)
+
+  let used_structs ty =
+    let rec used_structs_helper used fringe =
+      match TypeKindSet.choose_opt fringe with
+      | Some ty -> (
+          let new_fringe = TypeKindSet.remove ty fringe in
+          match ty with
+          | TypeKind.NamedStruct name ->
+              let new_used = StringSet.add name used in
+              used_structs_helper new_used new_fringe
+          | Function (ret_ty, arg_tys) ->
+              used_structs_helper used
+                (TypeKindSet.union
+                   (TypeKindSet.of_list (ret_ty :: arg_tys))
+                   new_fringe)
+          | Array (ty, _) ->
+              used_structs_helper used (TypeKindSet.add ty new_fringe)
+          | Pointer ty ->
+              used_structs_helper used (TypeKindSet.add ty new_fringe)
+          | Vector (ty, _) ->
+              used_structs_helper used (TypeKindSet.add ty new_fringe)
+          | _ ->
+              used_structs_helper used new_fringe )
+      | None ->
+          used
+    in
+    used_structs_helper StringSet.empty (TypeKindSet.singleton ty)
+
+  let have_common_struct t1 t2 =
+    let structs1 = used_structs t1 in
+    let structs2 = used_structs t2 in
+    not (StringSet.disjoint structs1 structs2)
+end
+
 module FunctionType = struct
   type t = TypeKind.t * TypeKind.t list [@@deriving yojson {exn= true}]
 
@@ -303,42 +345,12 @@ module Slice = struct
     in
     common_prefix_length > 0
 
-  module StringSet = Set.Make (String)
-  module TypeKindSet = Set.Make (TypeKind)
-
-  let used_structs ty =
-    let rec used_structs_helper used fringe =
-      match TypeKindSet.choose_opt fringe with
-      | Some ty -> (
-          let new_fringe = TypeKindSet.remove ty fringe in
-          match ty with
-          | TypeKind.NamedStruct name ->
-              let new_used = StringSet.add name used in
-              used_structs_helper new_used new_fringe
-          | Function (ret_ty, arg_tys) ->
-              used_structs_helper used
-                (TypeKindSet.union
-                   (TypeKindSet.of_list (ret_ty :: arg_tys))
-                   new_fringe)
-          | Array (ty, _) ->
-              used_structs_helper used (TypeKindSet.add ty new_fringe)
-          | Pointer ty ->
-              used_structs_helper used (TypeKindSet.add ty new_fringe)
-          | Vector (ty, _) ->
-              used_structs_helper used (TypeKindSet.add ty new_fringe)
-          | _ ->
-              used_structs_helper used new_fringe )
-      | None ->
-          used
-    in
-    used_structs_helper StringSet.empty (TypeKindSet.singleton ty)
-
   let have_common_struct_type f1 f2 =
     let r1, a1 = FunctionType.from_llvalue f1 in
     let r2, a2 = FunctionType.from_llvalue f2 in
-    let structs1 = used_structs (TypeKind.Function (r1, a1)) in
-    let structs2 = used_structs (TypeKind.Function (r2, a2)) in
-    not (StringSet.disjoint structs1 structs2)
+    TypeKindHelpers.have_common_struct
+      (TypeKind.Function (r1, a1))
+      (TypeKind.Function (r2, a2))
 
   let within_function_group f1 f2 =
     if f1 == f2 then true

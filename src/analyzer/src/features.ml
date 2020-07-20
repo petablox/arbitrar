@@ -170,7 +170,7 @@ module RetvalFeature = struct
 
   let init_with_trace _ _ = ()
 
-  let filter func = RetValChecker.filter func
+  let filter (_, (ret_ty, _), _) = not (TypeKind.Void = ret_ty)
 
   let target_result (trace : Trace.t) =
     let target = trace.target_node in
@@ -468,6 +468,8 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
 
   let dictionary = ref FunctionCausalityDictionary.empty
 
+  let filter _ = true
+
   let new_feature =
     { invoked= false
     ; invoked_more_than_once= false
@@ -482,59 +484,106 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
       let exc_reg = Str.regexp exc in
       fun str -> Str.string_match exc_reg str 0
 
-  let function_filter =
+  let function_filter : string -> bool =
     let is_excluding = gen_exc_filter !Options.exclude_func in
     let invalid_starting_char f =
       match f.[0] with '(' | '%' -> true | _ -> false
     in
-    fun f -> (not (invalid_starting_char f)) && not (is_excluding f)
-
-  let caused_funcs_helper trace checker : (string * FunctionType.t * int) list =
-    let results = checker trace in
-    List.filter_map
-      (fun (f, ft, id) -> if function_filter f then Some (f, ft, id) else None)
-      results
-
-  let causal_score f1_name f1_type f2_name f2_type = 1.0
-
-  let init_with_trace_helper checker (func_name, func_type, num_traces) trace =
-    let normalize = 1.0 /. (float_of_int num_traces) in
-    let results = caused_funcs_helper trace checker in
-    let dict =
-      List.fold_left
-        (fun dict (caused_func_name, caused_func_type, _) ->
-          let score = causal_score func_name func_type caused_func_name caused_func_type in
-          let normalized_score = score *. normalize in
-          FunctionCausalityDictionary.add dict func_name caused_func_name normalized_score)
-        !dictionary results
-    in
-    dictionary := dict
-
-  let filter _ = true
+    let asm_reg = Str.regexp " asm " in
+    fun f ->
+      if (not (invalid_starting_char f)) && not (is_excluding f) then
+        try
+          let _ = Str.search_forward asm_reg f 0 in
+          false
+        with _ -> true
+      else false
 
   let share_value (v1s : Value.t list) (v2s : Value.t list) : bool =
     List.fold_left (fun acc v1 -> acc || List.mem v1 v2s) false v1s
 
-  let share_type (ts1 : TypeKind.t list) (ts2 : TypeKind.t list) : bool =
-    List.fold_left (fun acc t1 -> acc || List.mem t1 ts2) false ts1
-
   let share_value_opt (ret : Value.t option) (vs : Value.t list) : bool =
     match ret with Some ret -> List.mem ret vs | None -> false
 
-  let res_and_args (node : Node.t) :
-      Value.t option * Value.t list * TypeKind.t list =
-    match node.stmt with
-    | Statement.Call {result; args; arg_types} ->
-        (result, args, arg_types)
-    | _ ->
-        failwith "[res_and_args] Node should be a call statement"
+  let share_type (ts1 : TypeKind.t list) (ts2 : TypeKind.t list) : bool =
+    List.fold_left
+      (fun acc t1 ->
+        let temp_share_type =
+          List.fold_left
+            (fun acc t2 ->
+              acc || Slicer.TypeKindHelpers.have_common_struct t1 t2)
+            false ts2
+        in
+        acc || temp_share_type)
+      false ts1
 
-  let extract_helper checker (func_name, _, _) (trace : Trace.t) =
-    let target_result, target_args, target_arg_types =
-      res_and_args trace.target_node
+  type call =
+    { func: string
+    ; func_type: FunctionType.t
+    ; args: Value.t list
+    ; arg_types: TypeKind.t list
+    ; result: Value.t option }
+
+  let call_of_node (node : Node.t) =
+    match node.stmt with
+    | Call {func; func_type; args; arg_types; result} ->
+        {func; func_type; args; arg_types; result}
+    | _ ->
+        raise Utils.InvalidArgument
+
+  let traverse_call (trace : Trace.t) forward fold base =
+    NodeGraph.traversal trace.cfgraph trace.target_node forward
+      (fun agg node ->
+        match node.stmt with
+        | Call {func} ->
+            if function_filter func then
+              let call = call_of_node node in
+              fold agg (node, call)
+            else agg
+        | _ ->
+            agg)
+      base
+
+  let causal_score call_1 call_2 =
+    let share_arg_score =
+      if share_value call_1.args call_2.args then 2.0 else 0.0
     in
+    let share_ret_score =
+      if
+        share_value_opt call_1.result call_2.args
+        || share_value_opt call_2.result call_1.args
+      then 2.0
+      else 0.0
+    in
+    let share_ty_score =
+      if share_type call_1.arg_types call_2.arg_types then 1.0 else 0.0
+    in
+    1.0 +. share_arg_score +. share_ret_score +. share_ty_score
+
+  let init_with_trace_helper (forward : bool) (func_name, _, num_traces)
+      (trace : Trace.t) =
+    let normalize = 1.0 /. float_of_int num_traces in
+    let target = trace.target_node in
+    let target_call = call_of_node target in
+    let results =
+      traverse_call trace forward
+        (fun results (_, caused_call) ->
+          let {func} = caused_call in
+          let score = causal_score target_call caused_call in
+          let normalized_score = score *. normalize in
+          (func, normalized_score) :: results)
+        []
+    in
+    let dict =
+      List.fold_left
+        (fun dict (caused_func_name, score) ->
+          FunctionCausalityDictionary.add dict func_name caused_func_name score)
+        !dictionary results
+    in
+    dictionary := dict
+
+  let extract_helper forward (func_name, _, _) (trace : Trace.t) =
+    let target_call = call_of_node trace.target_node in
     let target_context = Node.context trace.target_node in
-    let results = caused_funcs_helper trace checker in
     let maybe_caused_dict =
       FunctionCausalityDictionary.find_opt !dictionary func_name
     in
@@ -547,22 +596,21 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
           List.fold_left
             (fun assocs func_name ->
               let feature =
-                List.fold_left
-                  (fun acc (func, _, id) ->
+                traverse_call trace forward
+                  (fun acc (node, call) ->
+                    let {func} = call in
                     if func = func_name then
                       let invoked = true in
                       let invoked_more_than_once = acc.invoked in
-                      let node = Trace.node trace id in
-                      let node_result, node_args, node_arg_types =
-                        res_and_args node
+                      let share_argument =
+                        share_value target_call.args call.args
                       in
-                      let share_argument = share_value target_args node_args in
                       let share_argument_type =
-                        share_type target_arg_types node_arg_types
+                        share_type target_call.arg_types call.arg_types
                       in
                       let share_return_value =
-                        share_value_opt node_result target_args
-                        || share_value_opt target_result node_args
+                        share_value_opt call.result target_call.args
+                        || share_value_opt target_call.result call.args
                       in
                       let same_context =
                         let node_context = Node.context node in
@@ -577,7 +625,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
                           acc.share_return_value || share_return_value
                       ; same_context= acc.same_context || same_context }
                     else acc)
-                  new_feature results
+                  new_feature
               in
               (func_name, feature_to_yojson feature) :: assocs)
             [] top_caused
@@ -596,9 +644,9 @@ module InvokedBeforeFeature = struct
 
   let name = "invoked_before"
 
-  let init_with_trace = init_with_trace_helper CausalityChecker.check_trace
+  let init_with_trace = init_with_trace_helper true
 
-  let extract = extract_helper CausalityChecker.check_trace
+  let extract = extract_helper true
 end
 
 module InvokedAfterFeature = struct
@@ -608,10 +656,9 @@ module InvokedAfterFeature = struct
 
   let name = "invoked_after"
 
-  let init_with_trace =
-    init_with_trace_helper CausalityChecker.check_trace_backward
+  let init_with_trace = init_with_trace_helper false
 
-  let extract = extract_helper CausalityChecker.check_trace_backward
+  let extract = extract_helper false
 end
 
 module LoopFeature = struct

@@ -295,13 +295,17 @@ module CausalityChecker = struct
 
   let fold (result : (string * FunctionType.t * int) list) (node : Node.t) =
     match node.stmt with
-    | Call {func; func_type} -> if func_filter func then (func, func_type, node.id) :: result else result
-    | _ -> result
+    | Call {func; func_type} ->
+        if func_filter func then (func, func_type, node.id) :: result
+        else result
+    | _ ->
+        result
 
   let check_trace (trace : Trace.t) : (string * FunctionType.t * int) list =
     NodeGraph.traversal trace.cfgraph trace.target_node true fold []
 
-  let check_trace_backward (trace : Trace.t) : (string * FunctionType.t * int) list =
+  let check_trace_backward (trace : Trace.t) :
+      (string * FunctionType.t * int) list =
     NodeGraph.traversal trace.cfgraph trace.target_node false fold []
 
   let check _ trace : t list =
