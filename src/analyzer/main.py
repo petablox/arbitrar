@@ -15,7 +15,7 @@ exclude_fn = r'^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
 
 def setup_parser(parser):
   parser.add_argument('-b', '--bc', type=str, default="", help='The .bc file to analyze')
-  parser.add_argument('-s', '--slice-size', type=int, default=1, help='Slice size')
+  parser.add_argument('-d', '--slice-depth', type=int, default=1, help='Slice depth')
   parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
   parser.add_argument('-i', '--input', type=str, help="Given an input bc file")
   parser.add_argument('-v', '--verbose', type=int, help="Verbose level")
