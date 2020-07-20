@@ -107,7 +107,7 @@ def run_analyzer(db, bc_file, args):
 
     cmd = [
         './analyzer', bc_file, '-no-analysis', '-n',
-        str(args.slice_size), '-exclude-fn', exclude_fn, '-causality-dict-size',
+        str(args.slice_depth), '-exclude-fn', exclude_fn, '-causality-dict-size',
         str(args.causality_dict_size), '-outdir', temp_outdir
     ]
 
