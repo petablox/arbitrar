@@ -138,6 +138,10 @@ module ContextFeature = struct
     {no_context= not has_context}
 end
 
+module Usage = struct
+  type t = UsedInCall | UsedInLoad | UsedInStore | UsedInGEP
+end
+
 module RetvalFeature = struct
   type t =
     { related_to_check: bool
@@ -146,7 +150,8 @@ module RetvalFeature = struct
     ; used_in_logical_formula: bool
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
-    ; branch_not_zero: bool option }
+    ; branch_not_zero: bool option
+    ; used_after: bool }
   [@@deriving to_yojson]
 
   type temp_result = IcmpResult of t | LogicalResult of t | None
@@ -158,13 +163,42 @@ module RetvalFeature = struct
     ; used_in_logical_formula= false
     ; check_branch_taken= None
     ; branch_is_zero= None
-    ; branch_not_zero= None }
+    ; branch_not_zero= None
+    ; used_after= false }
 
-  let name = "retval_check"
+  let name = "retval"
 
   let init_with_trace _ _ = ()
 
   let filter func = RetValChecker.filter func
+
+  let target_result (trace : Trace.t) =
+    let target = trace.target_node in
+    match target.stmt with
+    | Statement.Call {result= Some result} ->
+        result
+    | _ ->
+        raise Utils.InvalidArgument
+
+  let extract_uses (trace : Trace.t) =
+    let target = trace.target_node in
+    let ret = target_result trace in
+    let results =
+      NodeGraph.traversal trace.cfgraph target true
+        (fun results node ->
+          match node.stmt with
+          | Statement.Load {loc} ->
+              if ret = loc then Usage.UsedInLoad :: results else results
+          | Statement.Store {loc} ->
+              if ret = loc then Usage.UsedInStore :: results else results
+          | Statement.GetElementPtr {op0} ->
+              if ret = op0 then Usage.UsedInGEP :: results else results
+          | _ ->
+              results)
+        []
+    in
+    let used_after = List.length results > 0 in
+    used_after
 
   let extract func trace =
     let results = IcmpBranchChecker.check_retval trace in
@@ -214,24 +248,28 @@ module RetvalFeature = struct
       | _ ->
           None
     in
-    match recurse_results results with
-    | IcmpResult r ->
-        r
-    | LogicalResult r ->
-        r
-    | None ->
-        base_result
+    let check_result =
+      match recurse_results results with
+      | IcmpResult r ->
+          r
+      | LogicalResult r ->
+          r
+      | None ->
+          base_result
+    in
+    let used_after = extract_uses trace in
+    {check_result with used_after}
 end
 
 module ArgvalFeature (A : ARG_INDEX) = struct
   type check_result = Check of bool * bool * bool | NoCheck
 
   type t =
-    { has_argval_check: bool
+    { has_argval_check: bool (* Argval Check Features *)
     ; check_branch_taken: bool option
     ; branch_is_zero: bool option
     ; branch_not_zero: bool option
-    ; used: bool
+    ; used_after: bool (* Usage Features *)
     ; used_in_call: bool
     ; used_in_store: bool
     ; used_in_load: bool
@@ -240,7 +278,7 @@ module ArgvalFeature (A : ARG_INDEX) = struct
 
   module AVC = ArgValChecker (A)
 
-  let name = Printf.sprintf "argval_%d_check" A.index
+  let name = Printf.sprintf "argval_%d" A.index
 
   let init_with_trace _ _ = ()
 
@@ -273,8 +311,6 @@ module ArgvalFeature (A : ARG_INDEX) = struct
     | _ ->
         (false, None, None, None)
 
-  type usage = UsedInCall | UsedInLoad | UsedInStore | UsedInGEP
-
   let extract_uses (trace : Trace.t) =
     let target = trace.target_node in
     let arg = target_arg trace in
@@ -283,36 +319,36 @@ module ArgvalFeature (A : ARG_INDEX) = struct
         (fun results node ->
           match node.stmt with
           | Statement.Call {args} ->
-              if List.mem arg args then UsedInCall :: results else results
+              if List.mem arg args then Usage.UsedInCall :: results else results
           | Statement.Load {loc} ->
-              if arg = loc then UsedInLoad :: results else results
+              if arg = loc then Usage.UsedInLoad :: results else results
           | Statement.Store {loc} ->
-              if arg = loc then UsedInStore :: results else results
+              if arg = loc then Usage.UsedInStore :: results else results
           | Statement.GetElementPtr {op0} ->
-              if arg = op0 then UsedInGEP :: results else results
+              if arg = op0 then Usage.UsedInGEP :: results else results
           | _ ->
               results)
         []
     in
     let used = List.length results > 0 in
-    let used_in_call = List.mem UsedInCall results in
-    let used_in_load = List.mem UsedInLoad results in
-    let used_in_store = List.mem UsedInStore results in
-    let used_in_gep = List.mem UsedInGEP results in
+    let used_in_call = List.mem Usage.UsedInCall results in
+    let used_in_load = List.mem Usage.UsedInLoad results in
+    let used_in_store = List.mem Usage.UsedInStore results in
+    let used_in_gep = List.mem Usage.UsedInGEP results in
     (used, used_in_call, used_in_load, used_in_store, used_in_gep)
 
   let extract _ trace =
     let has_argval_check, check_branch_taken, branch_is_zero, branch_not_zero =
       extract_check_result trace
     in
-    let used, used_in_call, used_in_load, used_in_store, used_in_gep =
+    let used_after, used_in_call, used_in_load, used_in_store, used_in_gep =
       extract_uses trace
     in
     { has_argval_check
     ; check_branch_taken
     ; branch_is_zero
     ; branch_not_zero
-    ; used
+    ; used_after
     ; used_in_call
     ; used_in_load
     ; used_in_store
