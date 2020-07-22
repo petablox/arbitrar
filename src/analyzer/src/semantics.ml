@@ -10,7 +10,7 @@ module Stmt = struct
   let equal x y = x.instr == y.instr
 
   let make cache llctx instr =
-    let location = Utils.string_of_location cache llctx instr in
+    let location = Utils.string_of_instr_location cache llctx instr in
     {instr; location}
 
   let opcode stmt = Llvm.instr_opcode stmt.instr

@@ -276,8 +276,43 @@ let exp_func_name : string -> string option =
             Some (Str.matched_group 1 str)
           with _ -> None )
 
+let fold_left_func_instrs fn f base =
+  Llvm.fold_left_blocks
+    (fun a blk -> Llvm.fold_left_instrs (fun a instr -> f a instr) a blk)
+    base fn
+
+let string_of_function_location llctx fn =
+  let func_name = Llvm.value_name fn in
+  let res =
+    fold_left_func_instrs fn
+      (fun res instr ->
+        match res with
+        | Some res ->
+            Some res
+        | None -> (
+            let instr_dbg = Llvm.metadata instr (Llvm.mdkind_id llctx "dbg") in
+            match instr_dbg with
+            | Some instr_mdnode ->
+                let blk_mdnode = (Llvm.get_mdnode_operands instr_mdnode).(0) in
+                let func_mdnode = (Llvm.get_mdnode_operands blk_mdnode).(0) in
+                let file_mdnode = (Llvm.get_mdnode_operands func_mdnode).(0) in
+                let filename =
+                  Llvm.string_of_llvalue file_mdnode |> String.trim
+                in
+                let filename =
+                  String.sub filename 2 (String.length filename - 3)
+                in
+                Some (Printf.sprintf "%s:%s" filename func_name)
+            | _ ->
+                None ))
+      None
+  in
+  match res with Some res -> res | None -> func_name
+
 module GlobalCache = struct
   let ll_func_cache = Hashtbl.create 2048
+
+  let ll_func_location_cache = Hashtbl.create 2048
 
   let ll_func (f : Llvm.llvalue) : string option =
     if Hashtbl.mem ll_func_cache f then Hashtbl.find ll_func_cache f
@@ -285,6 +320,14 @@ module GlobalCache = struct
       let name = Llvm.value_name f |> exp_func_name in
       Hashtbl.add ll_func_cache f name ;
       name
+
+  let ll_func_location (llctx : Llvm.llcontext) (f : Llvm.llvalue) : string =
+    if Hashtbl.mem ll_func_location_cache f then
+      Hashtbl.find ll_func_location_cache f
+    else
+      let loc = string_of_function_location llctx f in
+      Hashtbl.add ll_func_location_cache f loc ;
+      loc
 end
 
 let initialize_output_directories outdir =
@@ -645,7 +688,7 @@ let fold_left_all_instr f a m =
           a func)
     a m
 
-let string_of_location cache llctx instr =
+let string_of_instr_location cache llctx instr =
   let dbg = Llvm.metadata instr (Llvm.mdkind_id llctx "dbg") in
   let func = Llvm.instr_parent instr |> Llvm.block_parent |> Llvm.value_name in
   match dbg with

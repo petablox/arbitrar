@@ -19,6 +19,7 @@ def setup_parser(parser):
   parser.add_argument('-r', '--redo', action='store_true', help='Redo all analysis')
   parser.add_argument('-i', '--input', type=str, help="Given an input bc file")
   parser.add_argument('-v', '--verbose', type=int, help="Verbose level")
+  parser.add_argument('--entry-location', type=str)
   parser.add_argument('--output-trace', action="store_true", help="Output trace json")
   parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
@@ -154,6 +155,10 @@ def run_analyzer(db, bc_file, args):
     if args.random_worklist:
       print(f"Use randomized worklist")
       cmd += ['-random-worklist']
+
+    if args.entry_location != None:
+      print(f"Use entry location filter {args.entry_location}")
+      cmd += ['-entry-location', args.entry_location]
 
     run = subprocess.run(cmd, cwd=this_path, env={'OCAMLRUNPARAM': 'b'})
 

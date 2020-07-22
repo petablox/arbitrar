@@ -29,6 +29,8 @@ let include_func = ref ""
 
 let exclude_func = ref ""
 
+let entry_location = ref ""
+
 let reduce_slice = ref false
 
 let use_batch = ref false
@@ -94,6 +96,7 @@ let slicer_opts_local =
     , "Target function requires minimum amount of slices" )
   ; ("-include-fn", Arg.Set_string include_func, "Target function regex")
   ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex")
+  ; ("-entry-location", Arg.Set_string entry_location, "Entry location regex")
   ; ("-reduce-slice", Arg.Set reduce_slice, "Reduce Slice")
   ; ("-use-batch", Arg.Set use_batch, "Use batched execution")
   ; ("-batch-size", Arg.Set_int batch_size, "Batch size") ]
