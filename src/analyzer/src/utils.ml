@@ -678,6 +678,23 @@ let callee_of_call_instr instr = Llvm.operand instr (Llvm.num_operands instr - 1
 let args_of_call_instr instr =
   List.init (Llvm.num_operands instr - 1) (Llvm.operand instr)
 
+let arg_types_of_call_instr instr =
+  let args = args_of_call_instr instr in
+  let arg_types =
+    List.map
+      (fun arg ->
+        let arg =
+          match Llvm.classify_value arg with
+          | Llvm.ValueKind.Instruction Llvm.Opcode.BitCast ->
+              Llvm.operand arg 0
+          | _ ->
+              arg
+        in
+        Llvm.type_of arg)
+      args
+  in
+  arg_types
+
 let fold_left_all_instr f a m =
   Llvm.fold_left_functions
     (fun a func ->

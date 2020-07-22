@@ -33,6 +33,8 @@ let entry_location = ref ""
 
 let reduce_slice = ref false
 
+let reduce_slice_with_type = ref true
+
 let use_batch = ref false
 
 let batch_size = ref 200

@@ -668,7 +668,8 @@ let sample_include () =
   if !Options.sample_slice then
     let rnd = Random.float 1.0 in
     rnd < !Options.sample_slice_percentage
-  else false
+  else
+    false
 
 let call_edges (slicing_ctx : SlicingContext.t) :
     FunctionCounter.t * EdgeEntriesMap.t =

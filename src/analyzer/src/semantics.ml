@@ -283,18 +283,9 @@ module Stmt = struct
             arg_exps
         in
         let arg_types =
-          List.map
-            (fun a ->
-              let arg =
-                match Llvm.classify_value a with
-                | Llvm.ValueKind.Instruction Llvm.Opcode.BitCast ->
-                    Llvm.operand a 0
-                | _ ->
-                    a
-              in
-              Slicer.TypeKind.to_json
-                (Slicer.TypeKind.from_lltype (Llvm.type_of arg)))
-            arg_exps
+          Utils.arg_types_of_call_instr instr
+          |> List.map (fun x ->
+                 x |> Slicer.TypeKind.from_lltype |> Slicer.TypeKind.to_json)
         in
         let callee_str =
           match Utils.exp_func_name callee_exp with
