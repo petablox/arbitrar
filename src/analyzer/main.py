@@ -35,6 +35,8 @@ def setup_parser(parser):
   parser.add_argument('--use-batch', action='store_true')
   parser.add_argument('--batch-size', type=int)
   parser.add_argument('--random-worklist', action='store_true')
+  parser.add_argument('--sample-slice', action='store_true')
+  parser.add_argument('--seed', type=int)
 
 
 def main(args):
@@ -159,6 +161,14 @@ def run_analyzer(db, bc_file, args):
     if args.entry_location != None:
       print(f"Use entry location filter {args.entry_location}")
       cmd += ['-entry-location', args.entry_location]
+
+    if args.sample_slice:
+      print(f"Sample slice")
+      cmd += ['-sample-slice']
+
+    if args.seed != None:
+      print(f"Use random seed {args.seed}")
+      cmd += ['-seed', str(args.seed)]
 
     run = subprocess.run(cmd, cwd=this_path, env={'OCAMLRUNPARAM': 'b'})
 

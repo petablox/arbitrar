@@ -656,12 +656,19 @@ module SlicingContext = struct
     ; depth: int }
 
   let create llctx llm depth : t =
+    let _ = Random.init !Options.seed in
     let is_excluding = gen_exc_filter !Options.exclude_func in
     let filter = gen_filter !Options.include_func !Options.exclude_func in
     let entry_filter = gen_inc_filter !Options.entry_location in
     let call_graph = CallGraph.from_llm llm in
     {llctx; llm; is_excluding; filter; entry_filter; call_graph; depth}
 end
+
+let sample_include () =
+  if !Options.sample_slice then
+    let rnd = Random.float 1.0 in
+    rnd < !Options.sample_slice_percentage
+  else false
 
 let call_edges (slicing_ctx : SlicingContext.t) :
     FunctionCounter.t * EdgeEntriesMap.t =
@@ -677,13 +684,16 @@ let call_edges (slicing_ctx : SlicingContext.t) :
           let entries =
             find_entries slicing_ctx.depth slicing_ctx.call_graph
               singleton_caller LlvalueSet.empty
-            |> LlvalueSet.filter (fun func ->
-                   let fn_loc =
-                     Utils.GlobalCache.ll_func_location slicing_ctx.llctx func
-                   in
-                   let including = slicing_ctx.entry_filter fn_loc in
-                   (* if not including then Printf.printf "Excluding slice with entry %s\n" fn_loc ; *)
-                   including)
+          in
+          let entries =
+            LlvalueSet.filter
+              (fun func ->
+                let fn_loc =
+                  Utils.GlobalCache.ll_func_location slicing_ctx.llctx func
+                in
+                if slicing_ctx.entry_filter fn_loc then true
+                else sample_include ())
+              entries
           in
           let num_entries = LlvalueSet.cardinal entries in
           if num_entries > 0 then

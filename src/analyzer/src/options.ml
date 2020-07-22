@@ -37,6 +37,12 @@ let use_batch = ref false
 
 let batch_size = ref 200
 
+let seed = ref 12345
+
+let sample_slice_percentage = ref 0.1
+
+let sample_slice = ref false
+
 (* Occurrence Options *)
 let occ_output_csv = ref true
 
@@ -96,10 +102,18 @@ let slicer_opts_local =
     , "Target function requires minimum amount of slices" )
   ; ("-include-fn", Arg.Set_string include_func, "Target function regex")
   ; ("-exclude-fn", Arg.Set_string exclude_func, "Exclude function regex")
-  ; ("-entry-location", Arg.Set_string entry_location, "Entry location regex")
+  ; ( "-entry-location"
+    , Arg.Set_string entry_location
+    , "Entry location regex, will always include even when sampling is enabled"
+    )
   ; ("-reduce-slice", Arg.Set reduce_slice, "Reduce Slice")
   ; ("-use-batch", Arg.Set use_batch, "Use batched execution")
-  ; ("-batch-size", Arg.Set_int batch_size, "Batch size") ]
+  ; ("-batch-size", Arg.Set_int batch_size, "Batch size")
+  ; ("-sample-slice", Arg.Set sample_slice, "Random sample slice")
+  ; ( "-sample-slice-perc"
+    , Arg.Set_float sample_slice_percentage
+    , "Random sample slice percentage" )
+  ; ("-seed", Arg.Set_int seed, "Random seed") ]
 
 let occurrence_opts_local =
   [("-json", Arg.Set occ_output_json, "Output .json file")]
