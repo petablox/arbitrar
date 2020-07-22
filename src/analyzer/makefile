@@ -1,5 +1,6 @@
 OCAMLBUILD = @ ocamlbuild -use-ocamlfind
 WLLVM = @ wllvm
+LLVM_DIS = @ llvm-dis
 RM = @ rm -rf
 MV = @ mv
 
@@ -18,6 +19,7 @@ tests/%.bc: tests/%.c
 	$(WLLVM) -g -c "$<"
 	$(RM) "./a.out" ".$(*F).o" "$(*F).o"
 	$(MV) ".$(*F).o.bc" "$@"
+	$(LLVM_DIS) "$@"
 
 clean: clean-analyzer clean-tests
 

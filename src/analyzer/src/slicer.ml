@@ -380,8 +380,20 @@ module Slice = struct
     let rec is_related visited is_related_map queue =
       match queue with
       | fn :: tl ->
-          if LlvalueMap.mem fn is_related_map || LlvalueSet.mem fn visited then
-            is_related visited is_related_map tl
+          if LlvalueSet.mem fn visited then
+            if LlvalueMap.mem fn is_related_map then
+              is_related visited is_related_map tl
+            else
+              let callees = CallGraph.succ call_graph fn in
+              let fn_is_related =
+                List.fold_left
+                  (fun fn_is_related callee ->
+                    match LlvalueMap.find_opt callee is_related_map with
+                    | Some callee_is_related -> fn_is_related || callee_is_related
+                    | None -> fn_is_related)
+                  false callees
+              in
+              is_related visited (LlvalueMap.add fn fn_is_related is_related_map) tl
           else
             let visited = LlvalueSet.add fn visited in
             let directly_related = within_function_group target fn in

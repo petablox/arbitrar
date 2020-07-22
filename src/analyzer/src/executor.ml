@@ -803,7 +803,8 @@ and finish_execution llctx env state fstate =
       else reduce_dugraph target_node state.dugraph
     in
     let env =
-      Environment.add_trace state.State.trace env
+      env
+      |> Environment.add_trace state.State.trace
       |> Environment.add_dugraph dug fstate
     in
     (env, dug)
