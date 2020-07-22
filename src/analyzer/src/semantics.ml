@@ -365,12 +365,23 @@ module Stmt = struct
   let pp fmt s = F.fprintf fmt "%s" (Utils.SliceCache.string_of_exp s)
 end
 
+module StackFrame = struct
+  type t = {instr: Llvm.llvalue; func: Llvm.llvalue}
+
+  let create instr func = {instr; func}
+end
+
 module Stack = struct
-  type t = Llvm.llvalue list
+  type t = StackFrame.t list
 
   let empty = []
 
-  let push x s = x :: s
+  let push (x : StackFrame.t) s = x :: s
+
+  let has_func (func : Llvm.llvalue) (s : t) =
+    List.fold_left
+      (fun acc (sf : StackFrame.t) -> acc || sf.func = func)
+      false s
 
   let pop = function x :: s -> Some (x, s) | [] -> None
 

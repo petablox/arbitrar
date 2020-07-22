@@ -580,7 +580,8 @@ and transfer llctx instr (env : Environment.t) state =
 
 and transfer_ret llctx instr env state =
   match State.pop_stack state with
-  | Some (callsite, state) ->
+  | Some (sf, state) ->
+      let callsite = sf.instr in
       let lv = eval_lv callsite state.State.memory in
       let exp0 = Llvm.operand instr 0 in
       let v =
@@ -717,7 +718,7 @@ and transfer_call llctx instr env state =
       execute_instr llctx (Llvm.instr_succ instr) env state
   | Value.Function f
     when need_step_into_function boundaries env.target f
-         && not (FuncSet.mem callee_expr state.visited_funcs) ->
+         && not (Stack.has_func f state.stack) ->
       let state, args, uses, _ =
         Llvm.fold_left_params
           (fun (state, args, uses, count) param ->
@@ -735,7 +736,7 @@ and transfer_call llctx instr env state =
       |> State.add_global_use instr
       |> State.add_semantic_du_edges uses instr
       |> add_syntactic_du_edge instr env
-      |> State.push_stack instr
+      |> State.push_stack (StackFrame.create instr f)
       |> execute_function llctx f env
   | Value.Function f
     when Llvm.type_of f |> Llvm.return_type |> Utils.is_void_type |> not ->
