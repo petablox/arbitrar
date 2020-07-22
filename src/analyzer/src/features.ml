@@ -499,10 +499,16 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
       else false
 
   let share_value (v1s : Value.t list) (v2s : Value.t list) : bool =
-    List.fold_left (fun acc v1 -> acc || List.mem v1 v2s) false v1s
+    List.fold_left
+      (fun acc v1 -> acc || (v1 <> Value.Unknown && List.mem v1 v2s))
+      false v1s
 
   let share_value_opt (ret : Value.t option) (vs : Value.t list) : bool =
-    match ret with Some ret -> List.mem ret vs | None -> false
+    match ret with
+    | Some ret ->
+        ret <> Value.Unknown && List.mem ret vs
+    | None ->
+        false
 
   let share_type (ts1 : TypeKind.t list) (ts2 : TypeKind.t list) : bool =
     List.fold_left

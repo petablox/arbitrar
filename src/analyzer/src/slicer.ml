@@ -389,11 +389,15 @@ module Slice = struct
                 List.fold_left
                   (fun fn_is_related callee ->
                     match LlvalueMap.find_opt callee is_related_map with
-                    | Some callee_is_related -> fn_is_related || callee_is_related
-                    | None -> fn_is_related)
+                    | Some callee_is_related ->
+                        fn_is_related || callee_is_related
+                    | None ->
+                        fn_is_related)
                   false callees
               in
-              is_related visited (LlvalueMap.add fn fn_is_related is_related_map) tl
+              is_related visited
+                (LlvalueMap.add fn fn_is_related is_related_map)
+                tl
           else
             let visited = LlvalueSet.add fn visited in
             let directly_related = within_function_group target fn in
@@ -680,8 +684,7 @@ let sample_include () =
   if !Options.sample_slice then
     let rnd = Random.float 1.0 in
     rnd < !Options.sample_slice_percentage
-  else
-    false
+  else false
 
 let call_edges (slicing_ctx : SlicingContext.t) :
     FunctionCounter.t * EdgeEntriesMap.t =
