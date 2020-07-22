@@ -550,6 +550,7 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
       base
 
   let causal_score call_1 call_2 =
+    let same_func_score = if call_1.func == call_2.func then 10.0 else 0.0 in
     let share_arg_score =
       if share_value call_1.args call_2.args then 2.0 else 0.0
     in
@@ -563,7 +564,8 @@ module CausalityFeatureHelper (D : DICTIONARY_HOLDER) = struct
     let share_ty_score =
       if share_type call_1.arg_types call_2.arg_types then 1.0 else 0.0
     in
-    1.0 +. share_arg_score +. share_ret_score +. share_ty_score
+    1.0 +. same_func_score +. share_arg_score +. share_ret_score
+    +. share_ty_score
 
   let init_with_trace_helper (forward : bool) (func_name, _, num_traces)
       (trace : Trace.t) =
@@ -717,7 +719,7 @@ let process_trace features_dir func (trace : Trace.t) =
       (fun assoc extractor ->
         let module M = (val extractor : FEATURE) in
         if M.filter func then (
-          Printf.printf "Extracting trace %d/%d with %s    \r" trace.slice_id
+          Printf.printf "Extracting trace %d/%d with %s      \r" trace.slice_id
             trace.trace_id M.name ;
           let result = M.extract func trace in
           let json_result = M.to_yojson result in
@@ -754,7 +756,7 @@ let main input_directory =
   let _ =
     fold_traces input_directory
       (fun _ (func, trace) ->
-        Printf.printf "Initializing with trace %d/%d   \r" trace.slice_id
+        Printf.printf "Initializing with trace %d/%d      \r" trace.slice_id
           trace.trace_id ;
         flush stdout ;
         List.iter
@@ -777,5 +779,5 @@ let main input_directory =
           ())
       out_dirs
   in
-  Printf.printf "Done Feature Extraction\n" ;
+  Printf.printf "\nDone Feature Extraction\n" ;
   ()
