@@ -38,6 +38,5 @@ fn main() -> Result<(), String> {
         logging_ctx.log(format!("Running slicer on batch #{}...", batch_id).as_str())?;
         let _slices = slicer_ctx.slices_of_call_edges(edges_batch);
     }
-    // let _slices = slicer_ctx.slice();
     Ok(())
 }

@@ -94,28 +94,25 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
     }
 
     pub fn call_graph(&self) -> CallGraph<'ctx> {
-        let mut value_edge_map : HashMap<FunctionValue<'ctx>, NodeIndex> = HashMap::new();
+        let mut value_id_map : HashMap<FunctionValue<'ctx>, NodeIndex> = HashMap::new();
 
         // Generate Call Graph by iterating through all blocks & instructions for each function
         let mut cg = Graph::new();
         for caller in self.ctx.llmod.iter_functions() {
-            let caller_id = value_edge_map.entry(caller).or_insert_with(|| cg.add_node(caller)).clone();
+            let caller_id = value_id_map.entry(caller).or_insert_with(|| cg.add_node(caller)).clone();
             for b in caller.get_basic_blocks() {
                 for i in b.iter_instructions() {
                     match callee_of_call_instr(&self.ctx.llmod, i) {
                         Some(callee) => {
-                            let callee_id = value_edge_map.entry(callee).or_insert_with(|| cg.add_node(callee)).clone();
-                            cg.add_edge(caller_id, callee_id, i);
+                            if self.options.no_remove_llvm_funcs || !callee.function_name().contains("llvm.") {
+                                let callee_id = value_id_map.entry(callee).or_insert_with(|| cg.add_node(callee)).clone();
+                                cg.add_edge(caller_id, callee_id, i);
+                            }
                         },
                         None => {}
                     }
                 }
             }
-        }
-
-        // Remove unrelated llvm functions
-        if !self.options.no_remove_llvm_funcs {
-            cg.remove_llvm_funcs();
         }
 
         // Return the call graph
