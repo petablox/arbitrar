@@ -5,11 +5,17 @@ use either::Either;
 
 pub trait FunctionValueTrait {
     fn is_declare_only(&self) -> bool;
+
+    fn function_name(&self) -> String;
 }
 
 impl<'ctx> FunctionValueTrait for FunctionValue<'ctx> {
     fn is_declare_only(&self) -> bool {
         self.get_first_basic_block().is_none()
+    }
+
+    fn function_name(&self) -> String {
+        String::from(self.get_name().to_string_lossy())
     }
 }
 
