@@ -3,7 +3,7 @@ use clap::{App, Arg, ArgMatches};
 use petgraph::graph::{Graph, DiGraph, EdgeIndex, NodeIndex};
 use inkwell::values::*;
 
-use crate::utils::Options;
+use crate::options::Options;
 use crate::context::*;
 use crate::ll_utils::*;
 

@@ -1,10 +1,12 @@
 use std::collections::HashSet;
+use std::slice::Chunks;
 use clap::{App, Arg, ArgMatches};
 use regex::Regex;
+use rayon::prelude::*;
 use inkwell::values::*;
 use petgraph::{Direction, graph::{EdgeIndex}};
 
-use crate::utils::Options;
+use crate::options::Options;
 use crate::ll_utils::*;
 use crate::context::AnalyzerContext;
 use crate::call_graph::CallGraph;
@@ -16,6 +18,8 @@ pub struct Slice<'ctx> {
     pub instr: InstructionValue<'ctx>,
     pub functions: HashSet<FunctionValue<'ctx>>,
 }
+
+unsafe impl<'ctx> Send for Slice<'ctx> {}
 
 pub struct SlicerOptions {
     pub depth: u8,
@@ -85,6 +89,8 @@ pub struct SlicerContext<'a, 'ctx> {
     pub options: SlicerOptions,
 }
 
+unsafe impl<'a, 'ctx> Sync for SlicerContext<'a, 'ctx> {}
+
 impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     pub fn new(ctx: &'a AnalyzerContext<'ctx>, call_graph: &'a CallGraph<'ctx>) -> Result<Self, String> {
         let options = SlicerOptions::from_matches(&ctx.args)?;
@@ -130,7 +136,25 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
         Ok(edges)
     }
 
-    pub fn slice_of_call_edge(&self, _edge_id: EdgeIndex) -> Vec<Slice<'ctx>> {
+    pub fn batches<'b>(&self, edges: &'b Vec<EdgeIndex>) -> Chunks<'b, EdgeIndex> {
+        if self.options.use_batch {
+            edges.chunks(self.options.batch_size as usize)
+        } else {
+            edges.chunks(edges.len())
+        }
+    }
+
+    pub fn slices_of_call_edge(&self, _edge_id: &EdgeIndex) -> Vec<Slice<'ctx>> {
         vec![]
+    }
+
+    pub fn slices_of_call_edges(&self, edges: &[EdgeIndex]) -> Vec<Slice<'ctx>> {
+        edges
+            .par_iter()
+            .map(|edge_id: &EdgeIndex| -> Vec<Slice<'ctx>> {
+                self.slices_of_call_edge(edge_id)
+            })
+            .flatten()
+            .collect()
     }
 }

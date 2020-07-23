@@ -1,14 +1,12 @@
-#[macro_use] extern crate lazy_static;
-
 use clap::{App, Arg, ArgMatches};
 
-mod utils;
+mod options;
 mod ll_utils;
 mod context;
 mod call_graph;
 mod slicer;
 
-use utils::*;
+use options::*;
 use context::*;
 use call_graph::*;
 use slicer::*;
@@ -31,11 +29,8 @@ fn main() -> Result<(), String> {
     let call_graph = call_graph_ctx.call_graph();
     let slicer_ctx = SlicerContext::new(&analyzer_ctx, &call_graph)?;
     let edges = slicer_ctx.relavant_edges()?;
-    for edge in edges {
-        match slicer_ctx.call_graph.call_edge(edge) {
-            Some(ce) => ce.dump(),
-            None => ()
-        }
+    for edges_batch in slicer_ctx.batches(&edges) {
+        let _slices = slicer_ctx.slices_of_call_edges(edges_batch);
     }
     // let _slices = slicer_ctx.slice();
     Ok(())
