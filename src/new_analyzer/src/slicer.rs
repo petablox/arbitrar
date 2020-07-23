@@ -136,6 +136,14 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
         Ok(edges)
     }
 
+    pub fn num_batches<'b>(&self, edges: &'b Vec<EdgeIndex>) -> u32 {
+        if self.options.use_batch {
+            (edges.len() as f32 / self.options.batch_size as f32).ceil() as u32
+        } else {
+            1
+        }
+    }
+
     pub fn batches<'b>(&self, edges: &'b Vec<EdgeIndex>) -> Chunks<'b, EdgeIndex> {
         if self.options.use_batch {
             edges.chunks(self.options.batch_size as usize)
