@@ -10,3 +10,4 @@ edition = "2018"
 petgraph = "0.5"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "llvm10-0" }
 either = "1.5"
+clap = "3.0.0-beta.1"
