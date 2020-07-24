@@ -5,11 +5,13 @@ mod context;
 mod ll_utils;
 mod options;
 mod slicer;
+mod symbolic_execution;
 
 use call_graph::*;
 use context::*;
 use options::*;
 use slicer::*;
+use symbolic_execution::*;
 
 fn args() -> ArgMatches {
   let app = App::new("analyzer");
@@ -44,9 +46,9 @@ fn main() -> Result<(), String> {
       logging_ctx.log(format!("Running slicer on batch #{}...", batch_id).as_str())?;
     }
     let slices = slicer_ctx.slices_of_call_edges(edges_batch);
-    for slice in slices {
-      slice.dump();
-    }
+    logging_ctx.log(format!("Slicer created {} slices. Running symbolic execution...", slices.len()).as_str())?;
+    let sym_exec_ctx = SymbolicExecutionContext::new(&analyzer_ctx)?;
+    sym_exec_ctx.execute_slices(slices);
   }
   Ok(())
 }

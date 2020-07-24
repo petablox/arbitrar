@@ -1,6 +1,9 @@
 use clap::{App, Arg, ArgMatches};
 use inkwell::values::*;
-use petgraph::{graph::{EdgeIndex, NodeIndex}, Direction};
+use petgraph::{
+  graph::{EdgeIndex, NodeIndex},
+  Direction,
+};
 use rayon::prelude::*;
 use regex::Regex;
 use std::collections::HashSet;
@@ -87,7 +90,11 @@ unsafe impl<'ctx> Send for Slice<'ctx> {}
 
 impl<'ctx> Slice<'ctx> {
   pub fn dump(&self) {
-    print!("Entry: {}, Caller: {}, Functions: {{", self.entry.function_name(), self.caller.function_name());
+    print!(
+      "Entry: {}, Caller: {}, Functions: {{",
+      self.entry.function_name(),
+      self.caller.function_name()
+    );
     for (id, f) in self.functions.iter().enumerate() {
       if id == self.functions.len() - 1 {
         print!("{}", f.function_name());
@@ -182,7 +189,11 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
 
   pub fn find_entries(&self, edge_id: EdgeIndex) -> Vec<NodeIndex> {
     let entry_location_filter = match &self.options.entry_filter {
-      Some(filter) => Some(Regex::new(filter.as_str()).map_err(|_| String::from("Cannot parse entry filter regex")).unwrap()),
+      Some(filter) => Some(
+        Regex::new(filter.as_str())
+          .map_err(|_| String::from("Cannot parse entry filter regex"))
+          .unwrap(),
+      ),
       None => None,
     };
     let mut result = HashSet::new();
@@ -205,25 +216,26 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
             }
           }
         }
-      },
-      None => ()
+      }
+      None => (),
     }
-    result.into_iter().filter(|func_id| {
-      match &entry_location_filter {
+    result
+      .into_iter()
+      .filter(|func_id| match &entry_location_filter {
         Some(regex) => {
           let func = self.call_graph.node_weight(*func_id).unwrap();
           let func_loc = func.location(self.ctx.llcontext());
           regex.is_match(func_loc.as_str())
-        },
-        None => true
-      }
-    }).collect()
+        }
+        None => true,
+      })
+      .collect()
   }
 
   pub fn _directly_related(
     &self,
     (_f1, _i1): (FunctionValue<'ctx>, Option<InstructionValue<'ctx>>),
-    (_f2, _i2): (FunctionValue<'ctx>, Option<InstructionValue<'ctx>>)
+    (_f2, _i2): (FunctionValue<'ctx>, Option<InstructionValue<'ctx>>),
   ) -> bool {
     // TODO
     // let share_prefix = {
@@ -238,7 +250,12 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     true
   }
 
-  pub fn reduce(&self, _entry_id: NodeIndex, _target_id: NodeIndex, functions: HashSet<NodeIndex>) -> HashSet<NodeIndex> {
+  pub fn reduce(
+    &self,
+    _entry_id: NodeIndex,
+    _target_id: NodeIndex,
+    functions: HashSet<NodeIndex>,
+  ) -> HashSet<NodeIndex> {
     // TODO
     // let is_related_map = HashMap::new();
     // let queue = vec![(entry_id, None)];
@@ -267,7 +284,6 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
 
       // We don't want to go into target
       if func_id != callee_id {
-
         // Add the function into functions
         function_ids.insert(func_id);
 
@@ -291,12 +307,21 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
 
     // Generate slice
     let functions = function_ids.iter().map(|func_id| self.call_graph[*func_id]).collect();
-    Slice { caller, callee, instr, entry, functions }
+    Slice {
+      caller,
+      callee,
+      instr,
+      entry,
+      functions,
+    }
   }
 
   pub fn slices_of_call_edge(&self, edge_id: EdgeIndex) -> Vec<Slice<'ctx>> {
     let entry_ids = self.find_entries(edge_id);
-    entry_ids.iter().map(|entry_id| self.slice_of_entry(*entry_id, edge_id)).collect()
+    entry_ids
+      .iter()
+      .map(|entry_id| self.slice_of_entry(*entry_id, edge_id))
+      .collect()
   }
 
   pub fn slices_of_call_edges(&self, edges: &[EdgeIndex]) -> Vec<Slice<'ctx>> {

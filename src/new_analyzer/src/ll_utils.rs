@@ -1,7 +1,7 @@
 use either::Either;
 use inkwell::basic_block::BasicBlock;
-use inkwell::module::Module;
 use inkwell::context::ContextRef;
+use inkwell::module::Module;
 use inkwell::values::*;
 
 pub struct FunctionInstructionIterator<'ctx> {
@@ -18,26 +18,20 @@ impl<'ctx> Iterator for FunctionInstructionIterator<'ctx> {
         self.next_instruction = i.get_next_instruction();
         Some(i)
       }
-      None => {
-        match self.curr_block {
-          Some(curr_block) => {
-            match curr_block.get_next_basic_block() {
-              Some(next_block) => {
-                match next_block.get_first_instruction() {
-                  Some(first_instr) => {
-                    self.curr_block = Some(next_block);
-                    self.next_instruction = first_instr.get_next_instruction();
-                    Some(first_instr)
-                  },
-                  None => None
-                }
-              },
-              None => None
+      None => match self.curr_block {
+        Some(curr_block) => match curr_block.get_next_basic_block() {
+          Some(next_block) => match next_block.get_first_instruction() {
+            Some(first_instr) => {
+              self.curr_block = Some(next_block);
+              self.next_instruction = first_instr.get_next_instruction();
+              Some(first_instr)
             }
-          }
-          None => None
-        }
-      }
+            None => None,
+          },
+          None => None,
+        },
+        None => None,
+      },
     }
   }
 }
@@ -48,7 +42,10 @@ pub trait CreateFunctionInstructionIterator<'ctx> {
 
 impl<'ctx> CreateFunctionInstructionIterator<'ctx> for FunctionValue<'ctx> {
   fn iter_instructions(&self) -> FunctionInstructionIterator<'ctx> {
-    let default = FunctionInstructionIterator { curr_block: None, next_instruction: None };
+    let default = FunctionInstructionIterator {
+      curr_block: None,
+      next_instruction: None,
+    };
     match self.get_first_basic_block() {
       Some(first_block) => match first_block.get_first_instruction() {
         Some(first_instruction) => FunctionInstructionIterator {
@@ -57,7 +54,7 @@ impl<'ctx> CreateFunctionInstructionIterator<'ctx> for FunctionValue<'ctx> {
         },
         None => default,
       },
-      None => default
+      None => default,
     }
   }
 }
@@ -83,7 +80,7 @@ impl<'ctx> FunctionValueTrait<'ctx> for FunctionValue<'ctx> {
       match instr.get_metadata(kind) {
         Some(metadata) => {
           return format!("{:?}", metadata);
-        },
+        }
         None => {}
       }
     }

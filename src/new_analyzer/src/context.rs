@@ -19,7 +19,12 @@ impl Options for GeneralOptions {
     app
       .arg(Arg::new("input").value_name("INPUT").index(1).required(true))
       .arg(Arg::new("output").value_name("OUTPUT").index(2).required(true))
-      .arg(Arg::new("serial").short('s').long("serial").about("Serialize execution rather than parallel"))
+      .arg(
+        Arg::new("serial")
+          .short('s')
+          .long("serial")
+          .about("Serialize execution rather than parallel"),
+      )
   }
 
   fn from_matches(matches: &ArgMatches) -> Result<Self, String> {
