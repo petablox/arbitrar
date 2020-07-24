@@ -17,8 +17,18 @@ pub struct GeneralOptions {
 impl Options for GeneralOptions {
   fn setup_parser<'a>(app: App<'a>) -> App<'a> {
     app
-      .arg(Arg::new("input").value_name("INPUT").index(1).required(true))
-      .arg(Arg::new("output").value_name("OUTPUT").index(2).required(true))
+      .arg(
+        Arg::new("input")
+          .value_name("INPUT")
+          .index(1)
+          .required(true),
+      )
+      .arg(
+        Arg::new("output")
+          .value_name("OUTPUT")
+          .index(2)
+          .required(true),
+      )
       .arg(
         Arg::new("serial")
           .short('s')
@@ -44,7 +54,8 @@ impl LoggingContext {
   pub fn new(options: &GeneralOptions) -> Result<Self, String> {
     // Create the output directory
     let out_dir_path = Path::new(options.output_path.as_str());
-    std::fs::create_dir_all(out_dir_path).map_err(|_| String::from("Cannot create output directory"))?;
+    std::fs::create_dir_all(out_dir_path)
+      .map_err(|_| String::from("Cannot create output directory"))?;
 
     // Create the log file
     let log_path = out_dir_path.join("log.txt");
@@ -71,13 +82,22 @@ pub struct AnalyzerContext<'ctx> {
 }
 
 impl<'ctx> AnalyzerContext<'ctx> {
-  pub fn new(args: ArgMatches, options: GeneralOptions, llctx: &'ctx Context) -> Result<Self, String> {
+  pub fn new(
+    args: ArgMatches,
+    options: GeneralOptions,
+    llctx: &'ctx Context,
+  ) -> Result<Self, String> {
     // Create the input LLVM byte code directory
     let bc_file_path = Path::new(options.input_path.as_str());
 
     // Create LL Module by reading in the byte code file
-    let llmod = Module::parse_bitcode_from_path(&bc_file_path, &llctx).map_err(|err| err.to_string())?;
-    Ok(Self { args, options, llmod })
+    let llmod =
+      Module::parse_bitcode_from_path(&bc_file_path, &llctx).map_err(|err| err.to_string())?;
+    Ok(Self {
+      args,
+      options,
+      llmod,
+    })
   }
 
   pub fn llcontext(&self) -> ContextRef<'ctx> {

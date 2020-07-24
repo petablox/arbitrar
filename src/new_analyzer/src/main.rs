@@ -37,7 +37,13 @@ fn main() -> Result<(), String> {
   let num_edges = edges.len();
   let num_batches = slicer_ctx.num_batches(&edges);
   if num_batches > 1 {
-    logging_ctx.log(format!("Found {} edges, dividing into {} batches...", num_edges, num_batches).as_str())?;
+    logging_ctx.log(
+      format!(
+        "Found {} edges, dividing into {} batches...",
+        num_edges, num_batches
+      )
+      .as_str(),
+    )?;
   } else {
     logging_ctx.log(format!("Found {} edges, running slicer...", num_edges).as_str())?;
   }
@@ -46,7 +52,13 @@ fn main() -> Result<(), String> {
       logging_ctx.log(format!("Running slicer on batch #{}...", batch_id).as_str())?;
     }
     let slices = slicer_ctx.slices_of_call_edges(edges_batch);
-    logging_ctx.log(format!("Slicer created {} slices. Running symbolic execution...", slices.len()).as_str())?;
+    logging_ctx.log(
+      format!(
+        "Slicer created {} slices. Running symbolic execution...",
+        slices.len()
+      )
+      .as_str(),
+    )?;
     let sym_exec_ctx = SymbolicExecutionContext::new(&analyzer_ctx)?;
     sym_exec_ctx.execute_slices(slices);
   }

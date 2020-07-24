@@ -1,7 +1,8 @@
 use clap::{App, ArgMatches};
 use inkwell::{basic_block::BasicBlock, values::*};
-use petgraph::graph::DiGraph;
+use petgraph::graph::{DiGraph, NodeIndex};
 use rayon::prelude::*;
+use serde_json::Value as Json;
 use std::collections::{HashMap, HashSet};
 
 use crate::context::AnalyzerContext;
@@ -50,6 +51,7 @@ pub enum Value<'ctx> {
   BinaryOperation(BinOp, Box<Value<'ctx>>, Box<Value<'ctx>>),
   Call(i32, FunctionValue<'ctx>, Vec<Value<'ctx>>),
   Comparison(Predicate, Box<Value<'ctx>>, Box<Value<'ctx>>),
+  Unknown,
 }
 
 pub enum Location<'ctx> {
@@ -71,7 +73,11 @@ pub struct StackFrame<'ctx> {
 
 impl<'ctx> StackFrame<'ctx> {
   pub fn entry(function: FunctionValue<'ctx>) -> Self {
-    Self { function, instr: None, memory: LocalMemory::new() }
+    Self {
+      function,
+      instr: None,
+      memory: LocalMemory::new(),
+    }
   }
 }
 
@@ -100,13 +106,19 @@ pub enum TraceGraphEdge {
 
 pub type TraceGraph<'ctx> = DiGraph<TraceNode<'ctx>, TraceGraphEdge>;
 
+pub trait TraceGraphTrait<'ctx> {
+  fn to_json(&self) -> Json {
+    Json::Null
+  }
+}
+
 pub struct State<'ctx> {
   pub stack: Stack<'ctx>,
   pub memory: Memory<'ctx>,
   pub visited_branch: HashSet<Branch<'ctx>>,
   pub global_usage: GlobalUsage<'ctx>,
-  // pub path_constraints
   pub trace_graph: TraceGraph<'ctx>,
+  pub target_node: Option<NodeIndex>,
 }
 
 impl<'ctx> State<'ctx> {
@@ -117,6 +129,7 @@ impl<'ctx> State<'ctx> {
       visited_branch: VisitedBranch::new(),
       global_usage: GlobalUsage::new(),
       trace_graph: TraceGraph::new(),
+      target_node: None
     }
   }
 }
@@ -157,6 +170,19 @@ impl<'ctx> Environment<'ctx> {
   }
 }
 
+pub struct MetaData {}
+
+impl MetaData {
+  pub fn new() -> Self {
+    MetaData {}
+  }
+
+  pub fn combine(self, other: Self) -> Self {
+    // TODO
+    other
+  }
+}
+
 pub struct SymbolicExecutionContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
   pub options: SymbolicExecutionOptions,
@@ -170,32 +196,57 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     Ok(Self { ctx, options })
   }
 
-  pub fn execute_function(&self, func: FunctionValue<'ctx>, args: Vec<Value<'ctx>>, state: State<'ctx>, env: &mut Environment<'ctx>) -> State<'ctx> {
+  pub fn execute_function(
+    &self,
+    func: FunctionValue<'ctx>,
+    args: Vec<Value<'ctx>>,
+    state: State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) -> State<'ctx> {
     state
   }
 
-  pub fn execute_block(&self, block: BasicBlock<'ctx>, state: State<'ctx>, env: &mut Environment<'ctx>) -> State<'ctx> {
+  pub fn execute_block(
+    &self,
+    block: BasicBlock<'ctx>,
+    state: State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) -> State<'ctx> {
     state
   }
 
-  pub fn execute_instr(&self, instr: InstructionValue<'ctx>, state: State<'ctx>, env: &mut Environment<'ctx>) -> State<'ctx> {
+  pub fn execute_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) -> State<'ctx> {
     state
   }
 
-  pub fn execute_slice(&self, slice: Slice<'ctx>) {
+  pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
+    let mut empty_metadata = MetaData::new();
+    let mut index = 0;
     let mut env = Environment::new(slice);
     while env.has_work() {
       let work = env.pop_work();
       let final_state = self.execute_block(work.block, work.state, &mut env);
     }
+    empty_metadata
   }
 
-  pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) {
-    let f = |slice| self.execute_slice(slice);
+  pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
+    let f = |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
+      meta.combine(self.execute_slice(slice, slice_id))
+    };
     if self.ctx.options.use_serial {
-      slices.into_iter().for_each(f);
+      slices.into_iter().enumerate().fold(MetaData::new(), f)
     } else {
-      slices.into_par_iter().for_each(f);
+      slices
+        .into_par_iter()
+        .enumerate()
+        .fold(|| MetaData::new(), f)
+        .reduce(|| MetaData::new(), MetaData::combine)
     }
   }
 }

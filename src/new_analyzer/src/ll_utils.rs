@@ -92,7 +92,9 @@ impl<'ctx> FunctionValueTrait<'ctx> for FunctionValue<'ctx> {
   }
 
   fn first_instruction(&self) -> Option<InstructionValue<'ctx>> {
-    self.get_first_basic_block().and_then(|blk| blk.get_first_instruction())
+    self
+      .get_first_basic_block()
+      .and_then(|blk| blk.get_first_instruction())
   }
 }
 
@@ -156,7 +158,10 @@ impl<'ctx> CreateBlockInstructionIterator<'ctx> for BasicBlock<'ctx> {
   }
 }
 
-pub fn callee_of_call_instr<'ctx>(module: &Module<'ctx>, i: InstructionValue<'ctx>) -> Option<FunctionValue<'ctx>> {
+pub fn callee_of_call_instr<'ctx>(
+  module: &Module<'ctx>,
+  i: InstructionValue<'ctx>,
+) -> Option<FunctionValue<'ctx>> {
   if i.get_opcode() == InstructionOpcode::Call {
     let maybe_callee = i.get_operand(i.get_num_operands() - 1);
     match maybe_callee {
