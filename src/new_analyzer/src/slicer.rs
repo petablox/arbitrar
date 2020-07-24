@@ -110,6 +110,10 @@ impl<'ctx> Slice<'ctx> {
     }
     println!("}}");
   }
+
+  pub fn target_function_name(&self) -> String {
+    self.callee.function_name()
+  }
 }
 
 pub struct SlicerContext<'a, 'ctx> {
