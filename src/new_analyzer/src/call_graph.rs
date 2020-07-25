@@ -111,7 +111,7 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
         .clone();
       for b in caller.get_basic_blocks() {
         for i in b.iter_instructions() {
-          match callee_of_call_instr(&self.ctx.llmod, i) {
+          match i.callee(&self.ctx.llmod) {
             Some(callee) => {
               if self.options.no_remove_llvm_funcs || !callee.function_name().contains("llvm.") {
                 let callee_id = value_id_map

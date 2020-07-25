@@ -5,6 +5,7 @@ mod context;
 mod ll_utils;
 mod options;
 mod slicer;
+mod semantics;
 mod symbolic_execution;
 
 use call_graph::*;

@@ -1,4 +1,5 @@
 use clap::{App, Arg, ArgMatches};
+use either::Either;
 use inkwell::{basic_block::BasicBlock, values::*};
 use petgraph::graph::{DiGraph, NodeIndex};
 use rayon::prelude::*;
@@ -7,6 +8,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::context::AnalyzerContext;
+use crate::ll_utils::*;
+use crate::semantics::*;
 use crate::options::Options;
 use crate::slicer::Slice;
 
@@ -45,200 +48,6 @@ impl Options for SymbolicExecutionOptions {
         .unwrap(),
       no_trace_reduction: matches.is_present("no-reduce-trace"),
     })
-  }
-}
-
-#[derive(Clone)]
-pub enum BinOp {
-  Add,
-  Sub,
-  Mul,
-  Div,
-  Rem,
-  Lshr,
-  Ashr,
-  Band,
-  Bor,
-  Bxor,
-}
-
-#[derive(Clone)]
-pub enum Predicate {
-  Eq,
-  Ne,
-  Ge,
-  Geq,
-  Le,
-  Leq,
-}
-
-#[derive(Clone)]
-pub enum Value<'ctx> {
-  Argument(BasicValueEnum<'ctx>),
-  Global(GlobalValue<'ctx>),
-  ConstInt(i32),
-  Location(Box<Location<'ctx>>),
-  BinaryOperation(BinOp, Box<Value<'ctx>>, Box<Value<'ctx>>),
-  Call(i32, FunctionValue<'ctx>, Vec<Value<'ctx>>),
-  Comparison(Predicate, Box<Value<'ctx>>, Box<Value<'ctx>>),
-  Unknown,
-}
-
-#[derive(Clone)]
-pub enum Location<'ctx> {
-  Argument(BasicValueEnum<'ctx>),
-  Alloca(InstructionValue<'ctx>),
-  Global(GlobalValue<'ctx>),
-  GetElementPtr(Box<Location<'ctx>>, Vec<u32>),
-  Value(Box<Value<'ctx>>),
-  Unknown,
-}
-
-pub type LocalMemory<'ctx> = HashMap<InstructionValue<'ctx>, Value<'ctx>>;
-
-#[derive(Clone)]
-pub struct StackFrame<'ctx> {
-  pub function: FunctionValue<'ctx>,
-  pub instr: Option<InstructionValue<'ctx>>,
-  pub memory: LocalMemory<'ctx>,
-}
-
-impl<'ctx> StackFrame<'ctx> {
-  pub fn entry(function: FunctionValue<'ctx>) -> Self {
-    Self {
-      function,
-      instr: None,
-      memory: LocalMemory::new(),
-    }
-  }
-}
-
-pub type Stack<'ctx> = Vec<StackFrame<'ctx>>;
-
-pub type Memory<'ctx> = HashMap<Location<'ctx>, Value<'ctx>>;
-
-#[derive(Clone)]
-pub struct Branch<'ctx> {
-  pub from: BasicBlock<'ctx>,
-  pub to: BasicBlock<'ctx>,
-}
-
-pub type VisitedBranch<'ctx> = HashSet<Branch<'ctx>>;
-
-pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
-
-#[derive(Clone)]
-pub struct TraceNode<'ctx> {
-  pub instr: InstructionValue<'ctx>,
-  pub result: Option<Value<'ctx>>,
-}
-
-#[derive(Clone)]
-pub enum TraceGraphEdge {
-  DefUse,
-  ControlFlow,
-}
-
-pub type TraceGraph<'ctx> = DiGraph<TraceNode<'ctx>, TraceGraphEdge>;
-
-pub trait TraceGraphTrait<'ctx> {
-  fn to_json(&self) -> Json;
-
-  fn reduce(self, target: NodeIndex) -> Self;
-}
-
-impl<'ctx> TraceGraphTrait<'ctx> for TraceGraph<'ctx> {
-  fn to_json(&self) -> Json {
-    Json::Null
-  }
-
-  fn reduce(self, target: NodeIndex) -> Self {
-    self
-  }
-}
-
-#[derive(Clone)]
-pub enum FinishState {
-  ProperlyReturned,
-  BranchExplored,
-  ExceedingMaxTraceLength,
-  Unreachable,
-}
-
-#[derive(Clone)]
-pub struct State<'ctx> {
-  pub stack: Stack<'ctx>,
-  pub memory: Memory<'ctx>,
-  pub visited_branch: HashSet<Branch<'ctx>>,
-  pub global_usage: GlobalUsage<'ctx>,
-  pub trace_graph: TraceGraph<'ctx>,
-  pub target_node: Option<NodeIndex>,
-  pub finish_state: FinishState,
-}
-
-impl<'ctx> State<'ctx> {
-  pub fn new(slice: &Slice<'ctx>) -> Self {
-    Self {
-      stack: vec![StackFrame::entry(slice.entry)],
-      memory: Memory::new(),
-      visited_branch: VisitedBranch::new(),
-      global_usage: GlobalUsage::new(),
-      trace_graph: TraceGraph::new(),
-      target_node: None,
-      finish_state: FinishState::ProperlyReturned,
-    }
-  }
-
-  pub fn passed_target(&self) -> bool {
-    self.target_node.is_some()
-  }
-
-  pub fn path_satisfactory(&self) -> bool {
-    // TODO
-    true
-  }
-
-  pub fn dump_json(&self, path: PathBuf) {}
-}
-
-pub struct Work<'ctx> {
-  pub block: BasicBlock<'ctx>,
-  pub state: State<'ctx>,
-}
-
-impl<'ctx> Work<'ctx> {
-  pub fn entry(slice: &Slice<'ctx>) -> Self {
-    let block = slice.entry.get_first_basic_block().unwrap();
-    let state = State::new(slice);
-    Self { block, state }
-  }
-}
-
-pub struct Environment<'ctx> {
-  pub slice: Slice<'ctx>,
-  pub work_list: Vec<Work<'ctx>>,
-}
-
-impl<'ctx> Environment<'ctx> {
-  pub fn new(slice: Slice<'ctx>) -> Self {
-    let initial_work = Work::entry(&slice);
-    Self {
-      slice,
-      work_list: vec![initial_work],
-    }
-  }
-
-  pub fn has_work(&self) -> bool {
-    !self.work_list.is_empty()
-  }
-
-  pub fn pop_work(&mut self) -> Work<'ctx> {
-    self.work_list.pop().unwrap()
-  }
-
-  pub fn has_duplicate(&self, state: &State<'ctx>) -> bool {
-    // TODO
-    false
   }
 }
 
@@ -318,6 +127,199 @@ impl MetaData {
   }
 }
 
+pub type LocalMemory<'ctx> = HashMap<InstructionValue<'ctx>, Value>;
+
+#[derive(Clone)]
+pub struct StackFrame<'ctx> {
+  pub function: FunctionValue<'ctx>,
+  pub instr: Option<InstructionValue<'ctx>>,
+  pub memory: LocalMemory<'ctx>,
+  pub arguments: Vec<Value>,
+}
+
+impl<'ctx> StackFrame<'ctx> {
+  pub fn entry(function: FunctionValue<'ctx>) -> Self {
+    Self {
+      function,
+      instr: None,
+      memory: LocalMemory::new(),
+      arguments: vec![],
+    }
+  }
+}
+
+pub type Stack<'ctx> = Vec<StackFrame<'ctx>>;
+
+pub trait StackTrait<'ctx> {
+  fn top(&self) -> &StackFrame<'ctx>;
+
+  fn top_mut(&mut self) -> &mut StackFrame<'ctx>;
+}
+
+impl<'ctx> StackTrait<'ctx> for Stack<'ctx> {
+  fn top(&self) -> &StackFrame<'ctx> {
+    &self[self.len() - 1]
+  }
+
+  fn top_mut(&mut self) -> &mut StackFrame<'ctx> {
+    let id = self.len() - 1;
+    &mut self[id]
+  }
+}
+
+pub type Memory = HashMap<Location, Value>;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct BranchOperation<'ctx> {
+  pub from: BasicBlock<'ctx>,
+  pub to: BasicBlock<'ctx>,
+}
+
+pub type VisitedBranch<'ctx> = HashSet<BranchOperation<'ctx>>;
+
+pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
+
+#[derive(Clone)]
+pub struct TraceNode<'ctx> {
+  pub instr: InstructionValue<'ctx>,
+  pub semantics: Instruction,
+}
+
+// #[derive(Clone)]
+// pub enum TraceGraphEdge {
+//   DefUse,
+//   ControlFlow,
+// }
+
+// pub type TraceGraph<'ctx> = DiGraph<TraceNode<'ctx>, TraceGraphEdge>;
+
+// pub trait TraceGraphTrait<'ctx> {
+//   fn to_json(&self) -> Json;
+
+//   fn reduce(self, target: NodeIndex) -> Self;
+// }
+
+// impl<'ctx> TraceGraphTrait<'ctx> for TraceGraph<'ctx> {
+//   fn to_json(&self) -> Json {
+//     Json::Null
+//   }
+
+//   fn reduce(self, target: NodeIndex) -> Self {
+//     self
+//   }
+// }
+
+#[derive(Clone)]
+pub enum FinishState {
+  ProperlyReturned,
+  BranchExplored,
+  ExceedingMaxTraceLength,
+  Unreachable,
+}
+
+#[derive(Clone)]
+pub struct State<'ctx> {
+  pub stack: Stack<'ctx>,
+  pub memory: Memory,
+  pub visited_branch: VisitedBranch<'ctx>,
+  pub global_usage: GlobalUsage<'ctx>,
+  pub trace: Vec<TraceNode<'ctx>>,
+  // pub trace_graph: TraceGraph<'ctx>,
+  pub target_node: Option<NodeIndex>,
+  pub finish_state: FinishState,
+
+  // Identifiers
+  alloca_id: usize,
+}
+
+impl<'ctx> State<'ctx> {
+  pub fn new(slice: &Slice<'ctx>) -> Self {
+    Self {
+      stack: vec![StackFrame::entry(slice.entry)],
+      memory: Memory::new(),
+      visited_branch: VisitedBranch::new(),
+      global_usage: GlobalUsage::new(),
+      // trace_graph: TraceGraph::new(),
+      trace: Vec::new(),
+      target_node: None,
+      finish_state: FinishState::ProperlyReturned,
+      alloca_id: 0,
+    }
+  }
+
+  pub fn new_alloca_id(&mut self) -> usize {
+    let result = self.alloca_id;
+    self.alloca_id += 1;
+    result
+  }
+
+  pub fn passed_target(&self) -> bool {
+    self.target_node.is_some()
+  }
+
+  pub fn path_satisfactory(&self) -> bool {
+    // TODO
+    true
+  }
+
+  pub fn dump_json(&self, path: PathBuf) {
+    // TODO
+  }
+}
+
+pub struct Work<'ctx> {
+  pub block: BasicBlock<'ctx>,
+  pub state: State<'ctx>,
+}
+
+impl<'ctx> Work<'ctx> {
+  pub fn entry(slice: &Slice<'ctx>) -> Self {
+    let block = slice.entry.get_first_basic_block().unwrap();
+    let state = State::new(slice);
+    Self { block, state }
+  }
+}
+
+pub struct Environment<'ctx> {
+  pub slice: Slice<'ctx>,
+  pub work_list: Vec<Work<'ctx>>,
+  call_id: usize,
+}
+
+impl<'ctx> Environment<'ctx> {
+  pub fn new(slice: Slice<'ctx>) -> Self {
+    let initial_work = Work::entry(&slice);
+    Self {
+      slice,
+      work_list: vec![initial_work],
+      call_id: 0,
+    }
+  }
+
+  pub fn has_work(&self) -> bool {
+    !self.work_list.is_empty()
+  }
+
+  pub fn pop_work(&mut self) -> Work<'ctx> {
+    self.work_list.pop().unwrap()
+  }
+
+  pub fn add_work(&mut self, work: Work<'ctx>) {
+    self.work_list.push(work);
+  }
+
+  pub fn new_call_id(&mut self) -> usize {
+    let result = self.call_id;
+    self.call_id += 1;
+    result
+  }
+
+  pub fn has_duplicate(&self, state: &State<'ctx>) -> bool {
+    // TODO
+    false
+  }
+}
+
 pub struct SymbolicExecutionContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
   pub options: SymbolicExecutionOptions,
@@ -341,11 +343,25 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn execute_function(
     &self,
+    instr: InstructionValue<'ctx>,
     func: FunctionValue<'ctx>,
-    args: Vec<Value<'ctx>>,
+    args: Vec<Value>,
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    match func.get_first_basic_block() {
+      Some(block) => {
+        let stack_frame = StackFrame {
+          function: func,
+          instr: Some(instr),
+          memory: LocalMemory::new(),
+          arguments: args,
+        };
+        state.stack.push(stack_frame);
+        self.execute_block(block, state, env);
+      }
+      None => {}
+    }
   }
 
   pub fn execute_block(
@@ -354,65 +370,306 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    self.execute_instr(block.get_first_instruction(), state, env)
   }
 
   pub fn execute_instr(
+    &self,
+    instr: Option<InstructionValue<'ctx>>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+    match instr {
+      Some(instr) => {
+        use InstructionOpcode::*;
+        let transfer_function = match instr.get_opcode() {
+          Return => Self::transfer_ret_instr,
+          Br => Self::transfer_br_instr,
+          Switch => Self::transfer_switch_instr,
+          Call => Self::transfer_call_instr,
+          Alloca => Self::transfer_alloca_instr,
+          Store => Self::transfer_store_instr,
+          Icmp => Self::transfer_icmp_instr,
+          Load => Self::transfer_load_instr,
+          Phi => Self::transfer_phi_instr,
+          GetElementPtr => Self::transfer_gep_instr,
+          Unreachable => Self::transfer_unreachable_instr,
+          op if op.is_binary() => Self::transfer_binary_instr,
+          op if op.is_unary() => Self::transfer_unary_instr,
+          _ => Self::transfer_instr,
+        };
+        transfer_function(self, instr, state, env)
+      }
+      None => {
+        state.finish_state = FinishState::ProperlyReturned;
+      }
+    }
+  }
+
+  pub fn eval_operand_value(&self, state: &State<'ctx>, value: BasicValueEnum<'ctx>) -> Value {
+    // TODO
+    Value::Unknown
+  }
+
+  pub fn transfer_ret_instr(
     &self,
     instr: InstructionValue<'ctx>,
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
 
+    // First evaluate the return operand. There might not be one
+    let op0 = match instr.get_operand(0) {
+      Some(Either::Left(bv)) => Some(self.eval_operand_value(state, bv)),
+      _ => None
+    };
+    state.trace.push(TraceNode {
+      instr: instr,
+      semantics: Instruction::Return(op0.clone())
+    });
+
+    // Then we peek the stack frame
+    let stack_frame = state.stack.pop().unwrap(); // There has to be a stack on the top
+    match stack_frame.instr {
+      Some(call_site) => {
+        let call_site_frame = state.stack.top_mut(); // If call site exists then there must be a stack top
+        if let Some(op0) = op0 {
+          call_site_frame.memory.insert(call_site, op0);
+        }
+        self.execute_instr(call_site.get_next_instruction(), state, env);
+      },
+      // If no call site then we are in the entry function. We will end the execution
+      None => {}
+    }
+  }
+
+  pub fn transfer_br_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+    match instr.as_branch_instruction() {
+      Some(BranchInstruction::ConditionalBranch { cond, then_blk, else_blk }) => {
+        let cond = self.eval_operand_value(state, cond.into());
+        match instr.get_parent() {
+          Some(curr_blk) => {
+            let then_br = BranchOperation { from: curr_blk, to: then_blk };
+            let else_br = BranchOperation { from: curr_blk, to: else_blk };
+            let visited_then = state.visited_branch.contains(&then_br);
+            let visited_else = state.visited_branch.contains(&else_br);
+            if !visited_then && !visited_else {
+
+              // First add else branch into work
+              let mut else_state = state.clone();
+              else_state.visited_branch.insert(else_br);
+              else_state.trace.push(TraceNode {
+                instr: instr,
+                semantics: Instruction::ConditionalBr { cond: cond.clone(), br: Branch::Else }
+              });
+              let else_work = Work { block: else_blk, state: else_state };
+              env.add_work(else_work);
+
+              // Then execute the then branch
+              state.visited_branch.insert(then_br);
+              state.trace.push(TraceNode {
+                instr: instr,
+                semantics: Instruction::ConditionalBr { cond, br: Branch::Then }
+              });
+              self.execute_block(then_blk, state, env);
+            } else if !visited_then {
+
+              // Execute the then branch
+              state.visited_branch.insert(then_br);
+              state.trace.push(TraceNode {
+                instr: instr,
+                semantics: Instruction::ConditionalBr { cond, br: Branch::Then }
+              });
+              self.execute_block(then_blk, state, env);
+            } else if !visited_else {
+
+              // Execute the else branch
+              state.visited_branch.insert(else_br);
+              state.trace.push(TraceNode {
+                instr: instr,
+                semantics: Instruction::ConditionalBr { cond, br: Branch::Else }
+              });
+              self.execute_block(else_blk, state, env);
+            }
+          },
+          None => ()
+        }
+      },
+      Some(BranchInstruction::UnconditionalBranch(blk)) => {
+        // TODO
+        state.trace.push(TraceNode {
+          instr: instr,
+          semantics: Instruction::UnconditionalBr { is_loop: false }
+        });
+        self.execute_block(blk, state, env);
+      },
+      _ => ()
+    }
+  }
+
+  pub fn transfer_switch_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_call_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+    match instr.as_call_instruction(&self.ctx.llmod) {
+      Some(call) => {
+        if call.callee.is_llvm_function() {
+          self.execute_instr(instr.get_next_instruction(), state, env);
+        } else {
+          let func = call.callee.function_name();
+          let args : Vec<Value> = call.args.into_iter().map(|v| self.eval_operand_value(state, v)).collect();
+          let node = TraceNode {
+            instr: instr,
+            semantics: Instruction::Call { func: func.clone(), args: args.clone() }
+          };
+          state.trace.push(node);
+          if !call.callee.is_declare_only() && env.slice.functions.contains(&call.callee) {
+            self.execute_function(instr, call.callee, args, state, env);
+          } else {
+            let call_id = env.new_call_id();
+            let result = Value::Call { id: call_id, func, args };
+            state.stack.top_mut().memory.insert(instr, result);
+            self.execute_instr(instr.get_next_instruction(), state, env);
+          }
+        }
+      },
+      None => ()
+    }
+  }
+
+  pub fn transfer_alloca_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+    let alloca_id = state.new_alloca_id();
+    let res = Value::Location(Box::new(Location::Alloca(alloca_id)));
+    let node = TraceNode { instr: instr, semantics: Instruction::Alloca(alloca_id) };
+    state.trace.push(node);
+    state.stack.top_mut().memory.insert(instr, res);
+    self.execute_instr(instr.get_next_instruction(), state, env);
+  }
+
+  pub fn transfer_store_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_icmp_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_load_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_phi_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_gep_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_unreachable_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_binary_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_unary_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn transfer_instr(
+    &self,
+    instr: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
+  }
+
+  pub fn continue_execution(&self, metadata: &MetaData) -> bool {
+    metadata.explored_trace_count < self.options.max_explored_trace_per_slice
+    && metadata.proper_trace_count < self.options.max_trace_per_slice
   }
 
   pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
-    while env.has_work() {
+    while env.has_work() && self.continue_execution(&metadata) {
       let mut work = env.pop_work();
       self.execute_block(work.block, &mut work.state, &mut env);
       match work.state.target_node {
-        Some(target_id) => {
-          match work.state.finish_state {
-            FinishState::ProperlyReturned => {
-              if !env.has_duplicate(&work.state) {
-                if work.state.path_satisfactory() {
-                  if !self.options.no_trace_reduction {
-                    work.state.trace_graph = work.state.trace_graph.reduce(target_id);
-                  }
-                  let trace_id = metadata.proper_trace_count;
-                  let path =
-                    self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
-                    work.state.dump_json(path);
-                  metadata.incr_proper();
-                } else {
-                  metadata.incr_path_unsat();
-                }
-              } else {
-                metadata.incr_duplicated();
-              }
-            }
-            FinishState::BranchExplored => {
-              metadata.incr_branch_explored();
-            }
-            FinishState::ExceedingMaxTraceLength => {
-              metadata.incr_exceeding_length();
-            }
-            FinishState::Unreachable => {
-              metadata.incr_unreachable();
-            }
+        Some(_target_id) => match work.state.finish_state {
+          FinishState::ProperlyReturned => {
+            if !env.has_duplicate(&work.state) {
+              if work.state.path_satisfactory() {
+                // if !self.options.no_trace_reduction {
+                //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
+                // }
+                let trace_id = metadata.proper_trace_count;
+                let path =
+                  self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
+                work.state.dump_json(path);
+                metadata.incr_proper();
+              } else { metadata.incr_path_unsat() }
+            } else { metadata.incr_duplicated() }
           }
+          FinishState::BranchExplored => metadata.incr_branch_explored(),
+          FinishState::ExceedingMaxTraceLength => metadata.incr_exceeding_length(),
+          FinishState::Unreachable => metadata.incr_unreachable(),
         },
-        None => {
-          metadata.incr_no_target()
-        }
-      }
-
-      // Stop when running out of fuel
-      if metadata.explored_trace_count >= self.options.max_explored_trace_per_slice
-        || metadata.proper_trace_count >= self.options.max_trace_per_slice
-      {
-        break;
+        None => metadata.incr_no_target(),
       }
     }
     metadata
