@@ -263,6 +263,28 @@ impl<'ctx> BasicValueEnumTrait<'ctx> for BasicValueEnum<'ctx> {
   }
 }
 
+pub struct ReturnInstruction<'ctx> {
+  pub val: Option<BasicValueEnum<'ctx>>,
+}
+
+pub trait ReturnInstructionTrait<'ctx> {
+  fn as_return_instruction(&self) -> Option<ReturnInstruction<'ctx>>;
+}
+
+impl<'ctx> ReturnInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_return_instruction(&self) -> Option<ReturnInstruction<'ctx>> {
+    if self.get_opcode() == InstructionOpcode::Return {
+      match self.get_operand(0) {
+        Some(Either::Left(val)) => Some(ReturnInstruction { val: Some(val) }),
+        None => Some(ReturnInstruction { val: None }),
+        _ => None
+      }
+    } else {
+      None
+    }
+  }
+}
+
 pub enum BranchInstruction<'ctx> {
   ConditionalBranch {
     cond: IntValue<'ctx>,
@@ -294,6 +316,74 @@ impl<'ctx> BranchInstructionTrait<'ctx> for InstructionValue<'ctx> {
       }
     } else {
       None
+    }
+  }
+}
+
+pub struct StoreInstruction<'ctx> {
+  pub location: BasicValueEnum<'ctx>,
+  pub value: BasicValueEnum<'ctx>,
+}
+
+pub trait StoreInstructionTrait<'ctx> {
+  fn as_store_instruction(&self) -> Option<StoreInstruction<'ctx>>;
+}
+
+impl<'ctx> StoreInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_store_instruction(&self) -> Option<StoreInstruction<'ctx>> {
+    if self.get_opcode() == InstructionOpcode::Store {
+      match (self.get_operand(0), self.get_operand(1)) {
+        (Some(Either::Left(value)), Some(Either::Left(location))) => {
+          Some(StoreInstruction { value, location })
+        },
+        _ => None
+      }
+    } else {
+      None
+    }
+  }
+}
+
+pub struct LoadInstruction<'ctx> {
+  pub location: BasicValueEnum<'ctx>,
+}
+
+pub trait LoadInstructionTrait<'ctx> {
+  fn as_load_instruction(&self) -> Option<LoadInstruction<'ctx>>;
+}
+
+impl<'ctx> LoadInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_load_instruction(&self) -> Option<LoadInstruction<'ctx>> {
+    if self.get_opcode() == InstructionOpcode::Load {
+      match self.get_operand(0) {
+        Some(Either::Left(location)) => {
+          Some(LoadInstruction { location })
+        },
+        _ => None
+      }
+    } else {
+      None
+    }
+  }
+}
+
+pub struct BinaryInstruction<'ctx> {
+  pub op: InstructionOpcode,
+  pub op0: BasicValueEnum<'ctx>,
+  pub op1: BasicValueEnum<'ctx>,
+}
+
+pub trait BinaryInstructionTrait<'ctx> {
+  fn as_binary_instruction(&self) -> Option<BinaryInstruction<'ctx>>;
+}
+
+impl<'ctx> BinaryInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_binary_instruction(&self) -> Option<BinaryInstruction<'ctx>> {
+    match (self.get_operand(0), self.get_operand(1)) {
+      (Some(Either::Left(op0)), Some(Either::Left(op1))) => {
+        Some(BinaryInstruction { op: self.get_opcode(), op0, op1 })
+      },
+      _ => None
     }
   }
 }

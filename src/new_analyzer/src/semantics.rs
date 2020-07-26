@@ -45,15 +45,7 @@ pub enum BinOp {
   Bxor,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum Predicate {
-  Eq,
-  Ne,
-  Ge,
-  Geq,
-  Le,
-  Leq,
-}
+pub type Predicate = inkwell::IntPredicate;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Value {
@@ -62,7 +54,7 @@ pub enum Value {
   ConstInt(i32),
   Location(Box<Location>),
   BinaryOperation(BinOp, Box<Value>, Box<Value>),
-  Comparison(Predicate, Box<Value>, Box<Value>),
+  Comparison { pred: Predicate, op0: Box<Value>, op1: Box<Value> },
   Call { id: usize, func: String, args: Vec<Value> },
   Unknown,
 }
@@ -86,7 +78,7 @@ pub enum Branch {
 #[derive(Clone)]
 pub enum Instruction {
   Call { func: String, /* func_type: FunctionType, */ args: Vec<Value>, /* arg_types: Vec<Type> */ },
-  Assume { pred: Predicate, op1: Value, op2: Value },
+  Assume { pred: Predicate, op0: Value, op1: Value },
   ConditionalBr { cond: Value, br: Branch },
   UnconditionalBr { is_loop: bool },
   Return(Option<Value>),
