@@ -4,6 +4,7 @@ use inkwell::context::ContextRef;
 use inkwell::module::Module;
 use inkwell::values::*;
 
+#[derive(Copy, Clone)]
 pub struct FunctionInstructionIterator<'ctx> {
   curr_block: Option<BasicBlock<'ctx>>,
   next_instruction: Option<InstructionValue<'ctx>>,
@@ -110,6 +111,7 @@ impl<'ctx> FunctionValueTrait<'ctx> for FunctionValue<'ctx> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct FunctionIterator<'ctx> {
   next_function: Option<FunctionValue<'ctx>>,
 }
@@ -140,6 +142,7 @@ impl<'ctx> CreateFunctionIterator<'ctx> for Module<'ctx> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct BlockInstructionIterator<'ctx> {
   next_instruction: Option<InstructionValue<'ctx>>,
 }
@@ -170,6 +173,7 @@ impl<'ctx> CreateBlockInstructionIterator<'ctx> for BasicBlock<'ctx> {
   }
 }
 
+#[derive(Clone)]
 pub struct CallInstruction<'ctx> {
   pub callee: FunctionValue<'ctx>,
   pub args: Vec<BasicValueEnum<'ctx>>,
@@ -263,6 +267,7 @@ impl<'ctx> BasicValueEnumTrait<'ctx> for BasicValueEnum<'ctx> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct ReturnInstruction<'ctx> {
   pub val: Option<BasicValueEnum<'ctx>>,
 }
@@ -285,6 +290,7 @@ impl<'ctx> ReturnInstructionTrait<'ctx> for InstructionValue<'ctx> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub enum BranchInstruction<'ctx> {
   ConditionalBranch {
     cond: IntValue<'ctx>,
@@ -320,6 +326,42 @@ impl<'ctx> BranchInstructionTrait<'ctx> for InstructionValue<'ctx> {
   }
 }
 
+#[derive(Clone)]
+pub struct SwitchInstruction<'ctx> {
+  pub cond: IntValue<'ctx>,
+  pub default_blk: BasicBlock<'ctx>,
+  pub branches: Vec<(IntValue<'ctx>, BasicBlock<'ctx>)>,
+}
+
+pub trait SwitchInstructionTrait<'ctx> {
+  fn as_switch_instruction(&self) -> Option<SwitchInstruction<'ctx>>;
+}
+
+impl<'ctx> SwitchInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_switch_instruction(&self) -> Option<SwitchInstruction<'ctx>> {
+    let num_operands = self.get_num_operands();
+    let num_branches = (num_operands - 2) / 2;
+    match (self.get_operand(0), self.get_operand(1)) {
+      (Some(Either::Left(BasicValueEnum::IntValue(cond))), Some(Either::Right(default_blk))) => {
+        let mut branches = Vec::with_capacity(num_branches as usize);
+        for i in 0..num_branches {
+          let compare_idx = 2 + 2 * i;
+          let blk_idx = 3 + 2 * i;
+          match (self.get_operand(compare_idx), self.get_operand(blk_idx)) {
+            (Some(Either::Left(BasicValueEnum::IntValue(comp))), Some(Either::Right(br))) => {
+              branches.push((comp, br));
+            }
+            _ => { return None }
+          }
+        }
+        Some(SwitchInstruction { cond, default_blk, branches })
+      },
+      _ => None
+    }
+  }
+}
+
+#[derive(Copy, Clone)]
 pub struct StoreInstruction<'ctx> {
   pub location: BasicValueEnum<'ctx>,
   pub value: BasicValueEnum<'ctx>,
@@ -344,6 +386,7 @@ impl<'ctx> StoreInstructionTrait<'ctx> for InstructionValue<'ctx> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct LoadInstruction<'ctx> {
   pub location: BasicValueEnum<'ctx>,
 }
@@ -367,6 +410,7 @@ impl<'ctx> LoadInstructionTrait<'ctx> for InstructionValue<'ctx> {
   }
 }
 
+#[derive(Copy, Clone)]
 pub struct BinaryInstruction<'ctx> {
   pub op: InstructionOpcode,
   pub op0: BasicValueEnum<'ctx>,

@@ -1,9 +1,8 @@
 use clap::{App, Arg, ArgMatches};
-use either::Either;
 use inkwell::{basic_block::BasicBlock, values::*};
-use petgraph::graph::{DiGraph, NodeIndex};
+// use petgraph::graph::{DiGraph, NodeIndex};
 use rayon::prelude::*;
-use serde_json::Value as Json;
+// use serde_json::Value as Json;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -16,6 +15,7 @@ use crate::slicer::Slice;
 pub struct SymbolicExecutionOptions {
   pub max_trace_per_slice: usize,
   pub max_explored_trace_per_slice: usize,
+  pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
 }
 
@@ -34,6 +34,11 @@ impl Options for SymbolicExecutionOptions {
         .long("max-explored-trace-per-slice")
         .about("The maximum number of explroed trace per slice")
         .default_value("1000"),
+      Arg::new("max_node_per_trace")
+        .value_name("MAX_NODE_PER_TRACE")
+        .takes_value(true)
+        .long("max-node-per-trace")
+        .default_value("1000"),
       Arg::new("no_reduce_trace")
         .long("no-reduce-trace")
         .about("No trace reduction"),
@@ -46,6 +51,7 @@ impl Options for SymbolicExecutionOptions {
       max_explored_trace_per_slice: matches
         .value_of_t::<usize>("max_explored_trace_per_slice")
         .unwrap(),
+      max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
       no_trace_reduction: matches.is_present("no-reduce-trace"),
     })
   }
@@ -169,13 +175,13 @@ impl<'ctx> StackTrait<'ctx> for Stack<'ctx> {
 
 pub type Memory = HashMap<Location, Value>;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct BranchOperation<'ctx> {
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BranchDirection<'ctx> {
   pub from: BasicBlock<'ctx>,
   pub to: BasicBlock<'ctx>,
 }
 
-pub type VisitedBranch<'ctx> = HashSet<BranchOperation<'ctx>>;
+pub type VisitedBranch<'ctx> = HashSet<BranchDirection<'ctx>>;
 
 pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
 
@@ -226,6 +232,7 @@ pub struct State<'ctx> {
   pub trace: Vec<TraceNode<'ctx>>,
   // pub trace_graph: TraceGraph<'ctx>,
   pub target_node: Option<usize>,
+  pub prev_block: Option<BasicBlock<'ctx>>,
   pub finish_state: FinishState,
 
   // Identifiers
@@ -242,6 +249,7 @@ impl<'ctx> State<'ctx> {
       // trace_graph: TraceGraph::new(),
       trace: Vec::new(),
       target_node: None,
+      prev_block: None,
       finish_state: FinishState::ProperlyReturned,
       alloca_id: 0,
     }
@@ -253,7 +261,7 @@ impl<'ctx> State<'ctx> {
     result
   }
 
-  pub fn passed_target(&self) -> bool {
+  pub fn _passed_target(&self) -> bool {
     self.target_node.is_some()
   }
 
@@ -262,7 +270,7 @@ impl<'ctx> State<'ctx> {
     true
   }
 
-  pub fn dump_json(&self, path: PathBuf) {
+  pub fn dump_json(&self, _path: PathBuf) {
     // TODO
   }
 }
@@ -379,6 +387,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    if state.trace.len() > self.options.max_node_per_trace {
+      state.finish_state = FinishState::ExceedingMaxTraceLength;
+      return;
+    }
+
     match instr {
       Some(instr) => {
         use InstructionOpcode::*;
@@ -389,7 +402,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           Call => Self::transfer_call_instr,
           Alloca => Self::transfer_alloca_instr,
           Store => Self::transfer_store_instr,
-          Icmp => Self::transfer_icmp_instr,
+          ICmp => Self::transfer_icmp_instr,
           Load => Self::transfer_load_instr,
           Phi => Self::transfer_phi_instr,
           GetElementPtr => Self::transfer_gep_instr,
@@ -406,12 +419,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     }
   }
 
-  pub fn eval_operand_value(&self, state: &State<'ctx>, value: BasicValueEnum<'ctx>) -> Value {
+  pub fn eval_operand_value(&self, state: &mut State<'ctx>, value: BasicValueEnum<'ctx>) -> Value {
     // TODO
     Value::Unknown
   }
 
-  pub fn eval_operand_location(&self, state: &State<'ctx>, value: BasicValueEnum<'ctx>) -> Location {
+  pub fn eval_operand_location(&self, state: &mut State<'ctx>, value: BasicValueEnum<'ctx>) -> Location {
     // TODO
     Location::Unknown
   }
@@ -443,8 +456,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         }
         self.execute_instr(call_site.get_next_instruction(), state, env);
       },
+
       // If no call site then we are in the entry function. We will end the execution
-      None => {}
+      None => {
+        state.finish_state = FinishState::ProperlyReturned;
+      }
     }
   }
 
@@ -458,32 +474,27 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       BranchInstruction::ConditionalBranch { cond, then_blk, else_blk } => {
         let cond = self.eval_operand_value(state, cond.into());
         let curr_blk = instr.get_parent().unwrap(); // We assume instruction always has parent block
-        let then_br = BranchOperation { from: curr_blk, to: then_blk };
-        let else_br = BranchOperation { from: curr_blk, to: else_blk };
+        let then_br = BranchDirection { from: curr_blk, to: then_blk };
+        let else_br = BranchDirection { from: curr_blk, to: else_blk };
         let visited_then = state.visited_branch.contains(&then_br);
         let visited_else = state.visited_branch.contains(&else_br);
-        if !visited_then && !visited_else {
+        if !visited_then {
 
-          // First add else branch into work
-          let mut else_state = state.clone();
-          else_state.visited_branch.insert(else_br);
-          else_state.trace.push(TraceNode {
-            instr: instr,
-            semantics: Instruction::ConditionalBr { cond: cond.clone(), br: Branch::Else }
-          });
-          let else_work = Work { block: else_blk, state: else_state };
-          env.add_work(else_work);
+          // Check if we need to add a work for else branch
+          if !visited_else {
+
+            // First add else branch into work
+            let mut else_state = state.clone();
+            else_state.visited_branch.insert(else_br);
+            else_state.trace.push(TraceNode {
+              instr: instr,
+              semantics: Instruction::ConditionalBr { cond: cond.clone(), br: Branch::Else }
+            });
+            let else_work = Work { block: else_blk, state: else_state };
+            env.add_work(else_work);
+          }
 
           // Then execute the then branch
-          state.visited_branch.insert(then_br);
-          state.trace.push(TraceNode {
-            instr: instr,
-            semantics: Instruction::ConditionalBr { cond, br: Branch::Then }
-          });
-          self.execute_block(then_blk, state, env);
-        } else if !visited_then {
-
-          // Execute the then branch
           state.visited_branch.insert(then_br);
           state.trace.push(TraceNode {
             instr: instr,
@@ -499,10 +510,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             semantics: Instruction::ConditionalBr { cond, br: Branch::Else }
           });
           self.execute_block(else_blk, state, env);
+        } else {
+
+          // If both then and else are visited, stop the execution with BranchExplored
+          state.finish_state = FinishState::BranchExplored;
         }
       }
       BranchInstruction::UnconditionalBranch(blk) => {
-        // TODO
+        // TODO: is_loop
         state.trace.push(TraceNode {
           instr: instr,
           semantics: Instruction::UnconditionalBr { is_loop: false }
@@ -518,6 +533,31 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    let switch_instr = instr.as_switch_instruction().unwrap();
+    let curr_blk = instr.get_parent().unwrap();
+    let cond = self.eval_operand_value(state, switch_instr.cond.into());
+    let default_br = BranchDirection { from: curr_blk, to: switch_instr.default_blk };
+    let branches = switch_instr.branches.iter().map(|(_, to)| {
+      BranchDirection { from: curr_blk, to: *to }
+    }).collect::<Vec<_>>();
+    let node = TraceNode { instr, semantics: Instruction::Switch { cond } };
+    state.trace.push(node);
+
+    // Insert branches as work if not visited
+    for bd in branches {
+      if !state.visited_branch.contains(&bd) {
+        let mut br_state = state.clone();
+        br_state.visited_branch.insert(bd);
+        let br_work = Work { block: bd.to, state: br_state };
+        env.add_work(br_work);
+      }
+    }
+
+    // Execute default branch
+    if !state.visited_branch.contains(&default_br) {
+      state.visited_branch.insert(default_br);
+      self.execute_block(switch_instr.default_blk, state, env);
+    }
   }
 
   pub fn transfer_call_instr(
@@ -680,11 +720,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       match work.state.target_node {
         Some(_target_id) => match work.state.finish_state {
           FinishState::ProperlyReturned => {
+            // if !self.options.no_trace_reduction {
+            //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
+            // }
             if !env.has_duplicate(&work.state) {
               if work.state.path_satisfactory() {
-                // if !self.options.no_trace_reduction {
-                //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
-                // }
                 let trace_id = metadata.proper_trace_count;
                 let path =
                   self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
