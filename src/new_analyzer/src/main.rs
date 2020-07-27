@@ -19,6 +19,7 @@ fn args() -> ArgMatches {
   let app = GeneralOptions::setup_parser(app);
   let app = CallGraphOptions::setup_parser(app);
   let app = SlicerOptions::setup_parser(app);
+  let app = SymbolicExecutionOptions::setup_parser(app);
   app.get_matches()
 }
 

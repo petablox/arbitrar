@@ -1,6 +1,6 @@
 use serde_json::Value as Json;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Type {
   Void,
   Half,
@@ -16,7 +16,7 @@ pub enum Type {
   Other,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FunctionType {
   args: Vec<Type>,
   ret: Box<Type>,
@@ -37,11 +37,11 @@ pub type BinOp = inkwell::values::InstructionOpcode;
 
 pub type Predicate = inkwell::IntPredicate;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Value {
   Argument(usize),
   Global(String),
-  ConstInt(i32),
+  ConstInt(i64),
   Location(Box<Location>),
   BinaryOperation {
     op: BinOp,
@@ -61,7 +61,7 @@ pub enum Value {
   Unknown,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Location {
   Argument(usize),
   Alloca(usize),
@@ -71,13 +71,13 @@ pub enum Location {
   Unknown,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Branch {
   Then,
   Else,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Instruction {
   Call {
     func: String,

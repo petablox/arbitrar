@@ -15,15 +15,20 @@ setup:
 
 .PHONY: build
 
-build:
+build: build-ml build-rs
+
+build-ml:
 	make -C src/analyzer
+
+build-rs:
+	cd src/new_analyzer ; cargo build --release
 
 clean:
 	make clean -C src/analyzer
 
 .PHONY: format
 
-format: format-py format-ml
+format: format-py format-ml format-rs
 
 .PHONY: format-py
 
@@ -34,3 +39,6 @@ format-py:
 
 format-ml:
 	make -C src/analyzer format
+
+format-rs:
+	cd src/new_analyzer ; cargo fmt

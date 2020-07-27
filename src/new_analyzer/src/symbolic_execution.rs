@@ -187,6 +187,12 @@ pub struct TraceNode<'ctx> {
   pub semantics: Instruction,
 }
 
+impl<'ctx> std::fmt::Debug for TraceNode<'ctx> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    std::fmt::Debug::fmt(&self.semantics, f)
+  }
+}
+
 // #[derive(Clone)]
 // pub enum TraceGraphEdge {
 //   DefUse,
@@ -211,6 +217,55 @@ pub struct TraceNode<'ctx> {
 //   }
 // }
 
+pub type BlockTrace<'ctx> = Vec<BasicBlock<'ctx>>;
+
+pub trait BlockTraceTrait<'ctx> {
+  fn equals(&self, other: &Self) -> bool;
+}
+
+impl<'ctx> BlockTraceTrait<'ctx> for BlockTrace<'ctx> {
+  fn equals(&self, other: &Self) -> bool {
+    if self.len() == other.len() {
+      for i in 0..self.len() {
+        if self[i] != other[i] {
+          return false;
+        }
+      }
+      true
+    } else {
+      false
+    }
+  }
+}
+
+pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
+
+pub trait TraceTrait<'ctx> {
+  fn block_trace(&self) -> Vec<BasicBlock<'ctx>>;
+}
+
+impl<'ctx> TraceTrait<'ctx> for Trace<'ctx> {
+  fn block_trace(&self) -> Vec<BasicBlock<'ctx>> {
+    let mut blocks = Vec::new();
+    for node in self.iter() {
+      let instr = node.instr;
+      match instr.get_parent() {
+        Some(block) => {
+          let needs_insert = match blocks.last() {
+            Some(last_block) => block != *last_block,
+            None => true
+          };
+          if needs_insert {
+            blocks.push(block);
+          }
+        }
+        None => ()
+      }
+    }
+    blocks
+  }
+}
+
 #[derive(Clone)]
 pub enum FinishState {
   ProperlyReturned,
@@ -225,7 +280,7 @@ pub struct State<'ctx> {
   pub memory: Memory,
   pub visited_branch: VisitedBranch<'ctx>,
   pub global_usage: GlobalUsage<'ctx>,
-  pub trace: Vec<TraceNode<'ctx>>,
+  pub trace: Trace<'ctx>,
   // pub trace_graph: TraceGraph<'ctx>,
   pub target_node: Option<usize>,
   pub prev_block: Option<BasicBlock<'ctx>>,
@@ -287,6 +342,7 @@ impl<'ctx> Work<'ctx> {
 pub struct Environment<'ctx> {
   pub slice: Slice<'ctx>,
   pub work_list: Vec<Work<'ctx>>,
+  block_traces: Vec<BlockTrace<'ctx>>,
   call_id: usize,
 }
 
@@ -296,6 +352,7 @@ impl<'ctx> Environment<'ctx> {
     Self {
       slice,
       work_list: vec![initial_work],
+      block_traces: vec![],
       call_id: 0,
     }
   }
@@ -318,8 +375,12 @@ impl<'ctx> Environment<'ctx> {
     result
   }
 
-  pub fn has_duplicate(&self, state: &State<'ctx>) -> bool {
-    // TODO
+  pub fn has_duplicate(&self, block_trace: &BlockTrace<'ctx>) -> bool {
+    for other_block_trace in self.block_traces.iter() {
+      if block_trace.equals(other_block_trace) {
+        return true
+      }
+    }
     false
   }
 }
@@ -411,18 +472,70 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn eval_operand_value(&self, state: &mut State<'ctx>, value: BasicValueEnum<'ctx>) -> Value {
-    // TODO
-    Value::Unknown
+    match value.as_instruction() {
+      Some(instr) => {
+        match state.stack.top().memory.get(&instr) {
+          Some(value) => value.clone(),
+          None => Value::Unknown,
+        }
+      },
+      _ => match value {
+        BasicValueEnum::IntValue(iv) => match iv.get_sign_extended_constant() {
+          Some(const_int) => Value::ConstInt(const_int),
+          None => Value::Unknown,
+        },
+        BasicValueEnum::PointerValue(pv) => {
+          let name = String::from(pv.get_name().to_string_lossy());
+          match self.ctx.llmod.get_global(name.as_str()) {
+            Some(_) => Value::Global(name),
+            _ => Value::Unknown
+          }
+        },
+        _ => Value::Unknown
+      }
+    }
   }
 
   pub fn eval_operand_location(&self, state: &mut State<'ctx>, value: BasicValueEnum<'ctx>) -> Location {
-    // TODO
-    Location::Unknown
+    match value.as_instruction() {
+      Some(instr) => {
+        match state.stack.top().memory.get(&instr) {
+          Some(Value::Location(loc)) => *loc.clone(),
+          Some(other_value) => {
+            println!("{:?}", other_value);
+            Location::Unknown
+          },
+          _ => match instr.get_opcode() {
+            InstructionOpcode::Alloca => {
+              let alloca_id = state.new_alloca_id();
+              let loc = Location::Alloca(alloca_id);
+              let val = Value::Location(Box::new(loc.clone()));
+              state.stack.top_mut().memory.insert(instr, val);
+              loc
+            }
+            _ => {
+              println!("{:?}", instr);
+              println!("Nothing in memory");
+              Location::Unknown
+            }
+          }
+        }
+      },
+      None => {
+        println!("Not an instruction");
+        Location::Unknown
+      }
+    }
   }
 
   pub fn load_from_memory(&self, state: &mut State<'ctx>, location: &Location) -> Value {
-    // TODO
-    Value::Unknown
+    match location {
+      Location::Unknown => Value::Unknown,
+      _ => match state.memory.get(location) {
+        Some(value) => value.clone(),
+        None => Value::Unknown
+      }
+    }
   }
 
   pub fn transfer_ret_instr(
@@ -583,10 +696,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let call = instr.as_call_instruction(&self.ctx.llmod).unwrap();
-    if call.callee.is_llvm_function() {
+    let callee = instr.callee(&self.ctx.llmod).unwrap();
+    if callee.is_llvm_function() {
       self.execute_instr(instr.get_next_instruction(), state, env);
     } else {
+      let call = instr.as_call_instruction(&self.ctx.llmod).unwrap();
       let func = call.callee.function_name();
       let args: Vec<Value> = call
         .args
@@ -630,14 +744,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let alloca_id = state.new_alloca_id();
-    let res = Value::Location(Box::new(Location::Alloca(alloca_id)));
-    let node = TraceNode {
-      instr: instr,
-      semantics: Instruction::Alloca(alloca_id),
-    };
-    state.trace.push(node);
-    state.stack.top_mut().memory.insert(instr, res);
+    // Lazy evaluate alloca instructions
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -800,6 +907,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
     while env.has_work() && self.continue_execution(&metadata) {
+
+      println!("======================");
+
       let mut work = env.pop_work();
       self.execute_block(work.block, &mut work.state, &mut env);
       match work.state.target_node {
@@ -808,18 +918,18 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             // if !self.options.no_trace_reduction {
             //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
             // }
-            if !env.has_duplicate(&work.state) {
+            let block_trace = work.state.trace.block_trace();
+            if !env.has_duplicate(&block_trace) {
               if work.state.path_satisfactory() {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
+                println!("{:?}", work.state.trace);
+
                 work.state.dump_json(path);
                 metadata.incr_proper();
-              } else {
-                metadata.incr_path_unsat()
-              }
-            } else {
-              metadata.incr_duplicated()
-            }
+
+              } else { metadata.incr_path_unsat() }
+            } else { metadata.incr_duplicated() }
           }
           FinishState::BranchExplored => metadata.incr_branch_explored(),
           FinishState::ExceedingMaxTraceLength => metadata.incr_exceeding_length(),
