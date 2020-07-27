@@ -15,11 +15,7 @@ pub struct CallEdge<'ctx> {
 
 impl<'ctx> CallEdge<'ctx> {
   pub fn dump(&self) {
-    println!(
-      "{} -> {}",
-      self.caller.function_name(),
-      self.callee.function_name()
-    );
+    println!("{} -> {}", self.caller.function_name(), self.callee.function_name());
   }
 }
 
@@ -52,11 +48,7 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraph<'ctx> {
       let instr = self[edge_id];
       let caller = self[caller_id];
       let callee = self[callee_id];
-      CallEdge {
-        caller,
-        callee,
-        instr,
-      }
+      CallEdge { caller, callee, instr }
     })
   }
 

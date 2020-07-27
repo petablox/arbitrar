@@ -105,9 +105,7 @@ impl<'ctx> FunctionValueTrait<'ctx> for FunctionValue<'ctx> {
   }
 
   fn first_instruction(&self) -> Option<InstructionValue<'ctx>> {
-    self
-      .get_first_basic_block()
-      .and_then(|blk| blk.get_first_instruction())
+    self.get_first_basic_block().and_then(|blk| blk.get_first_instruction())
   }
 }
 
@@ -205,18 +203,20 @@ impl<'ctx> CallInstructionTrait<'ctx> for InstructionValue<'ctx> {
     if self.get_opcode() == InstructionOpcode::Call {
       match self.get_operand(self.get_num_operands() - 1) {
         Some(Either::Left(BasicValueEnum::PointerValue(pt))) => {
-          match module.get_function(&pt.get_name().to_string_lossy()){
+          match module.get_function(&pt.get_name().to_string_lossy()) {
             Some(callee) => {
-              let args = (0..self.get_num_operands() - 1).map(|i| match self.get_operand(i) {
-                Some(Either::Left(v)) => v,
-                _ => panic!("Invalid call instruction")
-              }).collect();
+              let args = (0..self.get_num_operands() - 1)
+                .map(|i| match self.get_operand(i) {
+                  Some(Either::Left(v)) => v,
+                  _ => panic!("Invalid call instruction"),
+                })
+                .collect();
               Some(CallInstruction { callee, args })
             }
-            None => None
+            None => None,
           }
         }
-        _ => None
+        _ => None,
       }
     } else {
       None
@@ -234,8 +234,8 @@ impl OpcodeTrait for InstructionOpcode {
   fn is_binary(&self) -> bool {
     use InstructionOpcode::*;
     match self {
-      Add | FAdd | Sub | FSub | Mul | FMul | UDiv | SDiv | FDiv | URem | SRem | FRem | Shl
-      | LShr | AShr | And | Or | Xor | ICmp | FCmp => true,
+      Add | FAdd | Sub | FSub | Mul | FMul | UDiv | SDiv | FDiv | URem | SRem | FRem | Shl | LShr | AShr | And | Or
+      | Xor | ICmp | FCmp => true,
       _ => false,
     }
   }
@@ -243,8 +243,7 @@ impl OpcodeTrait for InstructionOpcode {
   fn is_unary(&self) -> bool {
     use InstructionOpcode::*;
     match self {
-      Trunc | ZExt | SExt | FPToUI | FPToSI | UIToFP | SIToFP | FPTrunc | FPExt | PtrToInt
-      | IntToPtr | BitCast => true,
+      Trunc | ZExt | SExt | FPToUI | FPToSI | UIToFP | SIToFP | FPTrunc | FPExt | PtrToInt | IntToPtr | BitCast => true,
       _ => false,
     }
   }
@@ -282,7 +281,7 @@ impl<'ctx> ReturnInstructionTrait<'ctx> for InstructionValue<'ctx> {
       match self.get_operand(0) {
         Some(Either::Left(val)) => Some(ReturnInstruction { val: Some(val) }),
         None => Some(ReturnInstruction { val: None }),
-        _ => None
+        _ => None,
       }
     } else {
       None
@@ -297,7 +296,7 @@ pub enum BranchInstruction<'ctx> {
     then_blk: BasicBlock<'ctx>,
     else_blk: BasicBlock<'ctx>,
   },
-  UnconditionalBranch(BasicBlock<'ctx>)
+  UnconditionalBranch(BasicBlock<'ctx>),
 }
 
 pub trait BranchInstructionTrait<'ctx> {
@@ -310,15 +309,21 @@ impl<'ctx> BranchInstructionTrait<'ctx> for InstructionValue<'ctx> {
       match self.get_num_operands() {
         1 => match self.get_operand(0) {
           Some(Either::Right(blk)) => Some(BranchInstruction::UnconditionalBranch(blk)),
-          _ => None
+          _ => None,
         },
         3 => match (self.get_operand(0), self.get_operand(1), self.get_operand(2)) {
-          (Some(Either::Left(BasicValueEnum::IntValue(cond))), Some(Either::Right(then_blk)), Some(Either::Right(else_blk))) => {
-            Some(BranchInstruction::ConditionalBranch { cond, then_blk, else_blk })
-          },
-          _ => None
+          (
+            Some(Either::Left(BasicValueEnum::IntValue(cond))),
+            Some(Either::Right(then_blk)),
+            Some(Either::Right(else_blk)),
+          ) => Some(BranchInstruction::ConditionalBranch {
+            cond,
+            then_blk,
+            else_blk,
+          }),
+          _ => None,
         },
-        _ => None
+        _ => None,
       }
     } else {
       None
@@ -351,12 +356,16 @@ impl<'ctx> SwitchInstructionTrait<'ctx> for InstructionValue<'ctx> {
             (Some(Either::Left(BasicValueEnum::IntValue(comp))), Some(Either::Right(br))) => {
               branches.push((comp, br));
             }
-            _ => { return None }
+            _ => return None,
           }
         }
-        Some(SwitchInstruction { cond, default_blk, branches })
-      },
-      _ => None
+        Some(SwitchInstruction {
+          cond,
+          default_blk,
+          branches,
+        })
+      }
+      _ => None,
     }
   }
 }
@@ -375,10 +384,8 @@ impl<'ctx> StoreInstructionTrait<'ctx> for InstructionValue<'ctx> {
   fn as_store_instruction(&self) -> Option<StoreInstruction<'ctx>> {
     if self.get_opcode() == InstructionOpcode::Store {
       match (self.get_operand(0), self.get_operand(1)) {
-        (Some(Either::Left(value)), Some(Either::Left(location))) => {
-          Some(StoreInstruction { value, location })
-        },
-        _ => None
+        (Some(Either::Left(value)), Some(Either::Left(location))) => Some(StoreInstruction { value, location }),
+        _ => None,
       }
     } else {
       None
@@ -399,10 +406,8 @@ impl<'ctx> LoadInstructionTrait<'ctx> for InstructionValue<'ctx> {
   fn as_load_instruction(&self) -> Option<LoadInstruction<'ctx>> {
     if self.get_opcode() == InstructionOpcode::Load {
       match self.get_operand(0) {
-        Some(Either::Left(location)) => {
-          Some(LoadInstruction { location })
-        },
-        _ => None
+        Some(Either::Left(location)) => Some(LoadInstruction { location }),
+        _ => None,
       }
     } else {
       None
@@ -426,8 +431,8 @@ impl<'ctx> UnaryInstructionTrait<'ctx> for InstructionValue<'ctx> {
       Some(Either::Left(op0)) => {
         let op = self.get_opcode();
         Some(UnaryInstruction { op, op0 })
-      },
-      _ => None
+      }
+      _ => None,
     }
   }
 }
@@ -446,10 +451,12 @@ pub trait BinaryInstructionTrait<'ctx> {
 impl<'ctx> BinaryInstructionTrait<'ctx> for InstructionValue<'ctx> {
   fn as_binary_instruction(&self) -> Option<BinaryInstruction<'ctx>> {
     match (self.get_operand(0), self.get_operand(1)) {
-      (Some(Either::Left(op0)), Some(Either::Left(op1))) => {
-        Some(BinaryInstruction { op: self.get_opcode(), op0, op1 })
-      },
-      _ => None
+      (Some(Either::Left(op0)), Some(Either::Left(op1))) => Some(BinaryInstruction {
+        op: self.get_opcode(),
+        op0,
+        op1,
+      }),
+      _ => None,
     }
   }
 }
@@ -470,8 +477,8 @@ impl<'ctx> PhiInstructionTrait<'ctx> for InstructionValue<'ctx> {
       match (self.get_operand(i * 2), self.get_operand(i * 2 + 1)) {
         (Some(Either::Left(val)), Some(Either::Right(blk))) => {
           incomings.push((val, blk));
-        },
-        _ => return None
+        }
+        _ => return None,
       }
     }
     Some(PhiInstruction { incomings })
@@ -495,20 +502,16 @@ impl<'ctx> GEPInstructionTrait<'ctx> for InstructionValue<'ctx> {
         let mut indices = Vec::with_capacity(num_indices as usize);
         for i in 1..=num_indices {
           match self.get_operand(i) {
-            Some(Either::Left(BasicValueEnum::IntValue(iv))) => {
-              match iv.get_zero_extended_constant() {
-                Some(index) => {
-                  indices.push(index)
-                },
-                None => return None
-              }
-            }
-            _ => return None
+            Some(Either::Left(BasicValueEnum::IntValue(iv))) => match iv.get_zero_extended_constant() {
+              Some(index) => indices.push(index),
+              None => return None,
+            },
+            _ => return None,
           }
         }
         Some(GEPInstruction { loc, indices })
-      },
-      _ => None
+      }
+      _ => None,
     }
   }
 }

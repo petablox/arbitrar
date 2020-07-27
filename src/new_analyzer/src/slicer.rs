@@ -52,9 +52,7 @@ impl Options for SlicerOptions {
       Arg::new("reduce_slice")
         .long("reduce-slice")
         .about("Reduce slice using relevancy test"),
-      Arg::new("use_batch")
-        .long("use-batch")
-        .about("Use batched execution"),
+      Arg::new("use_batch").long("use-batch").about("Use batched execution"),
       Arg::new("batch_size")
         .value_name("BATCH_SIZE")
         .takes_value(true)
@@ -68,12 +66,8 @@ impl Options for SlicerOptions {
       depth: matches
         .value_of_t::<u8>("depth")
         .map_err(|_| String::from("Cannot parse depth"))?,
-      target_inclusion_filter: matches
-        .value_of("target_inclusion_filter")
-        .map(String::from),
-      target_exclusion_filter: matches
-        .value_of("target_exclusion_filter")
-        .map(String::from),
+      target_inclusion_filter: matches.value_of("target_inclusion_filter").map(String::from),
+      target_exclusion_filter: matches.value_of("target_exclusion_filter").map(String::from),
       entry_filter: matches.value_of("entry_filter").map(String::from),
       reduce_slice: matches.is_present("reduce_slice"),
       use_batch: matches.is_present("use_batch"),
@@ -125,10 +119,7 @@ pub struct SlicerContext<'a, 'ctx> {
 unsafe impl<'a, 'ctx> Sync for SlicerContext<'a, 'ctx> {}
 
 impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
-  pub fn new(
-    ctx: &'a AnalyzerContext<'ctx>,
-    call_graph: &'a CallGraph<'ctx>,
-  ) -> Result<Self, String> {
+  pub fn new(ctx: &'a AnalyzerContext<'ctx>, call_graph: &'a CallGraph<'ctx>) -> Result<Self, String> {
     let options = SlicerOptions::from_matches(&ctx.args)?;
     Ok(SlicerContext {
       ctx,
@@ -140,16 +131,16 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
   pub fn relavant_edges(&self) -> Result<Vec<EdgeIndex>, String> {
     let inclusion_filter = match &self.options.target_inclusion_filter {
       Some(filter) => {
-        let inclusion_regex = Regex::new(filter.as_str())
-          .map_err(|_| String::from("Cannot parse target inclusion filter regex"))?;
+        let inclusion_regex =
+          Regex::new(filter.as_str()).map_err(|_| String::from("Cannot parse target inclusion filter regex"))?;
         Some(inclusion_regex)
       }
       None => None,
     };
     let exclusion_filter = match &self.options.target_exclusion_filter {
       Some(filter) => {
-        let exclusion_regex = Regex::new(filter.as_str())
-          .map_err(|_| String::from("Cannot parse target exclusion filter regex"))?;
+        let exclusion_regex =
+          Regex::new(filter.as_str()).map_err(|_| String::from("Cannot parse target exclusion filter regex"))?;
         Some(exclusion_regex)
       }
       None => None,
@@ -176,10 +167,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
         },
       };
       if include {
-        for caller_id in self
-          .call_graph
-          .neighbors_directed(callee_id, Direction::Incoming)
-        {
+        for caller_id in self.call_graph.neighbors_directed(callee_id, Direction::Incoming) {
           edges.push(self.call_graph.find_edge(caller_id, callee_id).unwrap());
         }
       }
@@ -223,10 +211,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
             result.insert(func_id);
           } else {
             let mut contains_parent = false;
-            for caller_id in self
-              .call_graph
-              .neighbors_directed(func_id, Direction::Incoming)
-            {
+            for caller_id in self.call_graph.neighbors_directed(func_id, Direction::Incoming) {
               contains_parent = true;
               fringe.push((caller_id, depth - 1));
             }
@@ -290,11 +275,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     let instr = self.call_graph[edge_id];
     let (caller, callee_id, callee) = {
       let (caller_id, callee_id) = self.call_graph.edge_endpoints(edge_id).unwrap();
-      (
-        self.call_graph[caller_id],
-        callee_id,
-        self.call_graph[callee_id],
-      )
+      (self.call_graph[caller_id], callee_id, self.call_graph[callee_id])
     };
 
     // Get included functions
@@ -312,10 +293,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
 
         // Iterate through callees
         if depth > 0 {
-          for callee_id in self
-            .call_graph
-            .neighbors_directed(func_id, Direction::Outgoing)
-          {
+          for callee_id in self.call_graph.neighbors_directed(func_id, Direction::Outgoing) {
             if !visited.contains(&callee_id) {
               fringe.push((callee_id, depth - 1));
             }
@@ -332,10 +310,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     };
 
     // Generate slice
-    let functions = function_ids
-      .iter()
-      .map(|func_id| self.call_graph[*func_id])
-      .collect();
+    let functions = function_ids.iter().map(|func_id| self.call_graph[*func_id]).collect();
     Slice {
       caller,
       callee,

@@ -26,7 +26,7 @@ impl FunctionType {
   pub fn from_type(ty: Type) -> Option<Self> {
     match ty {
       Type::Function { args, ret } => Some(Self { args, ret }),
-      _ => None
+      _ => None,
     }
   }
 }
@@ -43,9 +43,21 @@ pub enum Value {
   Global(String),
   ConstInt(i32),
   Location(Box<Location>),
-  BinaryOperation { op: BinOp, op0: Box<Value>, op1: Box<Value> },
-  Comparison { pred: Predicate, op0: Box<Value>, op1: Box<Value> },
-  Call { id: usize, func: String, args: Vec<Value> },
+  BinaryOperation {
+    op: BinOp,
+    op0: Box<Value>,
+    op1: Box<Value>,
+  },
+  Comparison {
+    pred: Predicate,
+    op0: Box<Value>,
+    op1: Box<Value>,
+  },
+  Call {
+    id: usize,
+    func: String,
+    args: Vec<Value>,
+  },
   Unknown,
 }
 
@@ -67,17 +79,45 @@ pub enum Branch {
 
 #[derive(Clone)]
 pub enum Instruction {
-  Call { func: String, /* func_type: FunctionType, */ args: Vec<Value>, /* arg_types: Vec<Type> */ },
-  Assume { pred: Predicate, op0: Value, op1: Value },
-  ConditionalBr { cond: Value, br: Branch },
-  UnconditionalBr { is_loop: bool },
-  Switch { cond: Value },
+  Call {
+    func: String,
+    /* func_type: FunctionType, */ args: Vec<Value>, /* arg_types: Vec<Type> */
+  },
+  Assume {
+    pred: Predicate,
+    op0: Value,
+    op1: Value,
+  },
+  ConditionalBr {
+    cond: Value,
+    br: Branch,
+  },
+  UnconditionalBr {
+    is_loop: bool,
+  },
+  Switch {
+    cond: Value,
+  },
   Return(Option<Value>),
-  Store { loc: Location, val: Value },
-  Load { loc: Location },
-  GetElementPtr { loc: Location },
-  UnaryOperation { op: UnaOp, op0: Value },
-  BinaryOperation { op: BinOp, op0: Value, op1: Value},
+  Store {
+    loc: Location,
+    val: Value,
+  },
+  Load {
+    loc: Location,
+  },
+  GetElementPtr {
+    loc: Location,
+  },
+  UnaryOperation {
+    op: UnaOp,
+    op0: Value,
+  },
+  BinaryOperation {
+    op: BinOp,
+    op0: Value,
+    op1: Value,
+  },
   Alloca(usize),
   Phi,
 }
