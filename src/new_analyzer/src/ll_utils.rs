@@ -411,6 +411,28 @@ impl<'ctx> LoadInstructionTrait<'ctx> for InstructionValue<'ctx> {
 }
 
 #[derive(Copy, Clone)]
+pub struct UnaryInstruction<'ctx> {
+  pub op: InstructionOpcode,
+  pub op0: BasicValueEnum<'ctx>,
+}
+
+pub trait UnaryInstructionTrait<'ctx> {
+  fn as_unary_instruction(&self) -> Option<UnaryInstruction<'ctx>>;
+}
+
+impl<'ctx> UnaryInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_unary_instruction(&self) -> Option<UnaryInstruction<'ctx>> {
+    match self.get_operand(0) {
+      Some(Either::Left(op0)) => {
+        let op = self.get_opcode();
+        Some(UnaryInstruction { op, op0 })
+      },
+      _ => None
+    }
+  }
+}
+
+#[derive(Copy, Clone)]
 pub struct BinaryInstruction<'ctx> {
   pub op: InstructionOpcode,
   pub op0: BasicValueEnum<'ctx>,
@@ -426,6 +448,65 @@ impl<'ctx> BinaryInstructionTrait<'ctx> for InstructionValue<'ctx> {
     match (self.get_operand(0), self.get_operand(1)) {
       (Some(Either::Left(op0)), Some(Either::Left(op1))) => {
         Some(BinaryInstruction { op: self.get_opcode(), op0, op1 })
+      },
+      _ => None
+    }
+  }
+}
+
+pub struct PhiInstruction<'ctx> {
+  pub incomings: Vec<(BasicValueEnum<'ctx>, BasicBlock<'ctx>)>,
+}
+
+pub trait PhiInstructionTrait<'ctx> {
+  fn as_phi_instruction(&self) -> Option<PhiInstruction<'ctx>>;
+}
+
+impl<'ctx> PhiInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_phi_instruction(&self) -> Option<PhiInstruction<'ctx>> {
+    let num_incomings = self.get_num_operands();
+    let mut incomings = Vec::with_capacity(num_incomings as usize);
+    for i in 0..num_incomings {
+      match (self.get_operand(i * 2), self.get_operand(i * 2 + 1)) {
+        (Some(Either::Left(val)), Some(Either::Right(blk))) => {
+          incomings.push((val, blk));
+        },
+        _ => return None
+      }
+    }
+    Some(PhiInstruction { incomings })
+  }
+}
+
+pub struct GEPInstruction<'ctx> {
+  pub loc: BasicValueEnum<'ctx>,
+  pub indices: Vec<u64>,
+}
+
+pub trait GEPInstructionTrait<'ctx> {
+  fn as_gep_instruction(&self) -> Option<GEPInstruction<'ctx>>;
+}
+
+impl<'ctx> GEPInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn as_gep_instruction(&self) -> Option<GEPInstruction<'ctx>> {
+    match self.get_operand(0) {
+      Some(Either::Left(loc)) => {
+        let num_indices = self.get_num_operands() - 1;
+        let mut indices = Vec::with_capacity(num_indices as usize);
+        for i in 1..=num_indices {
+          match self.get_operand(i) {
+            Some(Either::Left(BasicValueEnum::IntValue(iv))) => {
+              match iv.get_zero_extended_constant() {
+                Some(index) => {
+                  indices.push(index)
+                },
+                None => return None
+              }
+            }
+            _ => return None
+          }
+        }
+        Some(GEPInstruction { loc, indices })
       },
       _ => None
     }

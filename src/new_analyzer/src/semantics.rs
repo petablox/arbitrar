@@ -31,19 +31,9 @@ impl FunctionType {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum BinOp {
-  Add,
-  Sub,
-  Mul,
-  Div,
-  Rem,
-  Lshr,
-  Ashr,
-  Band,
-  Bor,
-  Bxor,
-}
+pub type UnaOp = inkwell::values::InstructionOpcode;
+
+pub type BinOp = inkwell::values::InstructionOpcode;
 
 pub type Predicate = inkwell::IntPredicate;
 
@@ -64,8 +54,8 @@ pub enum Location {
   Argument(usize),
   Alloca(usize),
   Global(String),
-  GetElementPtr(Box<Location>, Vec<u32>),
-  Value(Box<Value>),
+  GetElementPtr(Box<Location>, Vec<u64>),
+  // Value(Box<Value>),
   Unknown,
 }
 
@@ -86,7 +76,8 @@ pub enum Instruction {
   Store { loc: Location, val: Value },
   Load { loc: Location },
   GetElementPtr { loc: Location },
+  UnaryOperation { op: UnaOp, op0: Value },
   BinaryOperation { op: BinOp, op0: Value, op1: Value},
   Alloca(usize),
-  Other
+  Phi,
 }

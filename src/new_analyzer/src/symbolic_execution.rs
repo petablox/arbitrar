@@ -470,10 +470,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    let curr_blk = instr.get_parent().unwrap(); // We assume instruction always has parent block
+    state.prev_block = Some(curr_blk);
     match instr.as_branch_instruction().unwrap() { // We assume instr is branch instruction
       BranchInstruction::ConditionalBranch { cond, then_blk, else_blk } => {
         let cond = self.eval_operand_value(state, cond.into());
-        let curr_blk = instr.get_parent().unwrap(); // We assume instruction always has parent block
         let then_br = BranchDirection { from: curr_blk, to: then_blk };
         let else_br = BranchDirection { from: curr_blk, to: else_blk };
         let visited_then = state.visited_branch.contains(&then_br);
@@ -533,8 +534,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let switch_instr = instr.as_switch_instruction().unwrap();
     let curr_blk = instr.get_parent().unwrap();
+    state.prev_block = Some(curr_blk);
+    let switch_instr = instr.as_switch_instruction().unwrap();
     let cond = self.eval_operand_value(state, switch_instr.cond.into());
     let default_br = BranchDirection { from: curr_blk, to: switch_instr.default_blk };
     let branches = switch_instr.branches.iter().map(|(_, to)| {
@@ -664,6 +666,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    let prev_blk = state.prev_block.unwrap();
+    let phi_instr = instr.as_phi_instruction().unwrap();
+    let incoming_val = phi_instr.incomings.iter().find(|(_, blk)| *blk == prev_blk).unwrap().0;
+    let res = self.eval_operand_value(state, incoming_val);
+    let node = TraceNode { instr, semantics: Instruction::Phi };
+    state.trace.push(node);
+    state.stack.top_mut().memory.insert(instr, res);
+    self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
   pub fn transfer_gep_instr(
@@ -672,14 +682,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-  }
-
-  pub fn transfer_unreachable_instr(
-    &self,
-    instr: InstructionValue<'ctx>,
-    state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    let gep_instr = instr.as_gep_instruction().unwrap();
+    let loc = self.eval_operand_location(state, gep_instr.loc);
+    let node = TraceNode { instr, semantics: Instruction::GetElementPtr { loc: loc.clone() } };
+    let res = Value::Location(Box::new(Location::GetElementPtr(Box::new(loc), gep_instr.indices)));
+    state.trace.push(node);
+    state.stack.top_mut().memory.insert(instr, res);
+    self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
   pub fn transfer_binary_instr(
@@ -688,6 +697,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    let binary_instr = instr.as_binary_instruction().unwrap();
+    let op = binary_instr.op;
+    let v0 = self.eval_operand_value(state, binary_instr.op0);
+    let v1 = self.eval_operand_value(state, binary_instr.op1);
+    let res = Value::BinaryOperation { op, op0: Box::new(v0.clone()), op1: Box::new(v1.clone()) };
+    let node = TraceNode { instr, semantics: Instruction::BinaryOperation { op, op0: v0, op1: v1 } };
+    state.trace.push(node);
+    state.stack.top_mut().memory.insert(instr, res);
+    self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
   pub fn transfer_unary_instr(
@@ -696,6 +714,22 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    let unary_instr = instr.as_unary_instruction().unwrap();
+    let op = unary_instr.op;
+    let op0 = self.eval_operand_value(state, unary_instr.op0);
+    let node = TraceNode { instr, semantics: Instruction::UnaryOperation { op, op0: op0.clone() } };
+    state.trace.push(node);
+    state.stack.top_mut().memory.insert(instr, op0);
+    self.execute_instr(instr.get_next_instruction(), state, env);
+  }
+
+  pub fn transfer_unreachable_instr(
+    &self,
+    _: InstructionValue<'ctx>,
+    state: &mut State<'ctx>,
+    _: &mut Environment<'ctx>,
+  ) {
+    state.finish_state = FinishState::Unreachable;
   }
 
   pub fn transfer_instr(
@@ -704,6 +738,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
+    self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
   pub fn continue_execution(&self, metadata: &MetaData) -> bool {
