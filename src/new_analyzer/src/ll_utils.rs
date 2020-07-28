@@ -3,6 +3,17 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::context::ContextRef;
 use inkwell::module::Module;
 use inkwell::values::*;
+use llvm_sys::prelude::LLVMValueRef;
+
+pub trait InstructionValueRawRef<'ctx> {
+  fn raw_ref(&self) -> LLVMValueRef;
+}
+
+impl<'ctx> InstructionValueRawRef<'ctx> for InstructionValue<'ctx> {
+  fn raw_ref(&self) -> LLVMValueRef {
+    self.instruction_value.value
+  }
+}
 
 #[derive(Copy, Clone)]
 pub struct FunctionInstructionIterator<'ctx> {

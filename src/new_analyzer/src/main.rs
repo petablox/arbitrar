@@ -25,10 +25,10 @@ fn args() -> ArgMatches {
 
 fn main() -> Result<(), String> {
   let args = args();
-  let llctx = inkwell::context::Context::create();
   let options = GeneralOptions::from_matches(&args)?;
   let mut logging_ctx = LoggingContext::new(&options)?;
   logging_ctx.log("Loading byte code file and creating context...")?;
+  let llctx = inkwell::context::Context::create();
   let analyzer_ctx = AnalyzerContext::new(args, options, &llctx)?;
   logging_ctx.log("Generating call graph...")?;
   let call_graph_ctx = CallGraphContext::new(&analyzer_ctx)?;

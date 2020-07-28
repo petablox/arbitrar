@@ -1,5 +1,6 @@
 use clap::{App, Arg, ArgMatches};
-use inkwell::{basic_block::BasicBlock, values::*};
+use inkwell::{basic_block::BasicBlock, values::{InstructionValue, FunctionValue, PointerValue, InstructionOpcode, BasicValueEnum}};
+use llvm_sys::prelude::LLVMValueRef;
 use std::rc::Rc;
 // use petgraph::graph::{DiGraph, NodeIndex};
 use rayon::prelude::*;
@@ -131,7 +132,7 @@ impl MetaData {
   }
 }
 
-pub type LocalMemory<'ctx> = HashMap<InstructionValue<'ctx>, Rc<Value>>;
+pub type LocalMemory<'ctx> = HashMap<LLVMValueRef, Rc<Value>>;
 
 #[derive(Clone)]
 pub struct StackFrame<'ctx> {
@@ -183,16 +184,28 @@ pub struct BranchDirection<'ctx> {
 
 pub type VisitedBranch<'ctx> = HashSet<BranchDirection<'ctx>>;
 
-pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
+// pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
+
+// #[derive(Clone)]
+// pub struct TraceNode<'ctx> {
+//   pub instr: InstructionValue<'ctx>,
+//   pub semantics: Instruction,
+//   pub result: Option<Rc<Value>>,
+// }
+
+// impl<'ctx> std::fmt::Debug for TraceNode<'ctx> {
+//   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//     std::fmt::Debug::fmt(&self.semantics, f)
+//   }
+// }
 
 #[derive(Clone)]
-pub struct TraceNode<'ctx> {
-  pub instr: InstructionValue<'ctx>,
+pub struct TraceNode {
   pub semantics: Instruction,
   pub result: Option<Rc<Value>>,
 }
 
-impl<'ctx> std::fmt::Debug for TraceNode<'ctx> {
+impl std::fmt::Debug for TraceNode {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     std::fmt::Debug::fmt(&self.semantics, f)
   }
@@ -243,34 +256,34 @@ impl<'ctx> BlockTraceTrait<'ctx> for BlockTrace<'ctx> {
   }
 }
 
-pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
+pub type Trace = Vec<TraceNode>;
 
-pub trait TraceTrait<'ctx> {
-  fn block_trace(&self) -> Vec<BasicBlock<'ctx>>;
+pub trait TraceTrait {
+  // fn block_trace(&self) -> Vec<BasicBlock<'ctx>>;
 
   fn print(&self);
 }
 
-impl<'ctx> TraceTrait<'ctx> for Trace<'ctx> {
-  fn block_trace(&self) -> Vec<BasicBlock<'ctx>> {
-    let mut blocks = Vec::new();
-    for node in self.iter() {
-      let instr = node.instr;
-      match instr.get_parent() {
-        Some(block) => {
-          let needs_insert = match blocks.last() {
-            Some(last_block) => block != *last_block,
-            None => true,
-          };
-          if needs_insert {
-            blocks.push(block);
-          }
-        }
-        None => (),
-      }
-    }
-    blocks
-  }
+impl TraceTrait for Trace {
+  // fn block_trace(&self) -> Vec<BasicBlock<'ctx>> {
+  //   let mut blocks = Vec::new();
+  //   for node in self.iter() {
+  //     let instr = node.instr;
+  //     match instr.get_parent() {
+  //       Some(block) => {
+  //         let needs_insert = match blocks.last() {
+  //           Some(last_block) => block != *last_block,
+  //           None => true,
+  //         };
+  //         if needs_insert {
+  //           blocks.push(block);
+  //         }
+  //       }
+  //       None => (),
+  //     }
+  //   }
+  //   blocks
+  // }
 
   fn print(&self) {
     for node in self.iter() {
@@ -301,13 +314,14 @@ pub struct State<'ctx> {
   pub stack: Stack<'ctx>,
   pub memory: Memory,
   pub visited_branch: VisitedBranch<'ctx>,
-  pub global_usage: GlobalUsage<'ctx>,
-  pub trace: Trace<'ctx>,
+  // pub global_usage: GlobalUsage<'ctx>,
+  pub block_trace: BlockTrace<'ctx>,
+  pub trace: Trace,
   pub target_node: Option<usize>,
   pub prev_block: Option<BasicBlock<'ctx>>,
   pub finish_state: FinishState,
   pub pointer_value_id_map: HashMap<PointerValue<'ctx>, usize>,
-  pub constraints: HashMap<InstructionValue<'ctx>, Constraint>,
+  pub constraints: Vec<Constraint>,
 
   // Identifiers
   alloca_id: usize,
@@ -321,13 +335,14 @@ impl<'ctx> State<'ctx> {
       stack: vec![StackFrame::entry(slice.entry)],
       memory: Memory::new(),
       visited_branch: VisitedBranch::new(),
-      global_usage: GlobalUsage::new(),
+      // global_usage: GlobalUsage::new(),
+      block_trace: BlockTrace::new(),
       trace: Vec::new(),
       target_node: None,
       prev_block: None,
       finish_state: FinishState::ProperlyReturned,
       pointer_value_id_map: HashMap::new(),
-      constraints: HashMap::new(),
+      constraints: Vec::new(),
       alloca_id: 0,
       symbol_id: 0,
       pointer_value_id: 0,
@@ -353,17 +368,8 @@ impl<'ctx> State<'ctx> {
     result
   }
 
-  pub fn add_constraint(&mut self, instr: &InstructionValue<'ctx>, comparison: Option<Comparison>, branch: bool) {
-    match comparison {
-      Some(cond) => {
-        if self.constraints.contains_key(instr) {
-          self.constraints.remove(instr);
-        } else {
-          self.constraints.insert(instr.clone(), Constraint { cond, branch });
-        }
-      }
-      None => {}
-    }
+  pub fn add_constraint(&mut self, cond: Comparison, branch: bool) {
+    self.constraints.push(Constraint { cond, branch });
   }
 
   pub fn path_satisfactory(&self) -> bool {
@@ -372,7 +378,7 @@ impl<'ctx> State<'ctx> {
     let solver = Solver::new(&z3_ctx);
     let mut symbol_map = HashMap::new();
     let mut symbol_id = 0;
-    for (_, Constraint { cond, branch }) in self.constraints.iter() {
+    for Constraint { cond, branch } in self.constraints.iter() {
       match cond.into_z3_ast(&mut symbol_map, &mut symbol_id, &z3_ctx) {
         Some(cond) => {
           let formula = if *branch { cond } else { cond.not() };
@@ -456,7 +462,7 @@ pub struct SymbolicExecutionContext<'a, 'ctx> {
   pub options: SymbolicExecutionOptions,
 }
 
-// unsafe impl<'a, 'ctx> Sync for SymbolicExecutionContext<'a, 'ctx> {}
+unsafe impl<'a, 'ctx> Sync for SymbolicExecutionContext<'a, 'ctx> {}
 
 impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
@@ -497,6 +503,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn execute_block(&self, block: BasicBlock<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
+    state.block_trace.push(block);
     self.execute_instr(block.get_first_instruction(), state, env)
   }
 
@@ -540,20 +547,20 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn eval_operand_value(&self, state: &mut State<'ctx>, value: BasicValueEnum<'ctx>) -> Rc<Value> {
     match value.as_instruction() {
-      Some(instr) => match state.stack.top().memory.get(&instr) {
+      Some(instr) => match state.stack.top().memory.get(&instr.instruction_value.value) {
         Some(value) => value.clone(),
         None => match instr.get_opcode() {
           InstructionOpcode::Alloca => {
             let alloca_id = state.new_alloca_id();
             let loc = Rc::new(Location::Alloca(alloca_id));
             let val = Rc::new(Value::Location(loc.clone()));
-            state.stack.top_mut().memory.insert(instr, val.clone());
+            state.stack.top_mut().memory.insert(instr.raw_ref(), val.clone());
             val
           }
           _ => {
             let symbol_id = state.new_symbol_id();
             let value = Rc::new(Value::Symbol(symbol_id));
-            state.stack.top_mut().memory.insert(instr, value.clone());
+            state.stack.top_mut().memory.insert(instr.raw_ref(), value.clone());
             value
           }
         },
@@ -579,7 +586,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                       let pv_id = state.new_pointer_value_id(pv);
                       Rc::new(Value::ConstPtr(pv_id))
                     } else {
-                      println!("Pointer Value not null, global, function, or const ptr");
+                      if cfg!(debug_assertions) {
+                        println!("Pointer Value not null, global, function, or const ptr");
+                      }
                       Rc::new(Value::Unknown)
                     }
                   }
@@ -588,7 +597,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             }
           }
           _ => {
-            println!("Not instruction, not int value or pointer value {:?}", value);
+            if cfg!(debug_assertions) {
+              println!("Not instruction, not int value or pointer value {:?}", value);
+            }
             Rc::new(Value::Unknown)
           }
         },
@@ -598,7 +609,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn eval_operand_location(&self, state: &mut State<'ctx>, value: BasicValueEnum<'ctx>) -> Rc<Location> {
     match value.as_instruction() {
-      Some(instr) => match state.stack.top().memory.get(&instr) {
+      Some(instr) => match state.stack.top().memory.get(&instr.raw_ref()) {
         Some(value) => match &*value.clone() {
           Value::Location(loc) => loc.clone(),
           Value::ConstPtr(ptr_id) => Rc::new(Location::ConstPtr(*ptr_id)),
@@ -609,11 +620,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             let alloca_id = state.new_alloca_id();
             let loc = Rc::new(Location::Alloca(alloca_id));
             let val = Rc::new(Value::Location(loc.clone()));
-            state.stack.top_mut().memory.insert(instr, val);
+            state.stack.top_mut().memory.insert(instr.raw_ref(), val);
             loc
           }
           _ => {
-            println!("Nothing in memory for instr: {:?}", instr);
+            if cfg!(debug_assertions) {
+              println!("Nothing in memory for instr: {:?}", instr);
+            }
             Rc::new(Location::Unknown)
           }
         },
@@ -630,7 +643,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
         }
         _ => {
-          println!("Not an instruction, nor pointer value");
+          if cfg!(debug_assertions) {
+            println!("Not an instruction, nor pointer value");
+          }
           Rc::new(Location::Unknown)
         }
       },
@@ -662,7 +677,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let ret_instr = instr.as_return_instruction().unwrap();
     let val = ret_instr.val.map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
-      instr,
+      // instr,
       semantics: Instruction::Return { op: val.clone() },
       result: None,
     });
@@ -674,7 +689,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         let call_site_frame = state.stack.top_mut(); // If call site exists then there must be a stack top
         if let Some(op0) = val {
           state.trace[node_id].result = Some(op0.clone());
-          call_site_frame.memory.insert(call_site, op0);
+          call_site_frame.memory.insert(call_site.raw_ref(), op0);
         }
         self.execute_instr(call_site.get_next_instruction(), state, env);
       }
@@ -695,6 +710,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         cond,
         then_blk,
         else_blk,
+        ..
       } => {
         let cond = self.eval_operand_value(state, cond.into());
         let comparison = cond.as_comparison();
@@ -714,12 +730,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           if !visited_else {
             // First add else branch into work
             let mut else_state = state.clone();
-            if !is_loop_blk {
-              else_state.add_constraint(&instr, comparison.clone(), false);
+            if let Some(comparison) = comparison.clone() {
+              if !is_loop_blk {
+                else_state.add_constraint(comparison, false);
+              }
             }
             else_state.visited_branch.insert(else_br);
             else_state.trace.push(TraceNode {
-              instr,
+              // instr,
               result: None,
               semantics: Instruction::ConditionalBr {
                 cond: cond.clone(),
@@ -735,24 +753,28 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
 
           // Then execute the then branch
-          if !is_loop_blk {
-            state.add_constraint(&instr, comparison, true);
+          if let Some(comparison) = comparison {
+            if !is_loop_blk {
+              state.add_constraint(comparison, true);
+            }
           }
           state.visited_branch.insert(then_br);
           state.trace.push(TraceNode {
-            instr: instr,
+            // instr: instr,
             result: None,
             semantics: Instruction::ConditionalBr { cond, br: Branch::Then, begin_loop: is_loop_blk },
           });
           self.execute_block(then_blk, state, env);
         } else if !visited_else {
           // Execute the else branch
-          if !is_loop_blk {
-            state.add_constraint(&instr, comparison.clone(), false);
+          if let Some(comparison) = comparison {
+            if !is_loop_blk {
+              state.add_constraint(comparison.clone(), false);
+            }
           }
           state.visited_branch.insert(else_br);
           state.trace.push(TraceNode {
-            instr: instr,
+            // instr: instr,
             semantics: Instruction::ConditionalBr { cond, br: Branch::Else, begin_loop: false },
             result: None,
           });
@@ -764,7 +786,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
       BranchInstruction::UnconditionalBranch(blk) => {
         state.trace.push(TraceNode {
-          instr: instr,
+          // instr: instr,
           semantics: Instruction::UnconditionalBr {
             end_loop: instr.is_loop(&self.ctx.llmod.get_context()),
           },
@@ -798,7 +820,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       })
       .collect::<Vec<_>>();
     let node = TraceNode {
-      instr,
+      // instr,
       semantics: Instruction::Switch { cond },
       result: None,
     };
@@ -842,7 +864,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .collect();
 
       // Store call node id
-      let node_id = state.trace.len() - 1;
+      let node_id = state.trace.len();
 
       // Add the node into the trace
       let semantics = Instruction::Call {
@@ -850,7 +872,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         args: args.clone(),
       };
       let node = TraceNode {
-        instr,
+        // instr,
         semantics,
         result: None,
       };
@@ -873,7 +895,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             func: call.callee_name,
             args,
           });
-          state.stack.top_mut().memory.insert(instr, result);
+          state.stack.top_mut().memory.insert(instr.raw_ref(), result);
           self.execute_instr(instr.get_next_instruction(), state, env);
         }
       }
@@ -901,7 +923,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let val = self.eval_operand_value(state, store_instr.value);
     state.memory.insert(loc.clone(), val.clone());
     let node = TraceNode {
-      instr: instr,
+      // instr: instr,
       semantics: Instruction::Store { loc, val },
       result: None,
     };
@@ -919,12 +941,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let loc = self.eval_operand_location(state, load_instr.location);
     let res = self.load_from_memory(state, loc.clone());
     let node = TraceNode {
-      instr: instr,
+      // instr: instr,
       semantics: Instruction::Load { loc },
       result: Some(res.clone()),
     };
     state.trace.push(node);
-    state.stack.top_mut().memory.insert(instr, res);
+    state.stack.top_mut().memory.insert(instr.raw_ref(), res);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -945,12 +967,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     });
     let semantics = Instruction::Assume { pred, op0, op1 };
     let node = TraceNode {
-      instr,
+      // instr,
       semantics,
       result: Some(res.clone()),
     };
     state.trace.push(node);
-    state.stack.top_mut().memory.insert(instr, res);
+    state.stack.top_mut().memory.insert(instr.raw_ref(), res);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -964,7 +986,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let phi_instr = instr.as_phi_instruction().unwrap();
     let incoming_val = phi_instr.incomings.iter().find(|(_, blk)| *blk == prev_blk).unwrap().0;
     let res = self.eval_operand_value(state, incoming_val);
-    state.stack.top_mut().memory.insert(instr, res);
+    state.stack.top_mut().memory.insert(instr.raw_ref(), res);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -986,7 +1008,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       indices.clone(),
     ))));
     let node = TraceNode {
-      instr,
+      // instr,
       semantics: Instruction::GetElementPtr {
         loc: loc.clone(),
         indices,
@@ -994,7 +1016,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       result: Some(res.clone()),
     };
     state.trace.push(node);
-    state.stack.top_mut().memory.insert(instr, res);
+    state.stack.top_mut().memory.insert(instr.raw_ref(), res);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -1014,12 +1036,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       op1: v1.clone(),
     });
     let node = TraceNode {
-      instr,
+      // instr,
       semantics: Instruction::BinaryOperation { op, op0: v0, op1: v1 },
       result: Some(res.clone()),
     };
     state.trace.push(node);
-    state.stack.top_mut().memory.insert(instr, res);
+    state.stack.top_mut().memory.insert(instr.raw_ref(), res);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -1033,12 +1055,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let op = unary_instr.op;
     let op0 = self.eval_operand_value(state, unary_instr.op0);
     let node = TraceNode {
-      instr,
+      // instr,
       semantics: Instruction::UnaryOperation { op, op0: op0.clone() },
       result: Some(op0.clone()),
     };
     state.trace.push(node);
-    state.stack.top_mut().memory.insert(instr, op0);
+    state.stack.top_mut().memory.insert(instr.raw_ref(), op0);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
 
@@ -1076,8 +1098,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             // if !self.options.no_trace_reduction {
             //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
             // }
-            let block_trace = work.state.trace.block_trace();
-            if !env.has_duplicate(&block_trace) {
+            if !env.has_duplicate(&work.state.block_trace) {
               if work.state.path_satisfactory() {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
@@ -1088,7 +1109,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                 metadata.incr_proper();
               } else {
                 if cfg!(debug_assertions) {
-                  for (_, cons) in work.state.constraints {
+                  for cons in work.state.constraints {
                     println!("{:?}", cons);
                   }
                   println!("Path unsat");
@@ -1123,11 +1144,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         },
         None => metadata.incr_no_target(),
       }
-    }
 
-    print!("Executing Slice {}\r", match slice_id % 3 {
-      0 => '|', 1 => '/', 2 => '-', _ => '\\'
-    });
+      print!("Executing Slice {}\r", match metadata.explored_trace_count % 3 {
+        0 => '|', 1 => '/', 2 => '-', _ => '\\'
+      });
+    }
 
     metadata
   }

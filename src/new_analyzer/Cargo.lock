@@ -18,6 +18,7 @@ dependencies = [
  "either",
  "inkwell",
  "lazy_static",
+ "llvm-sys",
  "petgraph",
  "rayon",
  "regex",
@@ -212,7 +213,7 @@ dependencies = [
 [[package]]
 name = "inkwell"
 version = "0.1.0"
-source = "git+https://github.com/Liby99/inkwell?branch=llvm10-0#0327ed570c41271cdec824fb2e2778bdc6bb19d9"
+source = "git+https://github.com/Liby99/inkwell?branch=llvm10-0#560571b3d594f10ca6b40eaf505636eafb65a4c5"
 dependencies = [
  "either",
  "inkwell_internals",
@@ -226,7 +227,7 @@ dependencies = [
 [[package]]
 name = "inkwell_internals"
 version = "0.2.0"
-source = "git+https://github.com/Liby99/inkwell?branch=llvm10-0#0327ed570c41271cdec824fb2e2778bdc6bb19d9"
+source = "git+https://github.com/Liby99/inkwell?branch=llvm10-0#560571b3d594f10ca6b40eaf505636eafb65a4c5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -506,9 +507,9 @@ checksum = "5317f7588f0a5078ee60ef675ef96735a1442132dc645eb1d12c018620ed8cd3"
 
 [[package]]
 name = "serde_json"
-version = "1.0.56"
+version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3433e879a558dde8b5e8feb2a04899cf34fdde1fafb894687e52105fc1162ac3"
+checksum = "164eacbdb13512ec2745fb09d51fd5b22b0d65ed294a1dcf7285a360c80a675c"
 dependencies = [
  "itoa",
  "ryu",
@@ -529,9 +530,9 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "syn"
-version = "1.0.35"
+version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb7f4c519df8c117855e19dd8cc851e89eb746fe7a73f0157e0d95fdec5369b0"
+checksum = "4cdb98bcb1f9d81d07b536179c269ea15999b5d14ea958196413869445bb5250"
 dependencies = [
  "proc-macro2",
  "quote",
