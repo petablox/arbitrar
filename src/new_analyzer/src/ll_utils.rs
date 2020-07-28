@@ -72,6 +72,10 @@ pub trait FunctionValueTrait<'ctx> {
   fn function_name(&self) -> String;
 
   fn first_instruction(&self) -> Option<InstructionValue<'ctx>>;
+
+  fn str_is_llvm_function(s: &str) -> bool {
+    s.contains("llvm.")
+  }
 }
 
 impl<'ctx> FunctionValueTrait<'ctx> for FunctionValue<'ctx> {
@@ -80,7 +84,7 @@ impl<'ctx> FunctionValueTrait<'ctx> for FunctionValue<'ctx> {
   }
 
   fn is_llvm_function(&self) -> bool {
-    self.function_name().contains("llvm.")
+    Self::str_is_llvm_function(self.function_name().as_str())
   }
 
   fn is_void_return_type(&self) -> bool {
@@ -173,17 +177,31 @@ impl<'ctx> CreateBlockInstructionIterator<'ctx> for BasicBlock<'ctx> {
 
 #[derive(Clone)]
 pub struct CallInstruction<'ctx> {
-  pub callee: FunctionValue<'ctx>,
+  pub callee_name: String,
+  pub callee: Option<FunctionValue<'ctx>>,
   pub args: Vec<BasicValueEnum<'ctx>>,
 }
 
 pub trait CallInstructionTrait<'ctx> {
+  fn callee_name(&self) -> Option<String>;
+
   fn callee(&self, module: &Module<'ctx>) -> Option<FunctionValue<'ctx>>;
 
   fn as_call_instruction(&self, module: &Module<'ctx>) -> Option<CallInstruction<'ctx>>;
 }
 
 impl<'ctx> CallInstructionTrait<'ctx> for InstructionValue<'ctx> {
+  fn callee_name(&self) -> Option<String> {
+    let maybe_callee = self.get_operand(self.get_num_operands() - 1);
+    match maybe_callee {
+      Some(Either::Left(BasicValueEnum::PointerValue(pt))) => {
+        let fname = pt.get_name();
+        Some(fname.to_string_lossy().to_string())
+      }
+      _ => None
+    }
+  }
+
   fn callee(&self, module: &Module<'ctx>) -> Option<FunctionValue<'ctx>> {
     if self.get_opcode() == InstructionOpcode::Call {
       let maybe_callee = self.get_operand(self.get_num_operands() - 1);
@@ -203,18 +221,15 @@ impl<'ctx> CallInstructionTrait<'ctx> for InstructionValue<'ctx> {
     if self.get_opcode() == InstructionOpcode::Call {
       match self.get_operand(self.get_num_operands() - 1) {
         Some(Either::Left(BasicValueEnum::PointerValue(pt))) => {
-          match module.get_function(&pt.get_name().to_string_lossy()) {
-            Some(callee) => {
-              let args = (0..self.get_num_operands() - 1)
-                .map(|i| match self.get_operand(i) {
-                  Some(Either::Left(v)) => v,
-                  _ => panic!("Invalid call instruction"),
-                })
-                .collect();
-              Some(CallInstruction { callee, args })
-            }
-            None => None,
-          }
+          let callee_name = pt.get_name().to_string_lossy().to_string();
+          let args = (0..self.get_num_operands() - 1)
+          .map(|i| match self.get_operand(i) {
+            Some(Either::Left(v)) => v,
+            _ => panic!("Invalid call instruction"),
+          })
+          .collect();
+          let callee = module.get_function(callee_name.as_str());
+          Some(CallInstruction { callee_name, callee, args })
         }
         _ => None,
       }
@@ -251,6 +266,8 @@ impl OpcodeTrait for InstructionOpcode {
 
 pub trait BasicValueEnumTrait<'ctx> {
   fn as_instruction(&self) -> Option<InstructionValue<'ctx>>;
+
+  fn argument_index(&self, func: FunctionValue<'ctx>) -> Option<usize>;
 }
 
 impl<'ctx> BasicValueEnumTrait<'ctx> for BasicValueEnum<'ctx> {
@@ -263,6 +280,10 @@ impl<'ctx> BasicValueEnumTrait<'ctx> for BasicValueEnum<'ctx> {
       Self::StructValue(sv) => sv.as_instruction(),
       Self::VectorValue(vv) => vv.as_instruction(),
     }
+  }
+
+  fn argument_index(&self, func: FunctionValue<'ctx>) -> Option<usize> {
+    func.get_params().iter().position(|arg| arg == self)
   }
 }
 
@@ -487,7 +508,7 @@ impl<'ctx> PhiInstructionTrait<'ctx> for InstructionValue<'ctx> {
 
 pub struct GEPInstruction<'ctx> {
   pub loc: BasicValueEnum<'ctx>,
-  pub indices: Vec<u64>,
+  pub indices: Vec<BasicValueEnum<'ctx>>,
 }
 
 pub trait GEPInstructionTrait<'ctx> {
@@ -502,10 +523,7 @@ impl<'ctx> GEPInstructionTrait<'ctx> for InstructionValue<'ctx> {
         let mut indices = Vec::with_capacity(num_indices as usize);
         for i in 1..=num_indices {
           match self.get_operand(i) {
-            Some(Either::Left(BasicValueEnum::IntValue(iv))) => match iv.get_zero_extended_constant() {
-              Some(index) => indices.push(index),
-              None => return None,
-            },
+            Some(Either::Left(bv)) => indices.push(bv),
             _ => return None,
           }
         }
