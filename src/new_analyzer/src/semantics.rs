@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::rc::Rc;
 // use serde_json::Value as Json;
 
 // #[derive(Debug, Clone)]
@@ -41,10 +41,10 @@ pub type Predicate = inkwell::IntPredicate;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Value {
-  Argument(usize), // Argument ID
-  Symbol(usize), // Symbol ID
-  ConstPtr(usize), // Pointer ID
-  Global(String), // Global Value Name
+  Argument(usize),         // Argument ID
+  Symbol(usize),           // Symbol ID
+  ConstPtr(usize),         // Pointer ID
+  Global(String),          // Global Value Name
   FunctionPointer(String), // Function Name
   ConstInt(i64),
   NullPtr,
@@ -70,10 +70,12 @@ pub enum Value {
 impl Value {
   pub fn as_comparison(&self) -> Option<Comparison> {
     match self {
-      Value::Comparison { pred, op0, op1 } => {
-        Some(Comparison { pred: *pred, op0: op0.clone(), op1: op1.clone() })
-      },
-      _ => None
+      Value::Comparison { pred, op0, op1 } => Some(Comparison {
+        pred: *pred,
+        op0: op0.clone(),
+        op1: op1.clone(),
+      }),
+      _ => None,
     }
   }
 
@@ -81,7 +83,7 @@ impl Value {
     &self,
     symbol_map: &mut HashMap<Value, z3::Symbol>,
     symbol_id: &mut u32,
-    z3_ctx: &'ctx z3::Context
+    z3_ctx: &'ctx z3::Context,
   ) -> Option<z3::ast::Int<'ctx>> {
     use z3::*;
     match self {
@@ -90,7 +92,7 @@ impl Value {
       Value::BinaryOperation { op, op0, op1 } => {
         match (
           op0.into_z3_ast(symbol_map, symbol_id, z3_ctx),
-          op1.into_z3_ast(symbol_map, symbol_id, z3_ctx)
+          op1.into_z3_ast(symbol_map, symbol_id, z3_ctx),
         ) {
           (Some(op0), Some(op1)) => match op {
             BinOp::Add => Some(ast::Int::add(z3_ctx, &[&op0, &op1])),
@@ -98,11 +100,11 @@ impl Value {
             BinOp::Mul => Some(ast::Int::mul(z3_ctx, &[&op0, &op1])),
             BinOp::UDiv | BinOp::SDiv => Some(op0.div(&op1)),
             BinOp::URem | BinOp::SRem => Some(op0.rem(&op1)),
-            _ => None
+            _ => None,
           },
-          _ => None
+          _ => None,
         }
-      },
+      }
       Value::Unknown => None,
       _ => {
         let symbol = symbol_map.entry(self.clone()).or_insert_with(|| {
@@ -128,7 +130,7 @@ impl Comparison {
     &self,
     symbol_map: &mut HashMap<Value, z3::Symbol>,
     symbol_id: &mut u32,
-    z3_ctx: &'ctx z3::Context
+    z3_ctx: &'ctx z3::Context,
   ) -> Option<z3::ast::Bool<'ctx>> {
     use z3::ast::Ast;
     let Comparison { pred, op0, op1 } = self;
@@ -142,8 +144,8 @@ impl Comparison {
         Predicate::SGT | Predicate::UGT => Some(op0.gt(&op1)),
         Predicate::SLE | Predicate::ULE => Some(op0.le(&op1)),
         Predicate::SLT | Predicate::ULT => Some(op0.lt(&op1)),
-      }
-      _ => None
+      },
+      _ => None,
     }
   }
 }

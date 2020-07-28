@@ -175,6 +175,36 @@ impl<'ctx> CreateBlockInstructionIterator<'ctx> for BasicBlock<'ctx> {
   }
 }
 
+pub trait BasicBlockTrait<'ctx> {
+  fn is_loop_block(&self, llctx: &ContextRef<'ctx>) -> bool;
+}
+
+impl<'ctx> BasicBlockTrait<'ctx> for BasicBlock<'ctx> {
+  fn is_loop_block(&self, llctx: &ContextRef<'ctx>) -> bool {
+    let func = self.get_parent().unwrap();
+    for blk in func.get_basic_blocks().iter() {
+      match blk.get_terminator() {
+        Some(instr) => match instr.get_opcode() {
+          InstructionOpcode::Br => match instr.get_num_operands() {
+            1 => match instr.get_operand(0) {
+              Some(Either::Right(blk)) => if *self == blk {
+                if instr.is_loop(&llctx) {
+                  return true;
+                }
+              }
+              _ => {}
+            }
+            _ => {}
+          }
+          _ => {}
+        }
+        None => {}
+      }
+    }
+    false
+  }
+}
+
 #[derive(Clone)]
 pub struct CallInstruction<'ctx> {
   pub callee_name: String,
@@ -198,7 +228,7 @@ impl<'ctx> CallInstructionTrait<'ctx> for InstructionValue<'ctx> {
         let fname = pt.get_name();
         Some(fname.to_string_lossy().to_string())
       }
-      _ => None
+      _ => None,
     }
   }
 
@@ -223,13 +253,17 @@ impl<'ctx> CallInstructionTrait<'ctx> for InstructionValue<'ctx> {
         Some(Either::Left(BasicValueEnum::PointerValue(pt))) => {
           let callee_name = pt.get_name().to_string_lossy().to_string();
           let args = (0..self.get_num_operands() - 1)
-          .map(|i| match self.get_operand(i) {
-            Some(Either::Left(v)) => v,
-            _ => panic!("Invalid call instruction"),
-          })
-          .collect();
+            .map(|i| match self.get_operand(i) {
+              Some(Either::Left(v)) => v,
+              _ => panic!("Invalid call instruction"),
+            })
+            .collect();
           let callee = module.get_function(callee_name.as_str());
-          Some(CallInstruction { callee_name, callee, args })
+          Some(CallInstruction {
+            callee_name,
+            callee,
+            args,
+          })
         }
         _ => None,
       }
@@ -322,6 +356,8 @@ pub enum BranchInstruction<'ctx> {
 
 pub trait BranchInstructionTrait<'ctx> {
   fn as_branch_instruction(&self) -> Option<BranchInstruction<'ctx>>;
+
+  fn is_loop(&self, llctx: &ContextRef<'ctx>) -> bool;
 }
 
 impl<'ctx> BranchInstructionTrait<'ctx> for InstructionValue<'ctx> {
@@ -349,6 +385,11 @@ impl<'ctx> BranchInstructionTrait<'ctx> for InstructionValue<'ctx> {
     } else {
       None
     }
+  }
+
+  fn is_loop(&self, llctx: &ContextRef<'ctx>) -> bool {
+    let kind = llctx.get_kind_id("llvm.loop");
+    self.get_metadata(kind).is_some()
   }
 }
 
