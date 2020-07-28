@@ -171,7 +171,7 @@ pub enum Branch {
 pub enum Instruction {
   Call {
     func: String,
-    /* func_type: FunctionType, */ args: Vec<Rc<Value>>, /* arg_types: Vec<Type> */
+    args: Vec<Rc<Value>>,
   },
   Assume {
     pred: Predicate,
@@ -181,14 +181,17 @@ pub enum Instruction {
   ConditionalBr {
     cond: Rc<Value>,
     br: Branch,
+    begin_loop: bool,
   },
   UnconditionalBr {
-    is_loop: bool,
+    end_loop: bool,
   },
   Switch {
     cond: Rc<Value>,
   },
-  Return(Option<Rc<Value>>),
+  Return {
+    op: Option<Rc<Value>>
+  },
   Store {
     loc: Rc<Location>,
     val: Rc<Value>,

@@ -533,14 +533,12 @@ pub trait PhiInstructionTrait<'ctx> {
 
 impl<'ctx> PhiInstructionTrait<'ctx> for InstructionValue<'ctx> {
   fn as_phi_instruction(&self) -> Option<PhiInstruction<'ctx>> {
-    let num_incomings = self.get_num_operands();
-    let mut incomings = Vec::with_capacity(num_incomings as usize);
+    let num_incomings = self.count_phi_incoming();
+    let mut incomings = Vec::new();
     for i in 0..num_incomings {
-      match (self.get_operand(i * 2), self.get_operand(i * 2 + 1)) {
-        (Some(Either::Left(val)), Some(Either::Right(blk))) => {
-          incomings.push((val, blk));
-        }
-        _ => return None,
+      match self.get_phi_incoming(i) {
+        Some(incoming) => incomings.push(incoming),
+        None => return None
       }
     }
     Some(PhiInstruction { incomings })

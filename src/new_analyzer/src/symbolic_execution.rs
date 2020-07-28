@@ -366,13 +366,14 @@ impl<'ctx> State<'ctx> {
     }
   }
 
-  pub fn path_satisfactory(&self, z3_ctx: &z3::Context) -> bool {
+  pub fn path_satisfactory(&self) -> bool {
     use z3::*;
+    let z3_ctx = Context::new(&z3::Config::default());
     let solver = Solver::new(&z3_ctx);
     let mut symbol_map = HashMap::new();
     let mut symbol_id = 0;
     for (_, Constraint { cond, branch }) in self.constraints.iter() {
-      match cond.into_z3_ast(&mut symbol_map, &mut symbol_id, z3_ctx) {
+      match cond.into_z3_ast(&mut symbol_map, &mut symbol_id, &z3_ctx) {
         Some(cond) => {
           let formula = if *branch { cond } else { cond.not() };
           solver.assert(&formula);
@@ -452,17 +453,15 @@ impl<'ctx> Environment<'ctx> {
 
 pub struct SymbolicExecutionContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
-  pub z3_ctx: z3::Context,
   pub options: SymbolicExecutionOptions,
 }
 
-unsafe impl<'a, 'ctx> Sync for SymbolicExecutionContext<'a, 'ctx> {}
+// unsafe impl<'a, 'ctx> Sync for SymbolicExecutionContext<'a, 'ctx> {}
 
 impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
     let options = SymbolicExecutionOptions::from_matches(&ctx.args)?;
-    let z3_ctx = z3::Context::new(&z3::Config::default());
-    Ok(Self { ctx, options, z3_ctx })
+    Ok(Self { ctx, options })
   }
 
   pub fn trace_file_name(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
@@ -552,8 +551,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             val
           }
           _ => {
-            println!("stack memory has no value for instruction {:?}", instr);
-            Rc::new(Value::Unknown)
+            let symbol_id = state.new_symbol_id();
+            let value = Rc::new(Value::Symbol(symbol_id));
+            state.stack.top_mut().memory.insert(instr, value.clone());
+            value
           }
         },
       },
@@ -662,7 +663,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let val = ret_instr.val.map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
       instr,
-      semantics: Instruction::Return(val.clone()),
+      semantics: Instruction::Return { op: val.clone() },
       result: None,
     });
 
@@ -723,6 +724,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               semantics: Instruction::ConditionalBr {
                 cond: cond.clone(),
                 br: Branch::Else,
+                begin_loop: false,
               },
             });
             let else_work = Work {
@@ -740,7 +742,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           state.trace.push(TraceNode {
             instr: instr,
             result: None,
-            semantics: Instruction::ConditionalBr { cond, br: Branch::Then },
+            semantics: Instruction::ConditionalBr { cond, br: Branch::Then, begin_loop: is_loop_blk },
           });
           self.execute_block(then_blk, state, env);
         } else if !visited_else {
@@ -751,7 +753,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           state.visited_branch.insert(else_br);
           state.trace.push(TraceNode {
             instr: instr,
-            semantics: Instruction::ConditionalBr { cond, br: Branch::Else },
+            semantics: Instruction::ConditionalBr { cond, br: Branch::Else, begin_loop: false },
             result: None,
           });
           self.execute_block(else_blk, state, env);
@@ -764,7 +766,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         state.trace.push(TraceNode {
           instr: instr,
           semantics: Instruction::UnconditionalBr {
-            is_loop: instr.is_loop(&self.ctx.llmod.get_context()),
+            end_loop: instr.is_loop(&self.ctx.llmod.get_context()),
           },
           result: None,
         });
@@ -1062,7 +1064,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
     while env.has_work() && self.continue_execution(&metadata) {
-      println!("=========== {} ==========", metadata.explored_trace_count);
+      if cfg!(debug_assertions) {
+        println!("=========== {} ==========", metadata.explored_trace_count);
+      }
 
       let mut work = env.pop_work();
       self.execute_block(work.block, &mut work.state, &mut env);
@@ -1074,40 +1078,57 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             // }
             let block_trace = work.state.trace.block_trace();
             if !env.has_duplicate(&block_trace) {
-              if work.state.path_satisfactory(&self.z3_ctx) {
+              if work.state.path_satisfactory() {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
-                work.state.trace.print();
+                if cfg!(debug_assertions) {
+                  work.state.trace.print();
+                }
                 work.state.dump_json(path);
                 metadata.incr_proper();
               } else {
-                for (_, cons) in work.state.constraints {
-                  println!("{:?}", cons);
+                if cfg!(debug_assertions) {
+                  for (_, cons) in work.state.constraints {
+                    println!("{:?}", cons);
+                  }
+                  println!("Path unsat");
                 }
-                println!("Path unsat");
                 metadata.incr_path_unsat()
               }
             } else {
-              println!("Duplicated");
+              if cfg!(debug_assertions) {
+                println!("Duplicated");
+              }
               metadata.incr_duplicated()
             }
           }
           FinishState::BranchExplored => {
-            println!("Branch explored");
+            if cfg!(debug_assertions) {
+              println!("Branch explored");
+            }
             metadata.incr_branch_explored()
           }
           FinishState::ExceedingMaxTraceLength => {
-            println!("Exceeding Length");
+            if cfg!(debug_assertions) {
+              println!("Exceeding Length");
+            }
             metadata.incr_exceeding_length()
           }
           FinishState::Unreachable => {
-            println!("Unreachable");
+            if cfg!(debug_assertions) {
+              println!("Unreachable");
+            }
             metadata.incr_unreachable()
           }
         },
         None => metadata.incr_no_target(),
       }
     }
+
+    print!("Executing Slice {}\r", match slice_id % 3 {
+      0 => '|', 1 => '/', 2 => '-', _ => '\\'
+    });
+
     metadata
   }
 
