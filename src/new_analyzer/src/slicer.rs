@@ -89,7 +89,7 @@ pub struct Slice<'ctx> {
 unsafe impl<'ctx> Send for Slice<'ctx> {}
 
 impl<'ctx> Slice<'ctx> {
-  pub fn dump(&self) {
+  pub fn _dump(&self) {
     print!(
       "Entry: {}, Caller: {}, Functions: {{",
       self.entry.function_name(),

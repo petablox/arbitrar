@@ -136,7 +136,7 @@ pub type LocalMemory<'ctx> = HashMap<InstructionValue<'ctx>, Rc<Value>>;
 #[derive(Clone)]
 pub struct StackFrame<'ctx> {
   pub function: FunctionValue<'ctx>,
-  pub instr: Option<InstructionValue<'ctx>>,
+  pub instr: Option<(usize, InstructionValue<'ctx>)>,
   pub memory: LocalMemory<'ctx>,
   pub arguments: Vec<Rc<Value>>,
 }
@@ -187,6 +187,7 @@ pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
 pub struct TraceNode<'ctx> {
   pub instr: InstructionValue<'ctx>,
   pub semantics: Instruction,
+  pub result: Option<Rc<Value>>,
 }
 
 impl<'ctx> std::fmt::Debug for TraceNode<'ctx> {
@@ -276,6 +277,12 @@ pub enum FinishState {
   Unreachable,
 }
 
+#[derive(Debug, Clone)]
+pub struct Constraint {
+  pub cond: Comparison,
+  pub branch: bool
+}
+
 #[derive(Clone)]
 pub struct State<'ctx> {
   pub stack: Stack<'ctx>,
@@ -283,14 +290,16 @@ pub struct State<'ctx> {
   pub visited_branch: VisitedBranch<'ctx>,
   pub global_usage: GlobalUsage<'ctx>,
   pub trace: Trace<'ctx>,
-  // pub trace_graph: TraceGraph<'ctx>,
   pub target_node: Option<usize>,
   pub prev_block: Option<BasicBlock<'ctx>>,
   pub finish_state: FinishState,
+  pub pointer_value_id_map: HashMap<PointerValue<'ctx>, usize>,
+  pub constraints: HashMap<InstructionValue<'ctx>, Constraint>,
 
   // Identifiers
   alloca_id: usize,
   symbol_id: usize,
+  pointer_value_id: usize,
 }
 
 impl<'ctx> State<'ctx> {
@@ -300,13 +309,15 @@ impl<'ctx> State<'ctx> {
       memory: Memory::new(),
       visited_branch: VisitedBranch::new(),
       global_usage: GlobalUsage::new(),
-      // trace_graph: TraceGraph::new(),
       trace: Vec::new(),
       target_node: None,
       prev_block: None,
       finish_state: FinishState::ProperlyReturned,
+      pointer_value_id_map: HashMap::new(),
+      constraints: HashMap::new(),
       alloca_id: 0,
       symbol_id: 0,
+      pointer_value_id: 0,
     }
   }
 
@@ -322,13 +333,45 @@ impl<'ctx> State<'ctx> {
     result
   }
 
-  pub fn _passed_target(&self) -> bool {
-    self.target_node.is_some()
+  pub fn new_pointer_value_id(&mut self, pv: PointerValue<'ctx>) -> usize {
+    let result = self.pointer_value_id;
+    self.pointer_value_id += 1;
+    self.pointer_value_id_map.insert(pv, result);
+    result
   }
 
-  pub fn path_satisfactory(&self) -> bool {
-    // TODO
-    true
+  pub fn add_constraint(&mut self, instr: &InstructionValue<'ctx>, comparison: Option<Comparison>, branch: bool) {
+    match comparison {
+      Some(cond) => {
+        if self.constraints.contains_key(instr) {
+          self.constraints.remove(instr);
+        } else {
+          self.constraints.insert(instr.clone(), Constraint { cond, branch, });
+        }
+      },
+      None => {}
+    }
+
+  }
+
+  pub fn path_satisfactory(&self, z3_ctx: &z3::Context) -> bool {
+    use z3::*;
+    let solver = Solver::new(&z3_ctx);
+    let mut symbol_map = HashMap::new();
+    let mut symbol_id = 0;
+    for (_, Constraint { cond, branch }) in self.constraints.iter() {
+      match cond.into_z3_ast(&mut symbol_map, &mut symbol_id, z3_ctx) {
+        Some(cond) => {
+          let formula = if *branch { cond } else { cond.not() };
+          solver.assert(&formula);
+        }
+        _ => ()
+      }
+    }
+    match solver.check() {
+      SatResult::Sat | SatResult::Unknown => true,
+      _ => false
+    }
   }
 
   pub fn dump_json(&self, _path: PathBuf) {
@@ -397,6 +440,7 @@ impl<'ctx> Environment<'ctx> {
 
 pub struct SymbolicExecutionContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
+  pub z3_ctx: z3::Context,
   pub options: SymbolicExecutionOptions,
 }
 
@@ -405,7 +449,8 @@ unsafe impl<'a, 'ctx> Sync for SymbolicExecutionContext<'a, 'ctx> {}
 impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
     let options = SymbolicExecutionOptions::from_matches(&ctx.args)?;
-    Ok(Self { ctx, options })
+    let z3_ctx = z3::Context::new(&z3::Config::default());
+    Ok(Self { ctx, options, z3_ctx })
   }
 
   pub fn trace_file_name(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
@@ -418,6 +463,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn execute_function(
     &self,
+    instr_node_id: usize,
     instr: InstructionValue<'ctx>,
     func: FunctionValue<'ctx>,
     args: Vec<Rc<Value>>,
@@ -428,7 +474,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       Some(block) => {
         let stack_frame = StackFrame {
           function: func,
-          instr: Some(instr),
+          instr: Some((instr_node_id, instr)),
           memory: LocalMemory::new(),
           arguments: args,
         };
@@ -509,7 +555,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                 _ => match self.ctx.llmod.get_function(name.as_str()) {
                   Some(_) => Rc::new(Value::FunctionPointer(name)),
                   _ => if pv.is_const() {
-                    Rc::new(Value::ConstPtr)
+                    let pv_id = state.new_pointer_value_id(pv);
+                    Rc::new(Value::ConstPtr(pv_id))
                   } else {
                     println!("Pointer Value not null, global, function, or const ptr");
                     Rc::new(Value::Unknown)
@@ -533,6 +580,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         match state.stack.top().memory.get(&instr) {
           Some(value) => match &*value.clone() {
             Value::Location(loc) => loc.clone(),
+            Value::ConstPtr(ptr_id) => Rc::new(Location::ConstPtr(*ptr_id)),
             _ => Rc::new(Location::Value(value.clone())),
           },
           _ => match instr.get_opcode() {
@@ -550,9 +598,21 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
         }
       },
-      None => {
-        println!("Not an instruction: {:?}", value);
-        Rc::new(Location::Unknown)
+      None => match value {
+        BasicValueEnum::PointerValue(pv) => {
+          let name = String::from(pv.get_name().to_string_lossy());
+          match self.ctx.llmod.get_global(name.as_str()) {
+            Some(_) => Rc::new(Location::Global(name)),
+            _ => {
+              let pv_id = state.new_pointer_value_id(pv);
+              Rc::new(Location::ConstPtr(pv_id))
+            },
+          }
+        }
+        _ => {
+          println!("Not an instruction, nor pointer value");
+          Rc::new(Location::Unknown)
+        }
       }
     }
   }
@@ -582,16 +642,18 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let ret_instr = instr.as_return_instruction().unwrap();
     let val = ret_instr.val.map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
-      instr: instr,
+      instr,
       semantics: Instruction::Return(val.clone()),
+      result: None
     });
 
     // Then we peek the stack frame
     let stack_frame = state.stack.pop().unwrap(); // There has to be a stack on the top
     match stack_frame.instr {
-      Some(call_site) => {
+      Some((node_id, call_site)) => {
         let call_site_frame = state.stack.top_mut(); // If call site exists then there must be a stack top
         if let Some(op0) = val {
+          state.trace[node_id].result = Some(op0.clone());
           call_site_frame.memory.insert(call_site, op0);
         }
         self.execute_instr(call_site.get_next_instruction(), state, env);
@@ -609,27 +671,21 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state.prev_block = Some(curr_blk);
     match instr.as_branch_instruction().unwrap() {
       // We assume instr is branch instruction
-      BranchInstruction::ConditionalBranch {
-        cond,
-        then_blk,
-        else_blk,
-      } => {
+      BranchInstruction::ConditionalBranch { cond, then_blk, else_blk } => {
         let cond = self.eval_operand_value(state, cond.into());
-        let then_br = BranchDirection {
-          from: curr_blk,
-          to: then_blk,
-        };
-        let else_br = BranchDirection {
-          from: curr_blk,
-          to: else_blk,
-        };
+        let comparison = cond.as_comparison();
+        let then_br = BranchDirection { from: curr_blk, to: then_blk };
+        let else_br = BranchDirection { from: curr_blk, to: else_blk };
         let visited_then = state.visited_branch.contains(&then_br);
         let visited_else = state.visited_branch.contains(&else_br);
         if !visited_then {
+
           // Check if we need to add a work for else branch
           if !visited_else {
+
             // First add else branch into work
             let mut else_state = state.clone();
+            else_state.add_constraint(&instr, comparison.clone(), false);
             else_state.visited_branch.insert(else_br);
             else_state.trace.push(TraceNode {
               instr: instr,
@@ -637,6 +693,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                 cond: cond.clone(),
                 br: Branch::Else,
               },
+              result: None,
             });
             let else_work = Work {
               block: else_blk,
@@ -646,18 +703,22 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
 
           // Then execute the then branch
+          state.add_constraint(&instr, comparison, true);
           state.visited_branch.insert(then_br);
           state.trace.push(TraceNode {
             instr: instr,
             semantics: Instruction::ConditionalBr { cond, br: Branch::Then },
+            result: None,
           });
           self.execute_block(then_blk, state, env);
         } else if !visited_else {
           // Execute the else branch
+          state.add_constraint(&instr, comparison.clone(), false);
           state.visited_branch.insert(else_br);
           state.trace.push(TraceNode {
             instr: instr,
             semantics: Instruction::ConditionalBr { cond, br: Branch::Else },
+            result: None,
           });
           self.execute_block(else_blk, state, env);
         } else {
@@ -670,6 +731,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         state.trace.push(TraceNode {
           instr: instr,
           semantics: Instruction::UnconditionalBr { is_loop: false },
+          result: None,
         });
         self.execute_block(blk, state, env);
       }
@@ -701,6 +763,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let node = TraceNode {
       instr,
       semantics: Instruction::Switch { cond },
+      result: None,
     };
     state.trace.push(node);
 
@@ -741,24 +804,26 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .map(|v| self.eval_operand_value(state, v))
         .collect();
 
+      // Store call node id
+      let node_id = state.trace.len() - 1;
+
       // Add the node into the trace
       let semantics = Instruction::Call {
         func: callee_name.clone(),
         args: args.clone(),
       };
-      let node = TraceNode { instr, semantics };
+      let node = TraceNode { instr, semantics, result: None };
       state.trace.push(node);
 
       // Check if this is the target function call
       if instr == env.slice.instr && state.target_node.is_none() {
-        let node_id = state.trace.len() - 1;
         state.target_node = Some(node_id);
       }
 
       // Check if we need to go into the function
       match call.callee {
         Some(callee) if !callee.is_declare_only() && env.slice.functions.contains(&callee) => {
-          self.execute_function(instr, callee, args, state, env);
+          self.execute_function(node_id, instr, callee, args, state, env);
         },
         _ => {
           let call_id = env.new_call_id();
@@ -793,6 +858,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let node = TraceNode {
       instr: instr,
       semantics: Instruction::Store { loc, val },
+      result: None,
     };
     state.trace.push(node);
     self.execute_instr(instr.get_next_instruction(), state, env);
@@ -810,6 +876,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let node = TraceNode {
       instr: instr,
       semantics: Instruction::Load { loc },
+      result: Some(res.clone()),
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr, res);
@@ -832,7 +899,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       op1: op1.clone(),
     });
     let semantics = Instruction::Assume { pred, op0, op1 };
-    let node = TraceNode { instr, semantics };
+    let node = TraceNode { instr, semantics, result: Some(res.clone()) };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr, res);
     self.execute_instr(instr.get_next_instruction(), state, env);
@@ -848,11 +915,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let phi_instr = instr.as_phi_instruction().unwrap();
     let incoming_val = phi_instr.incomings.iter().find(|(_, blk)| *blk == prev_blk).unwrap().0;
     let res = self.eval_operand_value(state, incoming_val);
-    let node = TraceNode {
-      instr,
-      semantics: Instruction::Phi,
-    };
-    state.trace.push(node);
     state.stack.top_mut().memory.insert(instr, res);
     self.execute_instr(instr.get_next_instruction(), state, env);
   }
@@ -866,11 +928,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let gep_instr = instr.as_gep_instruction().unwrap();
     let loc = self.eval_operand_location(state, gep_instr.loc);
     let indices = gep_instr.indices.iter().map(|index| self.eval_operand_value(state, *index)).collect::<Vec<_>>();
+    let res = Rc::new(Value::Location(Rc::new(Location::GetElementPtr(loc.clone(), indices.clone()))));
     let node = TraceNode {
       instr,
-      semantics: Instruction::GetElementPtr { loc: loc.clone(), indices: indices.clone() },
+      semantics: Instruction::GetElementPtr { loc: loc.clone(), indices },
+      result: Some(res.clone())
     };
-    let res = Rc::new(Value::Location(Rc::new(Location::GetElementPtr(loc.clone(), indices))));
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr, res);
     self.execute_instr(instr.get_next_instruction(), state, env);
@@ -894,6 +957,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let node = TraceNode {
       instr,
       semantics: Instruction::BinaryOperation { op, op0: v0, op1: v1 },
+      result: Some(res.clone()),
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr, res);
@@ -912,6 +976,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let node = TraceNode {
       instr,
       semantics: Instruction::UnaryOperation { op, op0: op0.clone() },
+      result: Some(op0.clone()),
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr, op0);
@@ -953,7 +1018,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             // }
             let block_trace = work.state.trace.block_trace();
             if !env.has_duplicate(&block_trace) {
-              if work.state.path_satisfactory() {
+              println!("{:?}", work.state.constraints);
+              if work.state.path_satisfactory(&self.z3_ctx) {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
                 println!("{:?}", work.state.trace);
