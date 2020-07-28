@@ -332,7 +332,7 @@ impl<'ctx> BranchInstructionTrait<'ctx> for InstructionValue<'ctx> {
           Some(Either::Right(blk)) => Some(BranchInstruction::UnconditionalBranch(blk)),
           _ => None,
         },
-        3 => match (self.get_operand(0), self.get_operand(1), self.get_operand(2)) {
+        3 => match (self.get_operand(0), self.get_operand(2), self.get_operand(1)) {
           (
             Some(Either::Left(BasicValueEnum::IntValue(cond))),
             Some(Either::Right(then_blk)),

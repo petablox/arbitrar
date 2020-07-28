@@ -245,6 +245,8 @@ pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
 
 pub trait TraceTrait<'ctx> {
   fn block_trace(&self) -> Vec<BasicBlock<'ctx>>;
+
+  fn print(&self);
 }
 
 impl<'ctx> TraceTrait<'ctx> for Trace<'ctx> {
@@ -266,6 +268,15 @@ impl<'ctx> TraceTrait<'ctx> for Trace<'ctx> {
       }
     }
     blocks
+  }
+
+  fn print(&self) {
+    for node in self.iter() {
+      match &node.result {
+        Some(result) => println!("{:?} -> {:?}", node.semantics, result),
+        None => println!("{:?}", node.semantics),
+      }
+    }
   }
 }
 
@@ -711,6 +722,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             result: None,
           });
           self.execute_block(then_blk, state, env);
+
         } else if !visited_else {
           // Execute the else branch
           state.add_constraint(&instr, comparison.clone(), false);
@@ -1018,11 +1030,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             // }
             let block_trace = work.state.trace.block_trace();
             if !env.has_duplicate(&block_trace) {
-              println!("{:?}", work.state.constraints);
               if work.state.path_satisfactory(&self.z3_ctx) {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
-                println!("{:?}", work.state.trace);
+                work.state.trace.print();
                 work.state.dump_json(path);
                 metadata.incr_proper();
               } else {
