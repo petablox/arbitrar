@@ -1,26 +1,25 @@
 use clap::{App, Arg, ArgMatches};
-use inkwell::values::*;
+use llir::values::*;
 use petgraph::graph::{DiGraph, EdgeIndex, Graph, NodeIndex};
 use std::collections::HashMap;
 
 use crate::context::*;
-use crate::ll_utils::*;
 use crate::options::Options;
 
 pub struct CallEdge<'ctx> {
-  pub caller: FunctionValue<'ctx>,
-  pub callee: FunctionValue<'ctx>,
-  pub instr: InstructionValue<'ctx>,
+  pub caller: Function<'ctx>,
+  pub callee: Function<'ctx>,
+  pub instr: Instruction<'ctx>,
 }
 
 impl<'ctx> CallEdge<'ctx> {
   pub fn dump(&self) {
-    println!("{} -> {}", self.caller.function_name(), self.callee.function_name());
+    println!("{} -> {}", self.caller.name(), self.callee.name());
   }
 }
 
 /// CallGraph is defined by function vertices + instruction edges connecting caller & callee
-pub type CallGraph<'ctx> = DiGraph<FunctionValue<'ctx>, InstructionValue<'ctx>>;
+pub type CallGraph<'ctx> = DiGraph<Function<'ctx>, Instruction<'ctx>>;
 
 pub trait CallGraphTrait<'ctx> {
   type Edge;
@@ -37,7 +36,7 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraph<'ctx> {
 
   fn remove_llvm_funcs(&mut self) {
     self.retain_nodes(move |this, node_id| {
-      let node_name = this[node_id].get_name().to_string_lossy();
+      let node_name = this[node_id].name();
       let is_llvm_intrinsics = node_name.contains("llvm.");
       !is_llvm_intrinsics
     });
@@ -92,7 +91,7 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
   }
 
   pub fn call_graph(&self) -> CallGraph<'ctx> {
-    let mut value_id_map: HashMap<FunctionValue<'ctx>, NodeIndex> = HashMap::new();
+    let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
     // Generate Call Graph by iterating through all blocks & instructions for each function
     let mut cg = Graph::new();
@@ -101,19 +100,24 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
         .entry(caller)
         .or_insert_with(|| cg.add_node(caller))
         .clone();
-      for b in caller.get_basic_blocks() {
+      for b in caller.iter_blocks() {
         for i in b.iter_instructions() {
-          match i.callee(&self.ctx.llmod) {
-            Some(callee) => {
-              if self.options.no_remove_llvm_funcs || !callee.function_name().contains("llvm.") {
-                let callee_id = value_id_map
-                  .entry(callee)
-                  .or_insert_with(|| cg.add_node(callee))
-                  .clone();
-                cg.add_edge(caller_id, callee_id, i);
+          match i {
+            Instruction::Call(call_instr) => {
+              match call_instr.callee_function() {
+                Some(callee) => {
+                  if self.options.no_remove_llvm_funcs || !callee.name().contains("llvm.") {
+                    let callee_id = value_id_map
+                      .entry(callee)
+                      .or_insert_with(|| cg.add_node(callee))
+                      .clone();
+                    cg.add_edge(caller_id, callee_id, i);
+                  }
+                }
+                None => {}
               }
             }
-            None => {}
+            _ => {}
           }
         }
       }

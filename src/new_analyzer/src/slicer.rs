@@ -1,5 +1,5 @@
 use clap::{App, Arg, ArgMatches};
-use inkwell::values::*;
+use llir::values::*;
 use petgraph::{
   graph::{EdgeIndex, NodeIndex},
   Direction,
@@ -11,7 +11,7 @@ use std::slice::Chunks;
 
 use crate::call_graph::*;
 use crate::context::AnalyzerContext;
-use crate::ll_utils::*;
+// use crate::ll_utils::*;
 use crate::options::Options;
 
 pub struct SlicerOptions {
@@ -79,11 +79,11 @@ impl Options for SlicerOptions {
 }
 
 pub struct Slice<'ctx> {
-  pub entry: FunctionValue<'ctx>,
-  pub caller: FunctionValue<'ctx>,
-  pub callee: FunctionValue<'ctx>,
-  pub instr: InstructionValue<'ctx>,
-  pub functions: HashSet<FunctionValue<'ctx>>,
+  pub entry: Function<'ctx>,
+  pub caller: Function<'ctx>,
+  pub callee: Function<'ctx>,
+  pub instr: Instruction<'ctx>,
+  pub functions: HashSet<Function<'ctx>>,
 }
 
 unsafe impl<'ctx> Send for Slice<'ctx> {}
@@ -92,21 +92,21 @@ impl<'ctx> Slice<'ctx> {
   pub fn _dump(&self) {
     print!(
       "Entry: {}, Caller: {}, Functions: {{",
-      self.entry.function_name(),
-      self.caller.function_name()
+      self.entry.name(),
+      self.caller.name()
     );
     for (id, f) in self.functions.iter().enumerate() {
       if id == self.functions.len() - 1 {
-        print!("{}", f.function_name());
+        print!("{}", f.name());
       } else {
-        print!("{}, ", f.function_name());
+        print!("{}, ", f.name());
       }
     }
     println!("}}");
   }
 
   pub fn target_function_name(&self) -> String {
-    self.callee.function_name()
+    self.callee.name()
   }
 }
 
@@ -148,7 +148,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     let mut edges = vec![];
     for callee_id in self.call_graph.node_indices() {
       let func = self.call_graph[callee_id];
-      let func_name = func.function_name();
+      let func_name = func.name();
       let include_from_inclusion = match &inclusion_filter {
         Some(inclusion_regex) => {
           if inclusion_regex.is_match(func_name.as_str()) {
@@ -228,19 +228,17 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       .filter(|func_id| match &entry_location_filter {
         Some(regex) => {
           let func = self.call_graph.node_weight(*func_id).unwrap();
-          let func_loc = func.location(self.ctx.llcontext());
-          regex.is_match(func_loc.as_str())
+          match func.filename() {
+            Some(name) => regex.is_match(name.as_str()),
+            _ => true
+          }
         }
         None => true,
       })
       .collect()
   }
 
-  pub fn _directly_related(
-    &self,
-    (_f1, _i1): (FunctionValue<'ctx>, Option<InstructionValue<'ctx>>),
-    (_f2, _i2): (FunctionValue<'ctx>, Option<InstructionValue<'ctx>>),
-  ) -> bool {
+  pub fn _directly_related(&self, _c1: CallInstruction<'ctx>, _c2: CallInstruction<'ctx>) -> bool {
     // TODO
     // let share_prefix = {
     //   let (c1_name, c2_name) = (f1.function_name(), f2.function_name());

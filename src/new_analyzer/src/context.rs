@@ -1,7 +1,5 @@
 use chrono::{DateTime, Local};
 use clap::{App, Arg, ArgMatches};
-use inkwell::context::*;
-use inkwell::module::Module;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -67,20 +65,16 @@ impl LoggingContext {
 pub struct AnalyzerContext<'ctx> {
   pub args: ArgMatches,
   pub options: GeneralOptions,
-  pub llmod: Module<'ctx>,
+  pub llmod: llir::Module<'ctx>,
 }
 
 impl<'ctx> AnalyzerContext<'ctx> {
-  pub fn new(args: ArgMatches, options: GeneralOptions, llctx: &'ctx Context) -> Result<Self, String> {
+  pub fn new(args: ArgMatches, options: GeneralOptions, llctx: &'ctx llir::Context) -> Result<Self, String> {
     // Create the input LLVM byte code directory
     let bc_file_path = Path::new(options.input_path.as_str());
 
     // Create LL Module by reading in the byte code file
-    let llmod = Module::parse_bitcode_from_path(&bc_file_path, &llctx).map_err(|err| err.to_string())?;
+    let llmod = llctx.load_module(&bc_file_path).map_err(|err| err.to_string())?;
     Ok(Self { args, options, llmod })
-  }
-
-  pub fn llcontext(&self) -> ContextRef<'ctx> {
-    self.llmod.get_context()
   }
 }

@@ -2,42 +2,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 // use serde_json::Value as Json;
 
-// #[derive(Debug, Clone)]
-// pub enum Type {
-//   Void,
-//   Half,
-//   Float,
-//   Double,
-//   Integer,
-//   Function { args: Vec<Type>, ret: Box<Type> },
-//   NamedStruct(String),
-//   Struct { fields: Vec<Type> },
-//   Array { len: usize, ty: Box<Type> },
-//   Pointer(Box<Type>),
-//   Vector { len: usize, ty: Box<Type> },
-//   Other,
-// }
+pub type UnaOp = llir::values::UnaryOpcode;
 
-// #[derive(Debug, Clone)]
-// pub struct FunctionType {
-//   args: Vec<Type>,
-//   ret: Box<Type>,
-// }
+pub type BinOp = llir::values::BinaryOpcode;
 
-// impl FunctionType {
-//   pub fn from_type(ty: Type) -> Option<Self> {
-//     match ty {
-//       Type::Function { args, ret } => Some(Self { args, ret }),
-//       _ => None,
-//     }
-//   }
-// }
-
-pub type UnaOp = inkwell::values::InstructionOpcode;
-
-pub type BinOp = inkwell::values::InstructionOpcode;
-
-pub type Predicate = inkwell::IntPredicate;
+pub type Predicate = llir::values::ICmpPredicate;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Value {
@@ -47,6 +16,7 @@ pub enum Value {
   Global(String),          // Global Value Name
   FunctionPointer(String), // Function Name
   ConstInt(i64),
+  ConstFloat,
   NullPtr,
   Location(Rc<Location>),
   BinaryOperation {
@@ -156,8 +126,9 @@ pub enum Location {
   Alloca(usize),
   Global(String),
   GetElementPtr(Rc<Location>, Vec<Rc<Value>>),
-  ConstPtr(usize),
+  ConstPtr(usize), // Pointer ID
   Value(Rc<Value>),
+  NullPtr,
   Unknown,
 }
 
@@ -168,12 +139,12 @@ pub enum Branch {
 }
 
 #[derive(Debug, Clone)]
-pub enum Instruction {
+pub enum Semantics {
   Call {
     func: String,
     args: Vec<Rc<Value>>,
   },
-  Assume {
+  Compare {
     pred: Predicate,
     op0: Rc<Value>,
     op1: Rc<Value>,

@@ -2,7 +2,6 @@ use clap::{App, ArgMatches};
 
 mod call_graph;
 mod context;
-mod ll_utils;
 mod options;
 mod semantics;
 mod slicer;
@@ -28,7 +27,7 @@ fn main() -> Result<(), String> {
   let options = GeneralOptions::from_matches(&args)?;
   let mut logging_ctx = LoggingContext::new(&options)?;
   logging_ctx.log("Loading byte code file and creating context...")?;
-  let llctx = inkwell::context::Context::create();
+  let llctx = llir::Context::create();
   let analyzer_ctx = AnalyzerContext::new(args, options, &llctx)?;
   logging_ctx.log("Generating call graph...")?;
   let call_graph_ctx = CallGraphContext::new(&analyzer_ctx)?;
