@@ -12,13 +12,18 @@ pub type Predicate = llir::values::ICmpPredicate;
 pub enum Value {
   Argument(usize),         // Argument ID
   Symbol(usize),           // Symbol ID
-  ConstPtr(usize),         // Pointer ID
+  // ConstPtr(usize),         // Pointer ID
   Global(String),          // Global Value Name
-  FunctionPointer(String), // Function Name
+  Function(String),        // Function Name
+  FunctionPointer,
+  InlineAsm,
   ConstInt(i64),
-  ConstFloat,
   NullPtr,
-  Location(Rc<Location>),
+  Alloca(usize),
+  GetElementPtr {
+    loc: Rc<Value>,
+    indices: Vec<Rc<Value>>
+  },
   BinaryOperation {
     op: BinOp,
     op0: Rc<Value>,
@@ -31,7 +36,7 @@ pub enum Value {
   },
   Call {
     id: usize,
-    func: String,
+    func: Rc<Value>,
     args: Vec<Rc<Value>>,
   },
   Unknown,
@@ -120,17 +125,17 @@ impl Comparison {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Location {
-  // Argument(usize),
-  Alloca(usize),
-  Global(String),
-  GetElementPtr(Rc<Location>, Vec<Rc<Value>>),
-  ConstPtr(usize), // Pointer ID
-  Value(Rc<Value>),
-  NullPtr,
-  Unknown,
-}
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// pub enum Location {
+//   // Argument(usize),
+//   Alloca(usize),
+//   GetElementPtr(Rc<Location>, Vec<Rc<Value>>),
+//   ConstPtr(usize), // Pointer ID
+//   Global(String),
+//   Value(Rc<Value>),
+//   NullPtr,
+//   Unknown,
+// }
 
 #[derive(Debug, Clone)]
 pub enum Branch {
@@ -141,7 +146,7 @@ pub enum Branch {
 #[derive(Debug, Clone)]
 pub enum Semantics {
   Call {
-    func: String,
+    func: Rc<Value>,
     args: Vec<Rc<Value>>,
   },
   Compare {
@@ -164,14 +169,14 @@ pub enum Semantics {
     op: Option<Rc<Value>>
   },
   Store {
-    loc: Rc<Location>,
+    loc: Rc<Value>,
     val: Rc<Value>,
   },
   Load {
-    loc: Rc<Location>,
+    loc: Rc<Value>,
   },
   GetElementPtr {
-    loc: Rc<Location>,
+    loc: Rc<Value>,
     indices: Vec<Rc<Value>>,
   },
   UnaryOperation {

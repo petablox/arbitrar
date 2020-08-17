@@ -1,8 +1,7 @@
 use std::{io, io::{Write}};
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
-use llir::types::*;
-// use inkwell::{basic_block::BasicBlock, values::{InstructionValue, FunctionValue, PointerValue, InstructionOpcode, BasicValueEnum}};
+// use llir::types::*;
 // use llvm_sys::prelude::LLVMValueRef;
 use std::rc::Rc;
 // use petgraph::graph::{DiGraph, NodeIndex};
@@ -151,7 +150,7 @@ impl<'ctx> StackFrame<'ctx> {
       function,
       instr: None,
       memory: LocalMemory::new(),
-      arguments: (0..function.num_params())
+      arguments: (0..function.num_arguments())
         .map(|i| Rc::new(Value::Argument(i as usize)))
         .collect(),
     }
@@ -164,6 +163,8 @@ pub trait StackTrait<'ctx> {
   fn top(&self) -> &StackFrame<'ctx>;
 
   fn top_mut(&mut self) -> &mut StackFrame<'ctx>;
+
+  fn has_function(&self, func: Function<'ctx>) -> bool;
 }
 
 impl<'ctx> StackTrait<'ctx> for Stack<'ctx> {
@@ -175,9 +176,13 @@ impl<'ctx> StackTrait<'ctx> for Stack<'ctx> {
     let id = self.len() - 1;
     &mut self[id]
   }
+
+  fn has_function(&self, func: Function<'ctx>) -> bool {
+    self.iter().find(|frame| frame.function == func).is_some()
+  }
 }
 
-pub type Memory = HashMap<Rc<Location>, Rc<Value>>;
+pub type Memory = HashMap<Rc<Value>, Rc<Value>>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BranchDirection<'ctx> {
@@ -342,12 +347,12 @@ impl<'ctx> State<'ctx> {
     result
   }
 
-  pub fn new_pointer_value_id(&mut self, pv: GenericValue<'ctx>) -> usize {
-    let result = self.pointer_value_id;
-    self.pointer_value_id += 1;
-    self.pointer_value_id_map.insert(pv, result);
-    result
-  }
+  // pub fn new_pointer_value_id(&mut self, pv: GenericValue<'ctx>) -> usize {
+  //   let result = self.pointer_value_id;
+  //   self.pointer_value_id += 1;
+  //   self.pointer_value_id_map.insert(pv, result);
+  //   result
+  // }
 
   pub fn add_constraint(&mut self, cond: Comparison, branch: bool) {
     self.constraints.push(Constraint { cond, branch });
@@ -525,19 +530,55 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     }
   }
 
-  pub fn eval_operand_value(&self, _state: &mut State<'ctx>, _operand: Operand<'ctx>) -> Rc<Value> {
-    // TODO
-    Rc::new(Value::Unknown)
+  pub fn eval_constant_value(&self, state: &mut State<'ctx>, constant: Constant<'ctx>) -> Rc<Value> {
+    match constant {
+      Constant::Int(i) => Rc::new(Value::ConstInt(i.sext_value())),
+      Constant::Null(_) => Rc::new(Value::NullPtr),
+      Constant::Float(_) | Constant::Struct(_) | Constant::Array(_) | Constant::Vector(_) => {
+        Rc::new(Value::Symbol(state.new_symbol_id()))
+      },
+      Constant::Global(glob) => Rc::new(Value::Global(glob.name())),
+      Constant::Function(func) => Rc::new(Value::Function(func.name())),
+      Constant::ConstExpr(ce) => match ce {
+        ConstExpr::Binary(b) => {
+          let op = b.opcode();
+          let op0 = self.eval_constant_value(state, b.op0());
+          let op1 = self.eval_constant_value(state, b.op1());
+          Rc::new(Value::BinaryOperation { op, op0, op1 })
+        },
+        ConstExpr::Unary(u) => self.eval_constant_value(state, u.op0()),
+        ConstExpr::GetElementPtr(g) => {
+          let loc = self.eval_constant_value(state, g.location());
+          let indices = g.indices().into_iter().map(|i| self.eval_constant_value(state, i)).collect();
+          Rc::new(Value::GetElementPtr { loc, indices })
+        }
+        _ => Rc::new(Value::Unknown)
+      },
+      _ => Rc::new(Value::Unknown)
+    }
   }
 
-  pub fn eval_operand_location(&self, _state: &mut State<'ctx>, _operand: Operand<'ctx>) -> Rc<Location> {
-    // TODO
-    Rc::new(Location::Unknown)
+  pub fn eval_operand_value(&self, state: &mut State<'ctx>, operand: Operand<'ctx>) -> Rc<Value> {
+    match operand {
+      Operand::Instruction(instr) => match instr {
+        Instruction::Alloca(_) => {
+          let alloca_id = state.new_alloca_id();
+          let value = Rc::new(Value::Alloca(alloca_id));
+          state.stack.top_mut().memory.insert(instr, value.clone());
+          value
+        },
+        _ => state.stack.top().memory[&instr].clone()
+      },
+      Operand::Argument(arg) => state.stack.top().arguments[arg.index()].clone(),
+      Operand::Constant(cons) => self.eval_constant_value(state, cons),
+      Operand::InlineAsm(_) => Rc::new(Value::InlineAsm),
+      _ => Rc::new(Value::Unknown)
+    }
   }
 
-  pub fn load_from_memory(&self, state: &mut State<'ctx>, location: Rc<Location>) -> Rc<Value> {
+  pub fn load_from_memory(&self, state: &mut State<'ctx>, location: Rc<Value>) -> Rc<Value> {
     match &*location {
-      Location::Unknown => Rc::new(Value::Unknown),
+      Value::Unknown => Rc::new(Value::Unknown),
       _ => match state.memory.get(&location) {
         Some(value) => value.clone(),
         None => {
@@ -667,11 +708,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         state.trace.push(TraceNode {
           // instr: instr,
           semantics: Semantics::UnconditionalBr {
-            end_loop: false, // TODO: instr.is_loop(&self.ctx.llmod.get_context()),
+            end_loop: ub.is_loop_jump().unwrap_or(false),
           },
           result: None,
         });
-        self.execute_block(ub.target_block(), state, env);
+        self.execute_block(ub.destination(), state, env);
       }
     }
   }
@@ -687,14 +728,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let cond = self.eval_operand_value(state, instr.condition().into());
     let default_br = BranchDirection {
       from: curr_blk,
-      to: instr.default_block(),
+      to: instr.default_destination(),
     };
     let branches = instr
-      .branches()
+      .cases()
       .iter()
-      .map(|(_, to)| BranchDirection {
+      .map(|case| BranchDirection {
         from: curr_blk,
-        to: *to,
+        to: case.destination,
       })
       .collect::<Vec<_>>();
     let node = TraceNode {
@@ -720,7 +761,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     // Execute default branch
     if !state.visited_branch.contains(&default_br) {
       state.visited_branch.insert(default_br);
-      self.execute_block(instr.default_block(), state, env);
+      self.execute_block(instr.default_destination(), state, env);
     }
   }
 
@@ -730,53 +771,70 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let callee_name = instr.callee().value().name();
-    // If no name or llvm related
-    if callee_name.is_none() || callee_name.clone().unwrap().contains("llvm.") {
+    // If is intrinsic call, skip the instruction
+    if instr.is_intrinsic_call() {
       self.execute_instr(instr.next_instruction(), state, env);
     } else {
-      let callee_name = callee_name.unwrap();
-      let args: Vec<Rc<Value>> = instr
-        .arguments()
-        .into_iter()
-        .map(|v| self.eval_operand_value(state, v))
-        .collect();
 
-      // Store call node id
+      // Check if stepping in the function, and get the function Value and also
+      // maybe function reference
+      let (step_in, func_value, func) = match instr.callee_function() {
+        Some(func) => {
+          let step_in =
+            !state.stack.has_function(func) &&
+            func != env.slice.callee &&
+            !func.is_declaration_only() &&
+            env.slice.functions.contains(&func);
+          (step_in, Rc::new(Value::Function(func.name())), Some(func))
+        }
+        None => {
+          if instr.is_inline_asm_call() {
+            (false, Rc::new(Value::InlineAsm), None)
+          } else {
+            (false, Rc::new(Value::FunctionPointer), None)
+          }
+        }
+      };
+
+      // Evaluate the arguments
+      let args = instr.arguments().into_iter().map(|v| self.eval_operand_value(state, v)).collect::<Vec<_>>();
+
+      // Cache the node id for this call
       let node_id = state.trace.len();
 
-      // Add the node into the trace
-      let semantics = Semantics::Call {
-        func: callee_name.clone(),
-        args: args.clone(),
-      };
-      let node = TraceNode {
-        // instr,
-        semantics,
-        result: None,
-      };
+      // Generate a semantics and push to the trace
+      let semantics = Semantics::Call { func: func_value.clone(), args: args.clone() };
+      let node = TraceNode { semantics, result: None };
       state.trace.push(node);
 
-      // Check if this is the target function call
+      // Update the target_node in state if the target is now visited
       if instr.as_instruction() == env.slice.instr && state.target_node.is_none() {
         state.target_node = Some(node_id);
       }
 
-      // Check if we need to go into the function
-      match instr.callee_function() {
-        Some(callee) if !callee.is_declaration_only() && env.slice.functions.contains(&callee) => {
-          self.execute_function(node_id, instr, callee, args, state, env);
-        }
-        _ => {
-          let call_id = env.new_call_id();
-          let result = Rc::new(Value::Call {
-            id: call_id,
-            func: callee_name,
-            args,
-          });
-          state.stack.top_mut().memory.insert(instr.as_instruction(), result);
-          self.execute_instr(instr.next_instruction(), state, env);
-        }
+      // Check if we need to get into the function
+      if step_in {
+
+        // If so, execute the function with all the information
+        self.execute_function(node_id, instr, func.unwrap(), args, state, env);
+      } else {
+
+        // If not, we create a function call result with a call_id associated
+        let call_id = env.new_call_id();
+        let result = Rc::new(Value::Call {
+          id: call_id,
+          func: func_value.clone(),
+          args: args.clone()
+        });
+
+        // Update the result stored in the trace
+        state.trace[node_id].result = Some(result.clone());
+
+        // Insert a result to the stack frame memory
+        state.stack.top_mut().memory.insert(instr.as_instruction(), result);
+
+        // Execute the next instruction directly
+        self.execute_instr(instr.next_instruction(), state, env);
       }
     }
   }
@@ -797,7 +855,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let loc = self.eval_operand_location(state, instr.location());
+    let loc = self.eval_operand_value(state, instr.location());
     let val = self.eval_operand_value(state, instr.value());
     state.memory.insert(loc.clone(), val.clone());
     let node = TraceNode {
@@ -815,7 +873,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let loc = self.eval_operand_location(state, instr.location());
+    let loc = self.eval_operand_value(state, instr.location());
     let res = self.load_from_memory(state, loc.clone());
     let node = TraceNode {
       // instr: instr,
@@ -871,16 +929,16 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) {
-    let loc = self.eval_operand_location(state, instr.location());
+    let loc = self.eval_operand_value(state, instr.location());
     let indices = instr
       .indices()
       .iter()
       .map(|index| self.eval_operand_value(state, *index))
       .collect::<Vec<_>>();
-    let res = Rc::new(Value::Location(Rc::new(Location::GetElementPtr(
-      loc.clone(),
-      indices.clone(),
-    ))));
+    let res = Rc::new(Value::GetElementPtr {
+      loc: loc.clone(),
+      indices: indices.clone(),
+    });
     let node = TraceNode {
       // instr,
       semantics: Semantics::GetElementPtr {
