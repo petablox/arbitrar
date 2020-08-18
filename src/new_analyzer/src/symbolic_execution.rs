@@ -1,9 +1,11 @@
+use std::fs;
+use std::fs::File;
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
 use std::{io, io::Write};
 use std::rc::Rc;
 use rayon::prelude::*;
-// use serde_json::Value as Json;
+use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -151,7 +153,7 @@ impl<'ctx> StackFrame<'ctx> {
       instr: None,
       memory: LocalMemory::new(),
       arguments: (0..function.num_arguments())
-        .map(|i| Rc::new(Value::Argument(i as usize)))
+        .map(|i| Rc::new(Value::Arg(i as usize)))
         .collect(),
     }
   }
@@ -328,8 +330,19 @@ impl<'ctx> State<'ctx> {
     }
   }
 
-  pub fn dump_json(&self, _path: PathBuf) {
-    // TODO
+  pub fn dump_json(&self, path: PathBuf) -> Result<(), String> {
+    let trace_json = json!({
+      "instrs": self.trace.iter().map(|node| json!({
+        "loc": node.instr.debug_loc_string(),
+        "sem": node.semantics,
+        "res": node.result
+      })).collect::<Vec<_>>(),
+      "target": self.target_node,
+    });
+    let json_str = serde_json::to_string(&trace_json).map_err(|_| "Cannot turn trace into json".to_string())?;
+    let mut file = File::create(path).map_err(|_| "Cannot create trace file".to_string())?;
+    file.write_all(json_str.as_bytes()).map_err(|_| "Cannot write to trace file".to_string())?;
+    Ok(())
   }
 }
 
@@ -405,14 +418,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     Ok(Self { ctx, options })
   }
 
-  pub fn trace_file_name(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
-    Path::new(self.ctx.options.output_path.as_str())
-      .join("traces")
-      .join(func_name.as_str())
-      .join(slice_id.to_string())
-      .join(trace_id.to_string())
-  }
-
   pub fn execute_function(
     &self,
     instr_node_id: usize,
@@ -476,19 +481,19 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn eval_constant_value(&self, state: &mut State<'ctx>, constant: Constant<'ctx>) -> Rc<Value> {
     match constant {
-      Constant::Int(i) => Rc::new(Value::ConstInt(i.sext_value())),
-      Constant::Null(_) => Rc::new(Value::NullPtr),
+      Constant::Int(i) => Rc::new(Value::Int(i.sext_value())),
+      Constant::Null(_) => Rc::new(Value::Null),
       Constant::Float(_) | Constant::Struct(_) | Constant::Array(_) | Constant::Vector(_) => {
-        Rc::new(Value::Symbol(state.new_symbol_id()))
+        Rc::new(Value::Sym(state.new_symbol_id()))
       }
-      Constant::Global(glob) => Rc::new(Value::Global(glob.name())),
-      Constant::Function(func) => Rc::new(Value::Function(func.name())),
+      Constant::Global(glob) => Rc::new(Value::Glob(glob.name())),
+      Constant::Function(func) => Rc::new(Value::Func(func.name())),
       Constant::ConstExpr(ce) => match ce {
         ConstExpr::Binary(b) => {
           let op = b.opcode();
           let op0 = self.eval_constant_value(state, b.op0());
           let op1 = self.eval_constant_value(state, b.op1());
-          Rc::new(Value::BinaryOperation { op, op0, op1 })
+          Rc::new(Value::Bin { op, op0, op1 })
         }
         ConstExpr::Unary(u) => self.eval_constant_value(state, u.op0()),
         ConstExpr::GetElementPtr(g) => {
@@ -498,7 +503,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             .into_iter()
             .map(|i| self.eval_constant_value(state, i))
             .collect();
-          Rc::new(Value::GetElementPtr { loc, indices })
+          Rc::new(Value::GEP { loc, indices })
         }
         _ => Rc::new(Value::Unknown),
       },
@@ -525,7 +530,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
       Operand::Argument(arg) => state.stack.top().arguments[arg.index()].clone(),
       Operand::Constant(cons) => self.eval_constant_value(state, cons),
-      Operand::InlineAsm(_) => Rc::new(Value::InlineAsm),
+      Operand::InlineAsm(_) => Rc::new(Value::Asm),
       _ => Rc::new(Value::Unknown),
     }
   }
@@ -537,7 +542,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         Some(value) => value.clone(),
         None => {
           let symbol_id = state.new_symbol_id();
-          let value = Rc::new(Value::Symbol(symbol_id));
+          let value = Rc::new(Value::Sym(symbol_id));
           state.memory.insert(location, value.clone());
           value
         }
@@ -555,7 +560,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let val = instr.op().map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
       instr: instr.as_instruction(),
-      semantics: Semantics::Return { op: val.clone() },
+      semantics: Semantics::Ret { op: val.clone() },
       result: None,
     });
 
@@ -618,10 +623,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             else_state.trace.push(TraceNode {
               instr: instr.as_instruction(),
               result: None,
-              semantics: Semantics::ConditionalBr {
+              semantics: Semantics::CondBr {
                 cond: cond.clone(),
                 br: Branch::Else,
-                begin_loop: false,
+                beg_loop: false,
               },
             });
             let else_work = Work {
@@ -641,10 +646,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           state.trace.push(TraceNode {
             instr: instr.as_instruction(),
             result: None,
-            semantics: Semantics::ConditionalBr {
+            semantics: Semantics::CondBr {
               cond,
               br: Branch::Then,
-              begin_loop: is_loop_blk,
+              beg_loop: is_loop_blk,
             },
           });
           self.execute_block(cb.then_block(), state, env);
@@ -658,10 +663,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           state.visited_branch.insert(else_br);
           state.trace.push(TraceNode {
             instr: instr.as_instruction(),
-            semantics: Semantics::ConditionalBr {
+            semantics: Semantics::CondBr {
               cond,
               br: Branch::Else,
-              begin_loop: false,
+              beg_loop: false,
             },
             result: None,
           });
@@ -674,7 +679,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       BranchInstruction::Unconditional(ub) => {
         state.trace.push(TraceNode {
           instr: instr.as_instruction(),
-          semantics: Semantics::UnconditionalBr {
+          semantics: Semantics::UncondBr {
             end_loop: ub.is_loop_jump().unwrap_or(false),
           },
           result: None,
@@ -750,13 +755,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             && func != env.slice.callee
             && !func.is_declaration_only()
             && env.slice.functions.contains(&func);
-          (step_in, Rc::new(Value::Function(func.name())), Some(func))
+          (step_in, Rc::new(Value::Func(func.name())), Some(func))
         }
         None => {
           if instr.is_inline_asm_call() {
-            (false, Rc::new(Value::InlineAsm), None)
+            (false, Rc::new(Value::Asm), None)
           } else {
-            (false, Rc::new(Value::FunctionPointer), None)
+            (false, Rc::new(Value::FuncPtr), None)
           }
         }
       };
@@ -873,12 +878,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let pred = instr.predicate(); // ICMP must have a predicate
     let op0 = self.eval_operand_value(state, instr.op0());
     let op1 = self.eval_operand_value(state, instr.op1());
-    let res = Rc::new(Value::Comparison {
+    let res = Rc::new(Value::ICmp {
       pred,
       op0: op0.clone(),
       op1: op1.clone(),
     });
-    let semantics = Semantics::Compare { pred, op0, op1 };
+    let semantics = Semantics::ICmp { pred, op0, op1 };
     let node = TraceNode {
       instr: instr.as_instruction(),
       semantics,
@@ -914,13 +919,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       .iter()
       .map(|index| self.eval_operand_value(state, *index))
       .collect::<Vec<_>>();
-    let res = Rc::new(Value::GetElementPtr {
+    let res = Rc::new(Value::GEP {
       loc: loc.clone(),
       indices: indices.clone(),
     });
     let node = TraceNode {
       instr: instr.as_instruction(),
-      semantics: Semantics::GetElementPtr {
+      semantics: Semantics::GEP {
         loc: loc.clone(),
         indices,
       },
@@ -940,14 +945,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let op = instr.opcode();
     let v0 = self.eval_operand_value(state, instr.op0());
     let v1 = self.eval_operand_value(state, instr.op1());
-    let res = Rc::new(Value::BinaryOperation {
+    let res = Rc::new(Value::Bin {
       op,
       op0: v0.clone(),
       op1: v1.clone(),
     });
     let node = TraceNode {
       instr: instr.as_instruction(),
-      semantics: Semantics::BinaryOperation { op, op0: v0, op1: v1 },
+      semantics: Semantics::Bin { op, op0: v0, op1: v1 },
       result: Some(res.clone()),
     };
     state.trace.push(node);
@@ -965,7 +970,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let op0 = self.eval_operand_value(state, instr.op0());
     let node = TraceNode {
       instr: instr.as_instruction(),
-      semantics: Semantics::UnaryOperation { op, op0: op0.clone() },
+      semantics: Semantics::Una { op, op0: op0.clone() },
       result: Some(op0.clone()),
     };
     state.trace.push(node);
@@ -1012,12 +1017,19 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
 
-                if self.options.print_trace && self.ctx.options.use_serial {
+                // If printing trace
+                if self.options.print_trace && !is_parallel {
                   println!("\nSlice {} Trace {} Log", slice_id, trace_id);
                   work.state.trace.print();
                 }
 
-                work.state.dump_json(path);
+                // If is parallel, print the indicator
+                if is_parallel {
+                  print_executing_slice(slice_id, trace_id);
+                }
+
+                // Dump the json
+                work.state.dump_json(path).unwrap();
                 metadata.incr_proper();
               } else {
                 if cfg!(debug_assertions) {
@@ -1058,24 +1070,23 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
     }
 
-    if is_parallel {
-      self.print_executing_slice(slice_id);
-    }
-
     metadata
   }
 
-  fn print_executing_slice(&self, slice_id: usize) {
-    print!(
-      "Executing Slice {}\r",
-      match slice_id % 3 {
-        0 => '|',
-        1 => '/',
-        2 => '-',
-        _ => '\\',
-      }
-    );
-    io::stdout().flush().unwrap();
+  pub fn trace_file_name(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
+    Path::new(self.ctx.options.output_path.as_str())
+      .join("traces")
+      .join(func_name.as_str())
+      .join(slice_id.to_string())
+      .join(format!("{}.json", trace_id))
+  }
+
+  fn initialize_traces_function_slice_folder(&self, func_name: &String, slice_id: usize) -> Result<(), String> {
+    let path = Path::new(self.ctx.options.output_path.as_str())
+      .join("traces")
+      .join(func_name.as_str())
+      .join(slice_id.to_string());
+    fs::create_dir_all(path).map_err(|_| "Cannot create trace function slice folder".to_string())
   }
 
   pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
@@ -1083,6 +1094,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       slices.into_iter().enumerate().fold(
         MetaData::new(),
         |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
+          let func_name = slice.callee.name();
+          self.initialize_traces_function_slice_folder(&func_name, slice_id).unwrap();
           meta.combine(self.execute_slice(slice, slice_id, false))
         },
       )
@@ -1093,10 +1106,26 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .fold(
           || MetaData::new(),
           |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
+            let func_name = slice.callee.name();
+            self.initialize_traces_function_slice_folder(&func_name, slice_id).unwrap();
             meta.combine(self.execute_slice(slice, slice_id, true))
           },
         )
         .reduce(|| MetaData::new(), MetaData::combine)
     }
   }
+}
+
+fn id_visualizer(id: usize) -> char {
+  match id % 3 {
+    0 => '|',
+    1 => '/',
+    2 => '-',
+    _ => '\\',
+  }
+}
+
+fn print_executing_slice(slice_id: usize, trace_id: usize) {
+  print!("Executing {} {}\r", id_visualizer(slice_id), id_visualizer(trace_id));
+  io::stdout().flush().unwrap();
 }

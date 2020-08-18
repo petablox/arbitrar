@@ -1,34 +1,96 @@
 use std::collections::HashMap;
 use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 // use serde_json::Value as Json;
 
 pub type UnaOp = llir::values::UnaryOpcode;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(remote = "llir::values::UnaryOpcode")]
+pub enum UnaryOpcodeDef {
+  FNeg,
+  Trunc,
+  ZExt,
+  SExt,
+  FPToUI,
+  FPToSI,
+  UIToFP,
+  SIToFP,
+  FPTrunc,
+  FPExt,
+  PtrToInt,
+  IntToPtr,
+  BitCast,
+}
+
 pub type BinOp = llir::values::BinaryOpcode;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(remote = "llir::values::BinaryOpcode")]
+enum BinaryOpcodeDef {
+  // Arithmatics
+  Add,
+  Sub,
+  Mul,
+  UDiv,
+  SDiv,
+  URem,
+  SRem,
+  // Floating point
+  FAdd,
+  FSub,
+  FMul,
+  FDiv,
+  FRem,
+  // Bitwise operation
+  Shl,
+  LShr,
+  AShr,
+  And,
+  Or,
+  Xor,
+}
 
 pub type Predicate = llir::values::ICmpPredicate;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(remote = "llir::values::ICmpPredicate")]
+pub enum PredicateDef {
+  EQ,
+  NE,
+  SGE,
+  UGE,
+  SGT,
+  UGT,
+  SLE,
+  ULE,
+  SLT,
+  ULT,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Value {
-  Argument(usize),  // Argument ID
-  Symbol(usize),    // Symbol ID
-  Global(String),   // Global Value Name
-  Function(String), // Function Name
-  FunctionPointer,
-  InlineAsm,
-  ConstInt(i64),
-  NullPtr,
+  Arg(usize),  // Argument ID
+  Sym(usize),    // Symbol ID
+  Glob(String),   // Global Value Name
+  Func(String), // Function Name
+  FuncPtr,
+  Asm,
+  Int(i64),
+  Null,
   Alloca(usize),
-  GetElementPtr {
+  GEP {
     loc: Rc<Value>,
     indices: Vec<Rc<Value>>,
   },
-  BinaryOperation {
+  Bin {
+    #[serde(with = "BinaryOpcodeDef")]
     op: BinOp,
     op0: Rc<Value>,
     op1: Rc<Value>,
   },
-  Comparison {
+  ICmp {
+    #[serde(with = "PredicateDef")]
     pred: Predicate,
     op0: Rc<Value>,
     op1: Rc<Value>,
@@ -44,7 +106,7 @@ pub enum Value {
 impl Value {
   pub fn as_comparison(&self) -> Option<Comparison> {
     match self {
-      Value::Comparison { pred, op0, op1 } => Some(Comparison {
+      Value::ICmp { pred, op0, op1 } => Some(Comparison {
         pred: *pred,
         op0: op0.clone(),
         op1: op1.clone(),
@@ -61,9 +123,9 @@ impl Value {
   ) -> Option<z3::ast::Int<'ctx>> {
     use z3::*;
     match self {
-      Value::ConstInt(i) => Some(ast::Int::from_i64(z3_ctx, *i)),
-      Value::NullPtr => Some(ast::Int::from_i64(z3_ctx, 0)),
-      Value::BinaryOperation { op, op0, op1 } => {
+      Value::Int(i) => Some(ast::Int::from_i64(z3_ctx, *i)),
+      Value::Null => Some(ast::Int::from_i64(z3_ctx, 0)),
+      Value::Bin { op, op0, op1 } => {
         match (
           op0.into_z3_ast(symbol_map, symbol_id, z3_ctx),
           op1.into_z3_ast(symbol_map, symbol_id, z3_ctx),
@@ -136,35 +198,36 @@ impl Comparison {
 //   Unknown,
 // }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Branch {
   Then,
   Else,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Semantics {
   Call {
     func: Rc<Value>,
     args: Vec<Rc<Value>>,
   },
-  Compare {
+  ICmp {
+    #[serde(with = "PredicateDef")]
     pred: Predicate,
     op0: Rc<Value>,
     op1: Rc<Value>,
   },
-  ConditionalBr {
+  CondBr {
     cond: Rc<Value>,
     br: Branch,
-    begin_loop: bool,
+    beg_loop: bool,
   },
-  UnconditionalBr {
+  UncondBr {
     end_loop: bool,
   },
   Switch {
     cond: Rc<Value>,
   },
-  Return {
+  Ret {
     op: Option<Rc<Value>>,
   },
   Store {
@@ -174,15 +237,17 @@ pub enum Semantics {
   Load {
     loc: Rc<Value>,
   },
-  GetElementPtr {
+  GEP {
     loc: Rc<Value>,
     indices: Vec<Rc<Value>>,
   },
-  UnaryOperation {
+  Una {
+    #[serde(with = "UnaryOpcodeDef")]
     op: UnaOp,
     op0: Rc<Value>,
   },
-  BinaryOperation {
+  Bin {
+    #[serde(with = "BinaryOpcodeDef")]
     op: BinOp,
     op0: Rc<Value>,
     op1: Rc<Value>,
