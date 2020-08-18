@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::rc::Rc;
-use serde::{Deserialize, Serialize};
 // use serde_json::Value as Json;
 
 pub type UnaOp = llir::values::UnaryOpcode;
@@ -70,9 +70,9 @@ pub enum PredicateDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Value {
-  Arg(usize),  // Argument ID
-  Sym(usize),    // Symbol ID
-  Glob(String),   // Global Value Name
+  Arg(usize),   // Argument ID
+  Sym(usize),   // Symbol ID
+  Glob(String), // Global Value Name
   Func(String), // Function Name
   FuncPtr,
   Asm,

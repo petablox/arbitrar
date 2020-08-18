@@ -1,13 +1,13 @@
-use std::fs;
-use std::fs::File;
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
-use std::{io, io::Write};
-use std::rc::Rc;
 use rayon::prelude::*;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::{io, io::Write};
 
 use crate::context::AnalyzerContext;
 use crate::options::Options;
@@ -42,7 +42,7 @@ impl Options for SymbolicExecutionOptions {
         .value_name("MAX_NODE_PER_TRACE")
         .takes_value(true)
         .long("max-node-per-trace")
-        .default_value("1000"),
+        .default_value("5000"),
       Arg::new("no_reduce_trace")
         .long("no-reduce-trace")
         .about("No trace reduction"),
@@ -341,7 +341,9 @@ impl<'ctx> State<'ctx> {
     });
     let json_str = serde_json::to_string(&trace_json).map_err(|_| "Cannot turn trace into json".to_string())?;
     let mut file = File::create(path).map_err(|_| "Cannot create trace file".to_string())?;
-    file.write_all(json_str.as_bytes()).map_err(|_| "Cannot write to trace file".to_string())?;
+    file
+      .write_all(json_str.as_bytes())
+      .map_err(|_| "Cannot write to trace file".to_string())?;
     Ok(())
   }
 }
@@ -426,7 +428,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     args: Vec<Rc<Value>>,
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
-  ) {
+  ) -> Option<Instruction<'ctx>> {
     match func.first_block() {
       Some(block) => {
         let stack_frame = StackFrame {
@@ -436,45 +438,53 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           arguments: args,
         };
         state.stack.push(stack_frame);
-        self.execute_block(block, state, env);
+        self.execute_block(block, state, env)
       }
-      None => {}
+      None => panic!("The executed function is empty"),
     }
   }
 
-  pub fn execute_block(&self, block: Block<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
+  pub fn execute_block(
+    &self,
+    block: Block<'ctx>,
+    state: &mut State<'ctx>,
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     state.block_trace.push(block);
-    self.execute_instr(block.first_instruction(), state, env)
+    block.first_instruction()
   }
 
-  pub fn execute_instr(&self, instr: Option<Instruction<'ctx>>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
+  pub fn execute_instr(
+    &self,
+    instr: Option<Instruction<'ctx>>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     if state.trace.len() > self.options.max_node_per_trace {
       state.finish_state = FinishState::ExceedingMaxTraceLength;
-      return;
-    }
-
-    match instr {
-      Some(instr) => {
-        use Instruction::*;
-        match instr {
-          Return(ret) => self.transfer_ret_instr(ret, state, env),
-          Branch(br) => self.transfer_br_instr(br, state, env),
-          Switch(swi) => self.transfer_switch_instr(swi, state, env),
-          Call(call) => self.transfer_call_instr(call, state, env),
-          Alloca(alloca) => self.transfer_alloca_instr(alloca, state, env),
-          Store(st) => self.transfer_store_instr(st, state, env),
-          ICmp(icmp) => self.transfer_icmp_instr(icmp, state, env),
-          Load(ld) => self.transfer_load_instr(ld, state, env),
-          Phi(phi) => self.transfer_phi_instr(phi, state, env),
-          GetElementPtr(gep) => self.transfer_gep_instr(gep, state, env),
-          Unreachable(unr) => self.transfer_unreachable_instr(unr, state, env),
-          Binary(bin) => self.transfer_binary_instr(bin, state, env),
-          Unary(una) => self.transfer_unary_instr(una, state, env),
-          _ => self.transfer_instr(instr, state, env),
-        };
-      }
-      None => {
-        state.finish_state = FinishState::ProperlyReturned;
+      None
+    } else {
+      match instr {
+        Some(instr) => {
+          use Instruction::*;
+          match instr {
+            Return(ret) => self.transfer_ret_instr(ret, state, env),
+            Branch(br) => self.transfer_br_instr(br, state, env),
+            Switch(swi) => self.transfer_switch_instr(swi, state, env),
+            Call(call) => self.transfer_call_instr(call, state, env),
+            Alloca(alloca) => self.transfer_alloca_instr(alloca, state, env),
+            Store(st) => self.transfer_store_instr(st, state, env),
+            ICmp(icmp) => self.transfer_icmp_instr(icmp, state, env),
+            Load(ld) => self.transfer_load_instr(ld, state, env),
+            Phi(phi) => self.transfer_phi_instr(phi, state, env),
+            GetElementPtr(gep) => self.transfer_gep_instr(gep, state, env),
+            Unreachable(unr) => self.transfer_unreachable_instr(unr, state, env),
+            Binary(bin) => self.transfer_binary_instr(bin, state, env),
+            Unary(una) => self.transfer_unary_instr(una, state, env),
+            _ => self.transfer_instr(instr, state, env),
+          }
+        }
+        None => None,
       }
     }
   }
@@ -554,8 +564,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     &self,
     instr: ReturnInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     // First evaluate the return operand. There might not be one
     let val = instr.op().map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
@@ -575,12 +585,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             call_site_frame.memory.insert(call_site.as_instruction(), op0);
           }
         }
-        self.execute_instr(call_site.next_instruction(), state, env);
+        call_site.next_instruction()
       }
 
       // If no call site then we are in the entry function. We will end the execution
       None => {
         state.finish_state = FinishState::ProperlyReturned;
+        None
       }
     }
   }
@@ -590,7 +601,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     instr: BranchInstruction<'ctx>,
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
-  ) {
+  ) -> Option<Instruction<'ctx>> {
     let curr_blk = instr.parent_block(); // We assume instruction always has parent block
     state.prev_block = Some(curr_blk);
     match instr {
@@ -652,7 +663,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               beg_loop: is_loop_blk,
             },
           });
-          self.execute_block(cb.then_block(), state, env);
+          self.execute_block(cb.then_block(), state, env)
         } else if !visited_else {
           // Execute the else branch
           if let Some(comparison) = comparison {
@@ -670,10 +681,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             },
             result: None,
           });
-          self.execute_block(cb.else_block(), state, env);
+          self.execute_block(cb.else_block(), state, env)
         } else {
           // If both then and else are visited, stop the execution with BranchExplored
           state.finish_state = FinishState::BranchExplored;
+          None
         }
       }
       BranchInstruction::Unconditional(ub) => {
@@ -684,7 +696,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           },
           result: None,
         });
-        self.execute_block(ub.destination(), state, env);
+        self.execute_block(ub.destination(), state, env)
       }
     }
   }
@@ -694,7 +706,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     instr: SwitchInstruction<'ctx>,
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
-  ) {
+  ) -> Option<Instruction<'ctx>> {
     let curr_blk = instr.parent_block();
     state.prev_block = Some(curr_blk);
     let cond = self.eval_operand_value(state, instr.condition().into());
@@ -733,7 +745,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     // Execute default branch
     if !state.visited_branch.contains(&default_br) {
       state.visited_branch.insert(default_br);
-      self.execute_block(instr.default_destination(), state, env);
+      self.execute_block(instr.default_destination(), state, env)
+    } else {
+      state.finish_state = FinishState::BranchExplored;
+      None
     }
   }
 
@@ -742,10 +757,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     instr: CallInstruction<'ctx>,
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
-  ) {
+  ) -> Option<Instruction<'ctx>> {
     // If is intrinsic call, skip the instruction
     if instr.is_intrinsic_call() {
-      self.execute_instr(instr.next_instruction(), state, env);
+      instr.next_instruction()
     } else {
       // Check if stepping in the function, and get the function Value and also
       // maybe function reference
@@ -796,12 +811,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       // Check if we need to get into the function
       if step_in {
         // If so, execute the function with all the information
-        self.execute_function(node_id, instr, func.unwrap(), args, state, env);
+        self.execute_function(node_id, instr, func.unwrap(), args, state, env)
       } else {
-
         // We only add call result if the callee function has return type
         if instr.callee_function_type().has_return_type() {
-
           // We create a function call result with a call_id associated
           let call_id = env.new_call_id();
           let result = Rc::new(Value::Call {
@@ -818,7 +831,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         }
 
         // Execute the next instruction directly
-        self.execute_instr(instr.next_instruction(), state, env);
+        instr.next_instruction()
       }
     }
   }
@@ -826,19 +839,19 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn transfer_alloca_instr(
     &self,
     instr: AllocaInstruction<'ctx>,
-    state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut State<'ctx>,
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     // Lazy evaluate alloca instructions
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_store_instr(
     &self,
     instr: StoreInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let loc = self.eval_operand_value(state, instr.location());
     let val = self.eval_operand_value(state, instr.value());
     state.memory.insert(loc.clone(), val.clone());
@@ -848,15 +861,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       result: None,
     };
     state.trace.push(node);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_load_instr(
     &self,
     instr: LoadInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let loc = self.eval_operand_value(state, instr.location());
     let res = self.load_from_memory(state, loc.clone());
     let node = TraceNode {
@@ -866,15 +879,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr.as_instruction(), res);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_icmp_instr(
     &self,
     instr: ICmpInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let pred = instr.predicate(); // ICMP must have a predicate
     let op0 = self.eval_operand_value(state, instr.op0());
     let op1 = self.eval_operand_value(state, instr.op1());
@@ -891,10 +904,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr.as_instruction(), res);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
-  pub fn transfer_phi_instr(&self, instr: PhiInstruction<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
+  pub fn transfer_phi_instr(
+    &self,
+    instr: PhiInstruction<'ctx>,
+    state: &mut State<'ctx>,
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let prev_blk = state.prev_block.unwrap();
     let incoming_val = instr
       .incomings()
@@ -904,15 +922,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       .value;
     let res = self.eval_operand_value(state, incoming_val);
     state.stack.top_mut().memory.insert(instr.as_instruction(), res);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_gep_instr(
     &self,
     instr: GetElementPtrInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let loc = self.eval_operand_value(state, instr.location());
     let indices = instr
       .indices()
@@ -933,15 +951,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr.as_instruction(), res);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_binary_instr(
     &self,
     instr: BinaryInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let op = instr.opcode();
     let v0 = self.eval_operand_value(state, instr.op0());
     let v1 = self.eval_operand_value(state, instr.op1());
@@ -957,15 +975,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr.as_instruction(), res);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_unary_instr(
     &self,
     instr: UnaryInstruction<'ctx>,
     state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
     let op = instr.opcode();
     let op0 = self.eval_operand_value(state, instr.op0());
     let node = TraceNode {
@@ -975,7 +993,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     };
     state.trace.push(node);
     state.stack.top_mut().memory.insert(instr.as_instruction(), op0);
-    self.execute_instr(instr.next_instruction(), state, env);
+    instr.next_instruction()
   }
 
   pub fn transfer_unreachable_instr(
@@ -983,17 +1001,30 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     _: UnreachableInstruction<'ctx>,
     state: &mut State<'ctx>,
     _: &mut Environment<'ctx>,
-  ) {
+  ) -> Option<Instruction<'ctx>> {
     state.finish_state = FinishState::Unreachable;
+    None
   }
 
-  pub fn transfer_instr(&self, instr: Instruction<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
-    self.execute_instr(instr.next_instruction(), state, env);
+  pub fn transfer_instr(
+    &self,
+    instr: Instruction<'ctx>,
+    _: &mut State<'ctx>,
+    _: &mut Environment<'ctx>,
+  ) -> Option<Instruction<'ctx>> {
+    instr.next_instruction()
   }
 
   pub fn continue_execution(&self, metadata: &MetaData) -> bool {
     metadata.explored_trace_count < self.options.max_explored_trace_per_slice
       && metadata.proper_trace_count < self.options.max_trace_per_slice
+  }
+
+  pub fn execute(&self, work: &mut Work<'ctx>, env: &mut Environment<'ctx>) {
+    let mut curr_instr = self.execute_block(work.block, &mut work.state, env);
+    while curr_instr.is_some() {
+      curr_instr = self.execute_instr(curr_instr, &mut work.state, env);
+    }
   }
 
   pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize, is_parallel: bool) -> MetaData {
@@ -1005,7 +1036,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
 
       let mut work = env.pop_work();
-      self.execute_block(work.block, &mut work.state, &mut env);
+      self.execute(&mut work, &mut env);
       match work.state.target_node {
         Some(_target_id) => match work.state.finish_state {
           FinishState::ProperlyReturned => {
@@ -1095,7 +1126,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         MetaData::new(),
         |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
           let func_name = slice.callee.name();
-          self.initialize_traces_function_slice_folder(&func_name, slice_id).unwrap();
+          self
+            .initialize_traces_function_slice_folder(&func_name, slice_id)
+            .unwrap();
           meta.combine(self.execute_slice(slice, slice_id, false))
         },
       )
@@ -1107,7 +1140,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           || MetaData::new(),
           |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
             let func_name = slice.callee.name();
-            self.initialize_traces_function_slice_folder(&func_name, slice_id).unwrap();
+            self
+              .initialize_traces_function_slice_folder(&func_name, slice_id)
+              .unwrap();
             meta.combine(self.execute_slice(slice, slice_id, true))
           },
         )

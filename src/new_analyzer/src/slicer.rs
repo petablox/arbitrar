@@ -118,7 +118,7 @@ impl<'ctx> Slice<'ctx> {
 enum TargetFilter {
   Regex(Regex),
   Str(String),
-  None(bool)
+  None(bool),
 }
 
 impl TargetFilter {
@@ -132,15 +132,20 @@ impl TargetFilter {
           Ok(Self::Str(s.clone()))
         }
       }
-      _ => Ok(Self::None(default))
+      _ => Ok(Self::None(default)),
     }
   }
 
   pub fn matches(&self, f: &str) -> bool {
+    // Omitting the number after `.`
+    let f = match f.find('.') {
+      Some(i) => &f[..i],
+      None => f,
+    };
     match self {
       Self::Regex(r) => r.is_match(f),
       Self::Str(s) => s == f,
-      Self::None(d) => d.clone()
+      Self::None(d) => d.clone(),
     }
   }
 }
@@ -164,8 +169,16 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
   }
 
   pub fn relavant_edges(&self) -> Result<Vec<EdgeIndex>, String> {
-    let inclusion_filter = TargetFilter::new(self.options.target_inclusion_filter.clone(), self.options.use_regex_filter, true)?;
-    let exclusion_filter = TargetFilter::new(self.options.target_exclusion_filter.clone(), self.options.use_regex_filter, false)?;
+    let inclusion_filter = TargetFilter::new(
+      self.options.target_inclusion_filter.clone(),
+      self.options.use_regex_filter,
+      true,
+    )?;
+    let exclusion_filter = TargetFilter::new(
+      self.options.target_exclusion_filter.clone(),
+      self.options.use_regex_filter,
+      false,
+    )?;
     let mut edges = vec![];
     for callee_id in self.call_graph.node_indices() {
       let func = self.call_graph[callee_id];
