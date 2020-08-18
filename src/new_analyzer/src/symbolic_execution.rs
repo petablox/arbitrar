@@ -1,17 +1,13 @@
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
 use std::{io, io::Write};
-// use llir::types::*;
-// use llvm_sys::prelude::LLVMValueRef;
 use std::rc::Rc;
-// use petgraph::graph::{DiGraph, NodeIndex};
 use rayon::prelude::*;
 // use serde_json::Value as Json;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::context::AnalyzerContext;
-// use crate::ll_utils::*;
 use crate::options::Options;
 use crate::semantics::*;
 use crate::slicer::Slice;
@@ -196,56 +192,12 @@ pub struct BranchDirection<'ctx> {
 
 pub type VisitedBranch<'ctx> = HashSet<BranchDirection<'ctx>>;
 
-// pub type GlobalUsage<'ctx> = HashMap<GlobalValue<'ctx>, InstructionValue<'ctx>>;
-
-// #[derive(Clone)]
-// pub struct TraceNode<'ctx> {
-//   pub instr: InstructionValue<'ctx>,
-//   pub semantics: Instruction,
-//   pub result: Option<Rc<Value>>,
-// }
-
-// impl<'ctx> std::fmt::Debug for TraceNode<'ctx> {
-//   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//     std::fmt::Debug::fmt(&self.semantics, f)
-//   }
-// }
-
 #[derive(Clone)]
-pub struct TraceNode {
+pub struct TraceNode<'ctx> {
+  pub instr: Instruction<'ctx>,
   pub semantics: Semantics,
   pub result: Option<Rc<Value>>,
 }
-
-impl std::fmt::Debug for TraceNode {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    std::fmt::Debug::fmt(&self.semantics, f)
-  }
-}
-
-// #[derive(Clone)]
-// pub enum TraceGraphEdge {
-//   DefUse,
-//   ControlFlow,
-// }
-
-// pub type TraceGraph<'ctx> = DiGraph<TraceNode<'ctx>, TraceGraphEdge>;
-
-// pub trait TraceGraphTrait<'ctx> {
-//   fn to_json(&self) -> Json;
-
-//   fn reduce(self, target: NodeIndex) -> Self;
-// }
-
-// impl<'ctx> TraceGraphTrait<'ctx> for TraceGraph<'ctx> {
-//   fn to_json(&self) -> Json {
-//     Json::Null
-//   }
-
-//   fn reduce(self, target: NodeIndex) -> Self {
-//     self
-//   }
-// }
 
 pub type BlockTrace<'ctx> = Vec<Block<'ctx>>;
 
@@ -268,18 +220,18 @@ impl<'ctx> BlockTraceTrait<'ctx> for BlockTrace<'ctx> {
   }
 }
 
-pub type Trace = Vec<TraceNode>;
+pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
 
 pub trait TraceTrait {
   fn print(&self);
 }
 
-impl TraceTrait for Trace {
+impl<'ctx> TraceTrait for Trace<'ctx> {
   fn print(&self) {
     for node in self.iter() {
       match &node.result {
-        Some(result) => println!("{:?} -> {:?}", node.semantics, result),
-        None => println!("{:?}", node.semantics),
+        Some(result) => println!("{} {:?} -> {:?}", node.instr.debug_loc_string(), node.semantics, result),
+        None => println!("{} {:?}", node.instr.debug_loc_string(), node.semantics),
       }
     }
   }
@@ -306,7 +258,7 @@ pub struct State<'ctx> {
   pub visited_branch: VisitedBranch<'ctx>,
   // pub global_usage: GlobalUsage<'ctx>,
   pub block_trace: BlockTrace<'ctx>,
-  pub trace: Trace,
+  pub trace: Trace<'ctx>,
   pub target_node: Option<usize>,
   pub prev_block: Option<Block<'ctx>>,
   pub finish_state: FinishState,
@@ -602,6 +554,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     // First evaluate the return operand. There might not be one
     let val = instr.op().map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
+      instr: instr.as_instruction(),
       semantics: Semantics::Return { op: val.clone() },
       result: None,
     });
@@ -663,6 +616,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             }
             else_state.visited_branch.insert(else_br);
             else_state.trace.push(TraceNode {
+              instr: instr.as_instruction(),
               result: None,
               semantics: Semantics::ConditionalBr {
                 cond: cond.clone(),
@@ -685,6 +639,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
           state.visited_branch.insert(then_br);
           state.trace.push(TraceNode {
+            instr: instr.as_instruction(),
             result: None,
             semantics: Semantics::ConditionalBr {
               cond,
@@ -702,6 +657,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
           state.visited_branch.insert(else_br);
           state.trace.push(TraceNode {
+            instr: instr.as_instruction(),
             semantics: Semantics::ConditionalBr {
               cond,
               br: Branch::Else,
@@ -717,6 +673,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
       BranchInstruction::Unconditional(ub) => {
         state.trace.push(TraceNode {
+          instr: instr.as_instruction(),
           semantics: Semantics::UnconditionalBr {
             end_loop: ub.is_loop_jump().unwrap_or(false),
           },
@@ -749,7 +706,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       })
       .collect::<Vec<_>>();
     let node = TraceNode {
-      // instr,
+      instr: instr.as_instruction(),
       semantics: Semantics::Switch { cond },
       result: None,
     };
@@ -820,6 +777,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         args: args.clone(),
       };
       let node = TraceNode {
+        instr: instr.as_instruction(),
         semantics,
         result: None,
       };
@@ -880,6 +838,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let val = self.eval_operand_value(state, instr.value());
     state.memory.insert(loc.clone(), val.clone());
     let node = TraceNode {
+      instr: instr.as_instruction(),
       semantics: Semantics::Store { loc, val },
       result: None,
     };
@@ -896,6 +855,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let loc = self.eval_operand_value(state, instr.location());
     let res = self.load_from_memory(state, loc.clone());
     let node = TraceNode {
+      instr: instr.as_instruction(),
       semantics: Semantics::Load { loc },
       result: Some(res.clone()),
     };
@@ -920,6 +880,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     });
     let semantics = Semantics::Compare { pred, op0, op1 };
     let node = TraceNode {
+      instr: instr.as_instruction(),
       semantics,
       result: Some(res.clone()),
     };
@@ -958,7 +919,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       indices: indices.clone(),
     });
     let node = TraceNode {
-      // instr,
+      instr: instr.as_instruction(),
       semantics: Semantics::GetElementPtr {
         loc: loc.clone(),
         indices,
@@ -985,7 +946,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       op1: v1.clone(),
     });
     let node = TraceNode {
-      // instr,
+      instr: instr.as_instruction(),
       semantics: Semantics::BinaryOperation { op, op0: v0, op1: v1 },
       result: Some(res.clone()),
     };
@@ -1003,7 +964,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let op = instr.opcode();
     let op0 = self.eval_operand_value(state, instr.op0());
     let node = TraceNode {
-      // instr,
+      instr: instr.as_instruction(),
       semantics: Semantics::UnaryOperation { op, op0: op0.clone() },
       result: Some(op0.clone()),
     };

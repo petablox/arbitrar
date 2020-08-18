@@ -22,6 +22,7 @@ pub struct SlicerOptions {
   pub reduce_slice: bool,
   pub use_batch: bool,
   pub batch_size: u32,
+  pub use_regex_filter: bool,
 }
 
 impl Options for SlicerOptions {
@@ -39,6 +40,9 @@ impl Options for SlicerOptions {
         .takes_value(true)
         .long("include-target")
         .about("Include target functions. In the form of Regex"),
+      Arg::new("use_regex_filter")
+        .long("use-regex-filter")
+        .about("Use Regex in inclusion/exclusion filter"),
       Arg::new("target_exclusion_filter")
         .value_name("EXCLUDE_TARGET")
         .takes_value(true)
@@ -74,6 +78,7 @@ impl Options for SlicerOptions {
       batch_size: matches
         .value_of_t::<u32>("batch_size")
         .map_err(|_| String::from("Cannot parse batch size"))?,
+      use_regex_filter: matches.is_present("use_regex_filter"),
     })
   }
 }
@@ -110,6 +115,36 @@ impl<'ctx> Slice<'ctx> {
   }
 }
 
+enum TargetFilter {
+  Regex(Regex),
+  Str(String),
+  None(bool)
+}
+
+impl TargetFilter {
+  pub fn new(filter_str: Option<String>, use_regex: bool, default: bool) -> Result<Self, String> {
+    match filter_str {
+      Some(s) => {
+        if use_regex {
+          let regex = Regex::new(s.as_str()).map_err(|_| "Cannot parse target filter".to_string())?;
+          Ok(Self::Regex(regex))
+        } else {
+          Ok(Self::Str(s.clone()))
+        }
+      }
+      _ => Ok(Self::None(default))
+    }
+  }
+
+  pub fn matches(&self, f: &str) -> bool {
+    match self {
+      Self::Regex(r) => r.is_match(f),
+      Self::Str(s) => s == f,
+      Self::None(d) => d.clone()
+    }
+  }
+}
+
 pub struct SlicerContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
   pub call_graph: &'a CallGraph<'ctx>,
@@ -129,42 +164,17 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
   }
 
   pub fn relavant_edges(&self) -> Result<Vec<EdgeIndex>, String> {
-    let inclusion_filter = match &self.options.target_inclusion_filter {
-      Some(filter) => {
-        let inclusion_regex =
-          Regex::new(filter.as_str()).map_err(|_| String::from("Cannot parse target inclusion filter regex"))?;
-        Some(inclusion_regex)
-      }
-      None => None,
-    };
-    let exclusion_filter = match &self.options.target_exclusion_filter {
-      Some(filter) => {
-        let exclusion_regex =
-          Regex::new(filter.as_str()).map_err(|_| String::from("Cannot parse target exclusion filter regex"))?;
-        Some(exclusion_regex)
-      }
-      None => None,
-    };
+    let inclusion_filter = TargetFilter::new(self.options.target_inclusion_filter.clone(), self.options.use_regex_filter, true)?;
+    let exclusion_filter = TargetFilter::new(self.options.target_exclusion_filter.clone(), self.options.use_regex_filter, false)?;
     let mut edges = vec![];
     for callee_id in self.call_graph.node_indices() {
       let func = self.call_graph[callee_id];
       let func_name = func.name();
-      let include_from_inclusion = match &inclusion_filter {
-        Some(inclusion_regex) => {
-          if inclusion_regex.is_match(func_name.as_str()) {
-            None
-          } else {
-            Some(false)
-          }
-        }
-        None => None,
-      };
-      let include = match include_from_inclusion {
-        Some(i) => i,
-        None => match &exclusion_filter {
-          Some(exclusion_regex) => !exclusion_regex.is_match(func_name.as_str()),
-          None => true,
-        },
+      let include_from_inclusion = inclusion_filter.matches(func_name.as_str());
+      let include = if !include_from_inclusion {
+        false
+      } else {
+        !exclusion_filter.matches(func_name.as_str())
       };
       if include {
         for caller_id in self.call_graph.neighbors_directed(callee_id, Direction::Incoming) {
