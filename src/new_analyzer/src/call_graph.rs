@@ -4,6 +4,7 @@ use petgraph::graph::{DiGraph, EdgeIndex, Graph, NodeIndex};
 use std::collections::HashMap;
 
 use crate::context::*;
+use crate::utils::*;
 use crate::options::Options;
 
 pub struct CallEdge<'ctx> {
@@ -14,7 +15,7 @@ pub struct CallEdge<'ctx> {
 
 impl<'ctx> CallEdge<'ctx> {
   pub fn dump(&self) {
-    println!("{} -> {}", self.caller.name(), self.callee.name());
+    println!("{} -> {}", self.caller.simp_name(), self.callee.simp_name());
   }
 }
 
@@ -36,7 +37,7 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraph<'ctx> {
 
   fn remove_llvm_funcs(&mut self) {
     self.retain_nodes(move |this, node_id| {
-      let node_name = this[node_id].name();
+      let node_name = this[node_id].simp_name();
       let is_llvm_intrinsics = node_name.contains("llvm.");
       !is_llvm_intrinsics
     });
@@ -103,17 +104,19 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
       for b in caller.iter_blocks() {
         for i in b.iter_instructions() {
           match i {
-            Instruction::Call(call_instr) => match call_instr.callee_function() {
-              Some(callee) => {
-                if self.options.no_remove_llvm_funcs || !callee.name().contains("llvm.") {
-                  let callee_id = value_id_map
-                    .entry(callee)
-                    .or_insert_with(|| cg.add_node(callee))
-                    .clone();
-                  cg.add_edge(caller_id, callee_id, i);
+            Instruction::Call(call_instr) => {
+              if self.options.no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
+                match call_instr.callee_function() {
+                  Some(callee) => {
+                    let callee_id = value_id_map
+                      .entry(callee)
+                      .or_insert_with(|| cg.add_node(callee))
+                      .clone();
+                    cg.add_edge(caller_id, callee_id, i);
+                  }
+                  None => {}
                 }
-              }
-              None => {}
+              } else {}
             },
             _ => {}
           }

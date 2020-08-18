@@ -2,6 +2,8 @@ use clap::{App, Arg, ArgMatches};
 use llir::values::*;
 use rayon::prelude::*;
 use serde_json::json;
+use indicatif::{ParallelProgressIterator, ProgressIterator};
+use rayon::iter::ParallelIterator;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::File;
@@ -13,6 +15,7 @@ use crate::context::AnalyzerContext;
 use crate::options::Options;
 use crate::semantics::*;
 use crate::slicer::Slice;
+use crate::utils::*;
 
 #[derive(Debug)]
 pub struct SymbolicExecutionOptions {
@@ -497,7 +500,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         Rc::new(Value::Sym(state.new_symbol_id()))
       }
       Constant::Global(glob) => Rc::new(Value::Glob(glob.name())),
-      Constant::Function(func) => Rc::new(Value::Func(func.name())),
+      Constant::Function(func) => Rc::new(Value::Func(func.simp_name())),
       Constant::ConstExpr(ce) => match ce {
         ConstExpr::Binary(b) => {
           let op = b.opcode();
@@ -770,7 +773,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             && func != env.slice.callee
             && !func.is_declaration_only()
             && env.slice.functions.contains(&func);
-          (step_in, Rc::new(Value::Func(func.name())), Some(func))
+          (step_in, Rc::new(Value::Func(func.simp_name())), Some(func))
         }
         None => {
           if instr.is_inline_asm_call() {
@@ -1122,10 +1125,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
     if self.ctx.options.use_serial {
-      slices.into_iter().enumerate().fold(
+      slices.into_iter().progress().enumerate().fold(
         MetaData::new(),
         |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
-          let func_name = slice.callee.name();
+          let func_name = slice.callee.simp_name();
           self
             .initialize_traces_function_slice_folder(&func_name, slice_id)
             .unwrap();
@@ -1139,13 +1142,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .fold(
           || MetaData::new(),
           |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
-            let func_name = slice.callee.name();
+            let func_name = slice.callee.simp_name();
             self
               .initialize_traces_function_slice_folder(&func_name, slice_id)
               .unwrap();
             meta.combine(self.execute_slice(slice, slice_id, true))
           },
         )
+        .progress()
         .reduce(|| MetaData::new(), MetaData::combine)
     }
   }

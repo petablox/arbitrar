@@ -11,7 +11,7 @@ use std::slice::Chunks;
 
 use crate::call_graph::*;
 use crate::context::AnalyzerContext;
-// use crate::ll_utils::*;
+use crate::utils::*;
 use crate::options::Options;
 
 pub struct SlicerOptions {
@@ -97,21 +97,21 @@ impl<'ctx> Slice<'ctx> {
   pub fn _dump(&self) {
     print!(
       "Entry: {}, Caller: {}, Functions: {{",
-      self.entry.name(),
-      self.caller.name()
+      self.entry.simp_name(),
+      self.caller.simp_name()
     );
     for (id, f) in self.functions.iter().enumerate() {
       if id == self.functions.len() - 1 {
-        print!("{}", f.name());
+        print!("{}", f.simp_name());
       } else {
-        print!("{}, ", f.name());
+        print!("{}, ", f.simp_name());
       }
     }
     println!("}}");
   }
 
   pub fn target_function_name(&self) -> String {
-    self.callee.name()
+    self.callee.simp_name()
   }
 }
 
@@ -182,7 +182,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     let mut edges = vec![];
     for callee_id in self.call_graph.node_indices() {
       let func = self.call_graph[callee_id];
-      let func_name = func.name();
+      let func_name = func.simp_name();
       let include_from_inclusion = inclusion_filter.matches(func_name.as_str());
       let include = if !include_from_inclusion {
         false
