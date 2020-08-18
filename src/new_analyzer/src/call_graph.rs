@@ -103,20 +103,18 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
       for b in caller.iter_blocks() {
         for i in b.iter_instructions() {
           match i {
-            Instruction::Call(call_instr) => {
-              match call_instr.callee_function() {
-                Some(callee) => {
-                  if self.options.no_remove_llvm_funcs || !callee.name().contains("llvm.") {
-                    let callee_id = value_id_map
-                      .entry(callee)
-                      .or_insert_with(|| cg.add_node(callee))
-                      .clone();
-                    cg.add_edge(caller_id, callee_id, i);
-                  }
+            Instruction::Call(call_instr) => match call_instr.callee_function() {
+              Some(callee) => {
+                if self.options.no_remove_llvm_funcs || !callee.name().contains("llvm.") {
+                  let callee_id = value_id_map
+                    .entry(callee)
+                    .or_insert_with(|| cg.add_node(callee))
+                    .clone();
+                  cg.add_edge(caller_id, callee_id, i);
                 }
-                None => {}
               }
-            }
+              None => {}
+            },
             _ => {}
           }
         }

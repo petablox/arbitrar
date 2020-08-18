@@ -230,7 +230,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
           let func = self.call_graph.node_weight(*func_id).unwrap();
           match func.filename() {
             Some(name) => regex.is_match(name.as_str()),
-            _ => true
+            _ => true,
           }
         }
         None => true,

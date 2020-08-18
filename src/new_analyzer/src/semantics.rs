@@ -10,11 +10,10 @@ pub type Predicate = llir::values::ICmpPredicate;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Value {
-  Argument(usize),         // Argument ID
-  Symbol(usize),           // Symbol ID
-  // ConstPtr(usize),         // Pointer ID
-  Global(String),          // Global Value Name
-  Function(String),        // Function Name
+  Argument(usize),  // Argument ID
+  Symbol(usize),    // Symbol ID
+  Global(String),   // Global Value Name
+  Function(String), // Function Name
   FunctionPointer,
   InlineAsm,
   ConstInt(i64),
@@ -22,7 +21,7 @@ pub enum Value {
   Alloca(usize),
   GetElementPtr {
     loc: Rc<Value>,
-    indices: Vec<Rc<Value>>
+    indices: Vec<Rc<Value>>,
   },
   BinaryOperation {
     op: BinOp,
@@ -166,7 +165,7 @@ pub enum Semantics {
     cond: Rc<Value>,
   },
   Return {
-    op: Option<Rc<Value>>
+    op: Option<Rc<Value>>,
   },
   Store {
     loc: Rc<Value>,

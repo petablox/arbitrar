@@ -1,6 +1,6 @@
-use std::{io, io::{Write}};
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
+use std::{io, io::Write};
 // use llir::types::*;
 // use llvm_sys::prelude::LLVMValueRef;
 use std::rc::Rc;
@@ -16,11 +16,13 @@ use crate::options::Options;
 use crate::semantics::*;
 use crate::slicer::Slice;
 
+#[derive(Debug)]
 pub struct SymbolicExecutionOptions {
   pub max_trace_per_slice: usize,
   pub max_explored_trace_per_slice: usize,
   pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
+  pub print_trace: bool,
 }
 
 impl Options for SymbolicExecutionOptions {
@@ -46,6 +48,7 @@ impl Options for SymbolicExecutionOptions {
       Arg::new("no_reduce_trace")
         .long("no-reduce-trace")
         .about("No trace reduction"),
+      Arg::new("print_trace").long("print-trace").about("Print out trace"),
     ])
   }
 
@@ -54,7 +57,8 @@ impl Options for SymbolicExecutionOptions {
       max_trace_per_slice: matches.value_of_t::<usize>("max_trace_per_slice").unwrap(),
       max_explored_trace_per_slice: matches.value_of_t::<usize>("max_explored_trace_per_slice").unwrap(),
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
-      no_trace_reduction: matches.is_present("no-reduce-trace"),
+      no_trace_reduction: matches.is_present("no_reduce_trace"),
+      print_trace: matches.is_present("print_trace"),
     })
   }
 }
@@ -347,13 +351,6 @@ impl<'ctx> State<'ctx> {
     result
   }
 
-  // pub fn new_pointer_value_id(&mut self, pv: GenericValue<'ctx>) -> usize {
-  //   let result = self.pointer_value_id;
-  //   self.pointer_value_id += 1;
-  //   self.pointer_value_id_map.insert(pv, result);
-  //   result
-  // }
-
   pub fn add_constraint(&mut self, cond: Comparison, branch: bool) {
     self.constraints.push(Constraint { cond, branch });
   }
@@ -493,12 +490,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     self.execute_instr(block.first_instruction(), state, env)
   }
 
-  pub fn execute_instr(
-    &self,
-    instr: Option<Instruction<'ctx>>,
-    state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+  pub fn execute_instr(&self, instr: Option<Instruction<'ctx>>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
     if state.trace.len() > self.options.max_node_per_trace {
       state.finish_state = FinishState::ExceedingMaxTraceLength;
       return;
@@ -536,7 +528,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       Constant::Null(_) => Rc::new(Value::NullPtr),
       Constant::Float(_) | Constant::Struct(_) | Constant::Array(_) | Constant::Vector(_) => {
         Rc::new(Value::Symbol(state.new_symbol_id()))
-      },
+      }
       Constant::Global(glob) => Rc::new(Value::Global(glob.name())),
       Constant::Function(func) => Rc::new(Value::Function(func.name())),
       Constant::ConstExpr(ce) => match ce {
@@ -545,34 +537,44 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           let op0 = self.eval_constant_value(state, b.op0());
           let op1 = self.eval_constant_value(state, b.op1());
           Rc::new(Value::BinaryOperation { op, op0, op1 })
-        },
+        }
         ConstExpr::Unary(u) => self.eval_constant_value(state, u.op0()),
         ConstExpr::GetElementPtr(g) => {
           let loc = self.eval_constant_value(state, g.location());
-          let indices = g.indices().into_iter().map(|i| self.eval_constant_value(state, i)).collect();
+          let indices = g
+            .indices()
+            .into_iter()
+            .map(|i| self.eval_constant_value(state, i))
+            .collect();
           Rc::new(Value::GetElementPtr { loc, indices })
         }
-        _ => Rc::new(Value::Unknown)
+        _ => Rc::new(Value::Unknown),
       },
-      _ => Rc::new(Value::Unknown)
+      _ => Rc::new(Value::Unknown),
     }
   }
 
   pub fn eval_operand_value(&self, state: &mut State<'ctx>, operand: Operand<'ctx>) -> Rc<Value> {
     match operand {
-      Operand::Instruction(instr) => match instr {
-        Instruction::Alloca(_) => {
-          let alloca_id = state.new_alloca_id();
-          let value = Rc::new(Value::Alloca(alloca_id));
-          state.stack.top_mut().memory.insert(instr, value.clone());
-          value
-        },
-        _ => state.stack.top().memory[&instr].clone()
-      },
+      Operand::Instruction(instr) => {
+        if state.stack.top().memory.contains_key(&instr) {
+          state.stack.top().memory[&instr].clone()
+        } else {
+          match instr {
+            Instruction::Alloca(_) => {
+              let alloca_id = state.new_alloca_id();
+              let value = Rc::new(Value::Alloca(alloca_id));
+              state.stack.top_mut().memory.insert(instr, value.clone());
+              value
+            }
+            _ => Rc::new(Value::Unknown),
+          }
+        }
+      }
       Operand::Argument(arg) => state.stack.top().arguments[arg.index()].clone(),
       Operand::Constant(cons) => self.eval_constant_value(state, cons),
       Operand::InlineAsm(_) => Rc::new(Value::InlineAsm),
-      _ => Rc::new(Value::Unknown)
+      _ => Rc::new(Value::Unknown),
     }
   }
 
@@ -600,7 +602,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     // First evaluate the return operand. There might not be one
     let val = instr.op().map(|val| self.eval_operand_value(state, val));
     state.trace.push(TraceNode {
-      // instr,
       semantics: Semantics::Return { op: val.clone() },
       result: None,
     });
@@ -611,8 +612,10 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       Some((node_id, call_site)) => {
         let call_site_frame = state.stack.top_mut(); // If call site exists then there must be a stack top
         if let Some(op0) = val {
-          state.trace[node_id].result = Some(op0.clone());
-          call_site_frame.memory.insert(call_site.as_instruction(), op0);
+          if stack_frame.function.get_function_type().has_return_type() {
+            state.trace[node_id].result = Some(op0.clone());
+            call_site_frame.memory.insert(call_site.as_instruction(), op0);
+          }
         }
         self.execute_instr(call_site.next_instruction(), state, env);
       }
@@ -624,7 +627,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     }
   }
 
-  pub fn transfer_br_instr(&self, instr: BranchInstruction<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
+  pub fn transfer_br_instr(
+    &self,
+    instr: BranchInstruction<'ctx>,
+    state: &mut State<'ctx>,
+    env: &mut Environment<'ctx>,
+  ) {
     let curr_blk = instr.parent_block(); // We assume instruction always has parent block
     state.prev_block = Some(curr_blk);
     match instr {
@@ -657,7 +665,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             }
             else_state.visited_branch.insert(else_br);
             else_state.trace.push(TraceNode {
-              // instr,
               result: None,
               semantics: Semantics::ConditionalBr {
                 cond: cond.clone(),
@@ -680,9 +687,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
           state.visited_branch.insert(then_br);
           state.trace.push(TraceNode {
-            // instr: instr,
             result: None,
-            semantics: Semantics::ConditionalBr { cond, br: Branch::Then, begin_loop: is_loop_blk },
+            semantics: Semantics::ConditionalBr {
+              cond,
+              br: Branch::Then,
+              begin_loop: is_loop_blk,
+            },
           });
           self.execute_block(cb.then_block(), state, env);
         } else if !visited_else {
@@ -694,8 +704,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           }
           state.visited_branch.insert(else_br);
           state.trace.push(TraceNode {
-            // instr: instr,
-            semantics: Semantics::ConditionalBr { cond, br: Branch::Else, begin_loop: false },
+            semantics: Semantics::ConditionalBr {
+              cond,
+              br: Branch::Else,
+              begin_loop: false,
+            },
             result: None,
           });
           self.execute_block(cb.else_block(), state, env);
@@ -706,7 +719,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
       BranchInstruction::Unconditional(ub) => {
         state.trace.push(TraceNode {
-          // instr: instr,
           semantics: Semantics::UnconditionalBr {
             end_loop: ub.is_loop_jump().unwrap_or(false),
           },
@@ -775,16 +787,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     if instr.is_intrinsic_call() {
       self.execute_instr(instr.next_instruction(), state, env);
     } else {
-
       // Check if stepping in the function, and get the function Value and also
       // maybe function reference
       let (step_in, func_value, func) = match instr.callee_function() {
         Some(func) => {
-          let step_in =
-            !state.stack.has_function(func) &&
-            func != env.slice.callee &&
-            !func.is_declaration_only() &&
-            env.slice.functions.contains(&func);
+          let step_in = !state.stack.has_function(func)
+            && func != env.slice.callee
+            && !func.is_declaration_only()
+            && env.slice.functions.contains(&func);
           (step_in, Rc::new(Value::Function(func.name())), Some(func))
         }
         None => {
@@ -797,14 +807,24 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       };
 
       // Evaluate the arguments
-      let args = instr.arguments().into_iter().map(|v| self.eval_operand_value(state, v)).collect::<Vec<_>>();
+      let args = instr
+        .arguments()
+        .into_iter()
+        .map(|v| self.eval_operand_value(state, v))
+        .collect::<Vec<_>>();
 
       // Cache the node id for this call
       let node_id = state.trace.len();
 
       // Generate a semantics and push to the trace
-      let semantics = Semantics::Call { func: func_value.clone(), args: args.clone() };
-      let node = TraceNode { semantics, result: None };
+      let semantics = Semantics::Call {
+        func: func_value.clone(),
+        args: args.clone(),
+      };
+      let node = TraceNode {
+        semantics,
+        result: None,
+      };
       state.trace.push(node);
 
       // Update the target_node in state if the target is now visited
@@ -814,24 +834,27 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
       // Check if we need to get into the function
       if step_in {
-
         // If so, execute the function with all the information
         self.execute_function(node_id, instr, func.unwrap(), args, state, env);
       } else {
 
-        // If not, we create a function call result with a call_id associated
-        let call_id = env.new_call_id();
-        let result = Rc::new(Value::Call {
-          id: call_id,
-          func: func_value.clone(),
-          args: args.clone()
-        });
+        // We only add call result if the callee function has return type
+        if instr.callee_function_type().has_return_type() {
 
-        // Update the result stored in the trace
-        state.trace[node_id].result = Some(result.clone());
+          // We create a function call result with a call_id associated
+          let call_id = env.new_call_id();
+          let result = Rc::new(Value::Call {
+            id: call_id,
+            func: func_value.clone(),
+            args: args.clone(),
+          });
 
-        // Insert a result to the stack frame memory
-        state.stack.top_mut().memory.insert(instr.as_instruction(), result);
+          // Update the result stored in the trace
+          state.trace[node_id].result = Some(result.clone());
+
+          // Insert a result to the stack frame memory
+          state.stack.top_mut().memory.insert(instr.as_instruction(), result);
+        }
 
         // Execute the next instruction directly
         self.execute_instr(instr.next_instruction(), state, env);
@@ -859,7 +882,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let val = self.eval_operand_value(state, instr.value());
     state.memory.insert(loc.clone(), val.clone());
     let node = TraceNode {
-      // instr: instr,
       semantics: Semantics::Store { loc, val },
       result: None,
     };
@@ -876,7 +898,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     let loc = self.eval_operand_value(state, instr.location());
     let res = self.load_from_memory(state, loc.clone());
     let node = TraceNode {
-      // instr: instr,
       semantics: Semantics::Load { loc },
       result: Some(res.clone()),
     };
@@ -901,7 +922,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     });
     let semantics = Semantics::Compare { pred, op0, op1 };
     let node = TraceNode {
-      // instr,
       semantics,
       result: Some(res.clone()),
     };
@@ -910,14 +930,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     self.execute_instr(instr.next_instruction(), state, env);
   }
 
-  pub fn transfer_phi_instr(
-    &self,
-    instr: PhiInstruction<'ctx>,
-    state: &mut State<'ctx>,
-    env: &mut Environment<'ctx>,
-  ) {
+  pub fn transfer_phi_instr(&self, instr: PhiInstruction<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
     let prev_blk = state.prev_block.unwrap();
-    let incoming_val = instr.incomings().iter().find(|incoming| incoming.block == prev_blk).unwrap().value;
+    let incoming_val = instr
+      .incomings()
+      .iter()
+      .find(|incoming| incoming.block == prev_blk)
+      .unwrap()
+      .value;
     let res = self.eval_operand_value(state, incoming_val);
     state.stack.top_mut().memory.insert(instr.as_instruction(), res);
     self.execute_instr(instr.next_instruction(), state, env);
@@ -1012,7 +1032,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       && metadata.proper_trace_count < self.options.max_trace_per_slice
   }
 
-  pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
+  pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize, is_parallel: bool) -> MetaData {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
     while env.has_work() && self.continue_execution(&metadata) {
@@ -1032,9 +1052,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               if work.state.path_satisfactory() {
                 let trace_id = metadata.proper_trace_count;
                 let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
-                if cfg!(debug_assertions) {
+
+                if self.options.print_trace && self.ctx.options.use_serial {
+                  println!("\nSlice {} Trace {} Log", slice_id, trace_id);
                   work.state.trace.print();
                 }
+
                 work.state.dump_json(path);
                 metadata.incr_proper();
               } else {
@@ -1076,23 +1099,44 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       }
     }
 
-    print!("Executing Slice {}\r", match slice_id % 3 {
-      0 => '|', 1 => '/', 2 => '-', _ => '\\'
-    });
-    io::stdout().flush().unwrap();
+    if is_parallel {
+      self.print_executing_slice(slice_id);
+    }
 
     metadata
   }
 
+  fn print_executing_slice(&self, slice_id: usize) {
+    print!(
+      "Executing Slice {}\r",
+      match slice_id % 3 {
+        0 => '|',
+        1 => '/',
+        2 => '-',
+        _ => '\\',
+      }
+    );
+    io::stdout().flush().unwrap();
+  }
+
   pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
-    let f = |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| meta.combine(self.execute_slice(slice, slice_id));
     if self.ctx.options.use_serial {
-      slices.into_iter().enumerate().fold(MetaData::new(), f)
+      slices.into_iter().enumerate().fold(
+        MetaData::new(),
+        |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
+          meta.combine(self.execute_slice(slice, slice_id, false))
+        },
+      )
     } else {
       slices
         .into_par_iter()
         .enumerate()
-        .fold(|| MetaData::new(), f)
+        .fold(
+          || MetaData::new(),
+          |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
+            meta.combine(self.execute_slice(slice, slice_id, true))
+          },
+        )
         .reduce(|| MetaData::new(), MetaData::combine)
     }
   }
