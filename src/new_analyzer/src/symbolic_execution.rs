@@ -640,9 +640,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       BranchInstruction::Conditional(cb) => {
         let cond = self.eval_operand_value(state, cb.condition().into());
         let comparison = cond.as_comparison();
-        // TODO
-        // let is_loop_blk = curr_blk.is_loop_block(&self.ctx.llcontext());
-        let is_loop_blk = false;
+        let is_loop_blk = curr_blk.is_loop_entry_block();
         let then_br = BranchDirection {
           from: curr_blk,
           to: cb.then_block(),

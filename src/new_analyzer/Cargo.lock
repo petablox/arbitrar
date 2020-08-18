@@ -221,7 +221,7 @@ checksum = "a2f02823cf78b754822df5f7f268fb59822e7296276d3e069d8e8cb26a14bd10"
 [[package]]
 name = "llir"
 version = "0.1.5"
-source = "git+https://github.com/liby99/llir#04cb9c1ccd057d439c85a798d0093de88ebad93b"
+source = "git+https://github.com/liby99/llir#db61afc8b50ae4dbfbf92019afa253b883a84602"
 dependencies = [
  "libc",
  "llvm-sys",

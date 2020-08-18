@@ -2,8 +2,7 @@ void target(int *p) {
   *p = 1;
 }
 
-int main() {
-  int i = 0;
+int main(int i) {
   target(&i);
   if (!i) {
     goto err;

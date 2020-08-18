@@ -1,8 +1,6 @@
 void *malloc(int size);
 
-void free(void *ptr) {
-  ptr = 0;
-}
+void free(void *ptr);
 
 int f(int i, int j) {
   int sum = i + j;
