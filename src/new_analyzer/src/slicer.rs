@@ -91,8 +91,6 @@ pub struct Slice<'ctx> {
   pub functions: HashSet<Function<'ctx>>,
 }
 
-unsafe impl<'ctx> Send for Slice<'ctx> {}
-
 impl<'ctx> Slice<'ctx> {
   pub fn _dump(&self) {
     print!(
@@ -155,8 +153,6 @@ pub struct SlicerContext<'a, 'ctx> {
   pub call_graph: &'a CallGraph<'ctx>,
   pub options: SlicerOptions,
 }
-
-unsafe impl<'a, 'ctx> Sync for SlicerContext<'a, 'ctx> {}
 
 impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
   pub fn new(ctx: &'a AnalyzerContext<'ctx>, call_graph: &'a CallGraph<'ctx>) -> Result<Self, String> {

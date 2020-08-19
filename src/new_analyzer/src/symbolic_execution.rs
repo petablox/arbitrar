@@ -9,7 +9,7 @@ use std::fs;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::{io, io::Write};
+use std::{io::Write};
 
 use crate::context::AnalyzerContext;
 use crate::options::Options;
@@ -24,6 +24,7 @@ pub struct SymbolicExecutionOptions {
   pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
   pub print_trace: bool,
+  pub precompute_block_trace: bool,
 }
 
 impl Options for SymbolicExecutionOptions {
@@ -50,6 +51,7 @@ impl Options for SymbolicExecutionOptions {
         .long("no-reduce-trace")
         .about("No trace reduction"),
       Arg::new("print_trace").long("print-trace").about("Print out trace"),
+      Arg::new("precompute_block_trace").long("precompute-block-trace"),
     ])
   }
 
@@ -60,6 +62,7 @@ impl Options for SymbolicExecutionOptions {
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
       no_trace_reduction: matches.is_present("no_reduce_trace"),
       print_trace: matches.is_present("print_trace"),
+      precompute_block_trace: matches.is_present("precompute_block_trace"),
     })
   }
 }
@@ -223,6 +226,34 @@ impl<'ctx> BlockTraceTrait<'ctx> for BlockTrace<'ctx> {
       false
     }
   }
+}
+
+pub struct BlockTraceIterator<'ctx> {
+  pub trace: BlockTrace<'ctx>,
+  pub curr_pointer: usize,
+}
+
+impl<'ctx> BlockTraceIterator<'ctx> {
+  pub fn new(trace: BlockTrace<'ctx>) -> Self {
+    Self { trace, curr_pointer: 0 }
+  }
+
+  // pub fn peek_curr(&self) -> &Block<'ctx> {
+  //   &self.trace[self.curr_pointer]
+  // }
+
+  // pub fn peek_next(&self) -> Option<&Block<'ctx>> {
+  //   self.trace.get(self.curr_pointer + 1)
+  // }
+
+  // pub fn next(&mut self) -> Option<&Block<'ctx>> {
+  //   self.curr_pointer += 1;
+  //   self.trace.get(self.curr_pointer)
+  // }
+
+  // pub fn has_next(&self) -> bool {
+  //   self.curr_pointer < self.trace.len()
+  // }
 }
 
 pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
@@ -400,6 +431,10 @@ impl<'ctx> Environment<'ctx> {
     result
   }
 
+  pub fn add_block_trace(&mut self, block_trace: &BlockTrace<'ctx>) {
+    self.block_traces.push(block_trace.clone())
+  }
+
   pub fn has_duplicate(&self, block_trace: &BlockTrace<'ctx>) -> bool {
     for other_block_trace in self.block_traces.iter() {
       if block_trace.equals(other_block_trace) {
@@ -414,8 +449,6 @@ pub struct SymbolicExecutionContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
   pub options: SymbolicExecutionOptions,
 }
-
-unsafe impl<'a, 'ctx> Sync for SymbolicExecutionContext<'a, 'ctx> {}
 
 impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
@@ -457,7 +490,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     block.first_instruction()
   }
 
-  pub fn execute_instr(
+  pub fn execute_instr_and_add_work(
     &self,
     instr: Option<Instruction<'ctx>>,
     state: &mut State<'ctx>,
@@ -1023,91 +1056,109 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       && metadata.proper_trace_count < self.options.max_trace_per_slice
   }
 
-  pub fn execute(&self, work: &mut Work<'ctx>, env: &mut Environment<'ctx>) {
-    let mut curr_instr = self.execute_block(work.block, &mut work.state, env);
-    while curr_instr.is_some() {
-      curr_instr = self.execute_instr(curr_instr, &mut work.state, env);
-    }
+  pub fn execute_block_trace(&self, slice: &Slice<'ctx>, block_trace_iter: BlockTraceIterator<'ctx>, slice_id: usize) -> State<'ctx> {
+    State::new(&slice)
   }
 
-  pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize, is_parallel: bool) -> MetaData {
+  pub fn get_block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
+    vec![]
+  }
+
+  pub fn execute_slice_with_precomputed_block_trace(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
-    while env.has_work() && self.continue_execution(&metadata) {
-      if cfg!(debug_assertions) {
-        println!("=========== {} ==========", metadata.explored_trace_count);
-      }
-
-      let mut work = env.pop_work();
-      self.execute(&mut work, &mut env);
-      match work.state.target_node {
-        Some(_target_id) => match work.state.finish_state {
-          FinishState::ProperlyReturned => {
-            // if !self.options.no_trace_reduction {
-            //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
-            // }
-            if !env.has_duplicate(&work.state.block_trace) {
-              if work.state.path_satisfactory() {
-                let trace_id = metadata.proper_trace_count;
-                let path = self.trace_file_name(env.slice.target_function_name(), slice_id, trace_id);
-
-                // If printing trace
-                if self.options.print_trace && !is_parallel {
-                  println!("\nSlice {} Trace {} Log", slice_id, trace_id);
-                  work.state.trace.print();
-                }
-
-                // If is parallel, print the indicator
-                if is_parallel {
-                  print_executing_slice(slice_id, trace_id);
-                }
-
-                // Dump the json
-                work.state.dump_json(path).unwrap();
-                metadata.incr_proper();
-              } else {
-                if cfg!(debug_assertions) {
-                  for cons in work.state.constraints {
-                    println!("{:?}", cons);
-                  }
-                  println!("Path unsat");
-                }
-                metadata.incr_path_unsat()
-              }
-            } else {
-              if cfg!(debug_assertions) {
-                println!("Duplicated");
-              }
-              metadata.incr_duplicated()
-            }
-          }
-          FinishState::BranchExplored => {
-            if cfg!(debug_assertions) {
-              println!("Branch explored");
-            }
-            metadata.incr_branch_explored()
-          }
-          FinishState::ExceedingMaxTraceLength => {
-            if cfg!(debug_assertions) {
-              println!("Exceeding Length");
-            }
-            metadata.incr_exceeding_length()
-          }
-          FinishState::Unreachable => {
-            if cfg!(debug_assertions) {
-              println!("Unreachable");
-            }
-            metadata.incr_unreachable()
-          }
-        },
-        None => metadata.incr_no_target(),
-      }
+    let block_traces = self.get_block_traces(&env.slice);
+    for block_trace in block_traces {
+      let block_trace_iter = BlockTraceIterator::new(block_trace);
+      let end_state = self.execute_block_trace(&env.slice, block_trace_iter, slice_id);
+      self.finish_execution(end_state, slice_id, &mut metadata, &mut env);
     }
-
     metadata
   }
 
-  pub fn trace_file_name(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
+  pub fn execute_slice_normal(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
+    let mut metadata = MetaData::new();
+    let mut env = Environment::new(slice);
+    while env.has_work() && self.continue_execution(&metadata) {
+      let mut work = env.pop_work();
+
+      // Start the execution by iterating through instructions
+      let mut curr_instr = self.execute_block(work.block, &mut work.state, &mut env);
+      while curr_instr.is_some() {
+        curr_instr = self.execute_instr_and_add_work(curr_instr, &mut work.state, &mut env);
+      }
+
+      // Finish the instruction and settle down the states
+      self.finish_execution(work.state, slice_id, &mut metadata, &mut env);
+    }
+    metadata
+  }
+
+  pub fn finish_execution(&self, state: State<'ctx>, slice_id: usize, metadata: &mut MetaData, env: &mut Environment<'ctx>) {
+    match state.target_node {
+      Some(_target_id) => match state.finish_state {
+        FinishState::ProperlyReturned => {
+          // if !self.options.no_trace_reduction {
+          //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
+          // }
+          if !env.has_duplicate(&state.block_trace) {
+
+            // Add block trace into environment
+            env.add_block_trace(&state.block_trace);
+
+            if state.path_satisfactory() {
+              let trace_id = metadata.proper_trace_count;
+              let path = self.trace_file_path(env.slice.target_function_name(), slice_id, trace_id);
+
+              // If printing trace
+              if self.options.print_trace && self.ctx.options.use_serial {
+                println!("\nSlice {} Trace {} Log", slice_id, trace_id);
+                state.trace.print();
+              }
+
+              // Dump the json
+              state.dump_json(path).unwrap();
+              metadata.incr_proper();
+            } else {
+              if cfg!(debug_assertions) {
+                for cons in state.constraints {
+                  println!("{:?}", cons);
+                }
+                println!("Path unsat");
+              }
+              metadata.incr_path_unsat()
+            }
+          } else {
+            if cfg!(debug_assertions) {
+              println!("Duplicated");
+            }
+            metadata.incr_duplicated()
+          }
+        }
+        FinishState::BranchExplored => {
+          if cfg!(debug_assertions) {
+            println!("Branch explored");
+          }
+          metadata.incr_branch_explored()
+        }
+        FinishState::ExceedingMaxTraceLength => {
+          if cfg!(debug_assertions) {
+            println!("Exceeding Length");
+          }
+          metadata.incr_exceeding_length()
+        }
+        FinishState::Unreachable => {
+          if cfg!(debug_assertions) {
+            println!("Unreachable");
+          }
+          metadata.incr_unreachable()
+        }
+      },
+      None => metadata.incr_no_target(),
+    }
+  }
+
+  pub fn trace_file_path(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
     Path::new(self.ctx.options.output_path.as_str())
       .join("traces")
       .join(func_name.as_str())
@@ -1124,6 +1175,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
+
+    let execute = if self.options.precompute_block_trace {
+      Self::execute_slice_with_precomputed_block_trace
+    } else {
+      Self::execute_slice_normal
+    };
+
     if self.ctx.options.use_serial {
       slices.into_iter().progress().enumerate().fold(
         MetaData::new(),
@@ -1132,7 +1190,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           self
             .initialize_traces_function_slice_folder(&func_name, slice_id)
             .unwrap();
-          meta.combine(self.execute_slice(slice, slice_id, false))
+          meta.combine(execute(self, slice, slice_id))
         },
       )
     } else {
@@ -1146,25 +1204,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             self
               .initialize_traces_function_slice_folder(&func_name, slice_id)
               .unwrap();
-            meta.combine(self.execute_slice(slice, slice_id, true))
+            meta.combine(execute(self, slice, slice_id))
           },
         )
         .progress()
         .reduce(|| MetaData::new(), MetaData::combine)
     }
   }
-}
-
-fn id_visualizer(id: usize) -> char {
-  match id % 3 {
-    0 => '|',
-    1 => '/',
-    2 => '-',
-    _ => '\\',
-  }
-}
-
-fn print_executing_slice(slice_id: usize, trace_id: usize) {
-  print!("Executing {} {}\r", id_visualizer(slice_id), id_visualizer(trace_id));
-  io::stdout().flush().unwrap();
 }
