@@ -9,7 +9,7 @@ impl<'ctx> FunctionNameUtil for Function<'ctx> {
     let name = self.name();
     match name.find('.') {
       Some(i) => name[..i].to_string(),
-      None => name
+      None => name,
     }
   }
 }

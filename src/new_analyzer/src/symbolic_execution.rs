@@ -1,15 +1,15 @@
 use clap::{App, Arg, ArgMatches};
+use indicatif::{ParallelProgressIterator, ProgressIterator};
 use llir::values::*;
+use rayon::iter::ParallelIterator;
 use rayon::prelude::*;
 use serde_json::json;
-use indicatif::{ParallelProgressIterator, ProgressIterator};
-use rayon::iter::ParallelIterator;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::{io::Write};
 
 use crate::context::AnalyzerContext;
 use crate::options::Options;
@@ -1056,7 +1056,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       && metadata.proper_trace_count < self.options.max_trace_per_slice
   }
 
-  pub fn execute_block_trace(&self, slice: &Slice<'ctx>, block_trace_iter: BlockTraceIterator<'ctx>, slice_id: usize) -> State<'ctx> {
+  pub fn execute_block_trace(
+    &self,
+    slice: &Slice<'ctx>,
+    block_trace_iter: BlockTraceIterator<'ctx>,
+    slice_id: usize,
+  ) -> State<'ctx> {
     State::new(&slice)
   }
 
@@ -1094,7 +1099,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     metadata
   }
 
-  pub fn finish_execution(&self, state: State<'ctx>, slice_id: usize, metadata: &mut MetaData, env: &mut Environment<'ctx>) {
+  pub fn finish_execution(
+    &self,
+    state: State<'ctx>,
+    slice_id: usize,
+    metadata: &mut MetaData,
+    env: &mut Environment<'ctx>,
+  ) {
     match state.target_node {
       Some(_target_id) => match state.finish_state {
         FinishState::ProperlyReturned => {
@@ -1102,7 +1113,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
           // }
           if !env.has_duplicate(&state.block_trace) {
-
             // Add block trace into environment
             env.add_block_trace(&state.block_trace);
 
@@ -1175,7 +1185,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
-
     let execute = if self.options.precompute_block_trace {
       Self::execute_slice_with_precomputed_block_trace
     } else {

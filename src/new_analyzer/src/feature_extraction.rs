@@ -1,25 +1,26 @@
 use crate::options::Options;
-use serde::{Deserialize};
-use std::path::{Path, PathBuf};
+use clap::{App, Arg, ArgMatches};
+use serde::Deserialize;
 use std::fs;
 use std::fs::File;
-use std::{io::Write};
-use clap::{App, Arg, ArgMatches};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use crate::context::AnalyzerContext;
-use crate::semantics::*;
 use crate::feature_extractors::*;
+use crate::semantics::*;
 
+#[derive(Deserialize)]
 pub struct Slice {
   pub slice_id: usize,
   pub loc: String,
+  pub target: String,
+  pub target_type: (),
+  pub entry: String,
+  pub functions: Vec<String>,
 }
 
-impl Slice {
-  pub fn target_name(&self) -> String {
-    "".to_string()
-  }
-}
+impl Slice {}
 
 #[derive(Deserialize)]
 pub struct Instr {
@@ -46,9 +47,7 @@ pub trait FeatureExtractor {
 }
 
 #[derive(Debug)]
-pub struct FeatureExtractionOptions {
-
-}
+pub struct FeatureExtractionOptions {}
 
 impl Options for FeatureExtractionOptions {
   fn setup_parser<'a>(app: App<'a>) -> App<'a> {
@@ -69,22 +68,35 @@ pub struct FeatureExtractionContext<'a, 'ctx> {
 
 impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
-    Ok(Self { ctx, options: FeatureExtractionOptions::from_matches(&ctx.args)? })
+    Ok(Self {
+      ctx,
+      options: FeatureExtractionOptions::from_matches(&ctx.args)?,
+    })
   }
 
   pub fn load_mut<F>(&self, _: F)
   where
-    F : FnMut(Slice, Trace),
+    F: FnMut(Slice, Trace),
   {
-
   }
 
-  pub fn load<F>(&self, _: F) where F : Fn(Slice, Trace) {
-
+  pub fn load<F>(&self, _: F)
+  where
+    F: Fn(Slice, Trace),
+  {
   }
 
   pub fn init(&self) -> Extractors {
-    let mut extractors : Extractors = vec![Box::new(ReturnValueFeatures)];
+    // Construct extractors
+    let mut extractors: Extractors = vec![
+      Box::new(ReturnValueFeatureExtractor::new()),
+      Box::new(ArgumentValueFeatureExtractor::new(0)),
+      Box::new(ArgumentValueFeatureExtractor::new(1)),
+      Box::new(ArgumentValueFeatureExtractor::new(2)),
+      Box::new(ArgumentValueFeatureExtractor::new(3)),
+    ];
+
+    // Initialize all extractors
     self.load_mut(|slice, trace| {
       for extractor in &mut extractors {
         if extractor.filter(&slice) {
@@ -92,6 +104,8 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
         }
       }
     });
+
+    // Return the extractor
     extractors
   }
 
@@ -112,7 +126,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   pub fn feature_file_path(&self, slice: Slice, trace: Trace) -> PathBuf {
     Path::new(self.ctx.options.output_path.as_str())
       .join("features")
-      .join(slice.target_name().as_str())
+      .join(slice.target.as_str())
       .join(slice.slice_id.to_string())
       .join(format!("{}.json", trace.trace_id))
   }

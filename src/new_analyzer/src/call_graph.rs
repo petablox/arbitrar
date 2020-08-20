@@ -4,8 +4,8 @@ use petgraph::graph::{DiGraph, EdgeIndex, Graph, NodeIndex};
 use std::collections::HashMap;
 
 use crate::context::*;
-use crate::utils::*;
 use crate::options::Options;
+use crate::utils::*;
 
 pub struct CallEdge<'ctx> {
   pub caller: Function<'ctx>,
@@ -116,8 +116,9 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
                   }
                   None => {}
                 }
-              } else {}
-            },
+              } else {
+              }
+            }
             _ => {}
           }
         }

@@ -11,8 +11,8 @@ use std::slice::Chunks;
 
 use crate::call_graph::*;
 use crate::context::AnalyzerContext;
-use crate::utils::*;
 use crate::options::Options;
+use crate::utils::*;
 
 pub struct SlicerOptions {
   pub depth: u8,

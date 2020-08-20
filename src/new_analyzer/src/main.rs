@@ -2,20 +2,20 @@ use clap::{App, ArgMatches};
 
 mod call_graph;
 mod context;
+mod feature_extraction;
+mod feature_extractors;
 mod options;
 mod semantics;
 mod slicer;
 mod symbolic_execution;
-mod feature_extraction;
-mod feature_extractors;
 mod utils;
 
 use call_graph::*;
 use context::*;
+use feature_extraction::*;
 use options::*;
 use slicer::*;
 use symbolic_execution::*;
-use feature_extraction::*;
 
 fn args() -> ArgMatches {
   let app = App::new("analyzer");
@@ -51,7 +51,6 @@ fn main() -> Result<(), String> {
   if num_edges == 0 {
     Err("No relevant call edge found".to_string())
   } else {
-
     // Execute in batches
     let num_batches = slicer_ctx.num_batches(&edges);
     if num_batches > 1 {
@@ -60,7 +59,6 @@ fn main() -> Result<(), String> {
       logging_ctx.log(format!("Found {} edges, running slicer...", num_edges).as_str())?;
     }
     for (batch_id, edges_batch) in slicer_ctx.batches(&edges).enumerate() {
-
       // Slicing
       if num_batches > 1 {
         logging_ctx.log(format!("Running slicer on batch #{}...", batch_id).as_str())?;
