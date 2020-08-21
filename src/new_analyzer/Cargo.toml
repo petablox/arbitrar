@@ -5,7 +5,7 @@ authors = ["Ziyang Li <liby99@seas.upenn.edu>"]
 edition = "2018"
 
 [dependencies]
-llir = "0.1"
+llir = { git = "https://github.com/liby99/llir" }
 petgraph = "0.5"
 clap = "3.0.0-beta.1"
 lazy_static = "1.4"

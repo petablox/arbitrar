@@ -7,7 +7,13 @@ use analyzer::block_tracer::*;
 use analyzer::call_graph::*;
 use analyzer::slicer::*;
 
-fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &str) -> Result<(), String> {
+fn process_slice<F>(
+  path: &Path,
+  entry: &str,
+  caller: &str,
+  target: &str,
+  f: F,
+) -> Result<(), String> where F : Fn(BlockTracer, Slice) {
   let ctx = Context::create();
   let module = ctx.load_module(path)?;
 
@@ -46,21 +52,29 @@ fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &st
     entry: entry_func,
     caller: caller_func,
     callee: target_func,
-    instr: call_instr.as_instruction(),
+    instr: call_instr,
     functions: vec![caller_func, caller_func, target_func].iter().cloned().collect(),
   };
 
-  // Get the function traces
-  let function_traces = bt.function_traces(&slice);
-  println!(
-    "{:?}",
-    function_traces
-      .into_iter()
-      .map(|fs| fs.into_iter().map(|f| f.name()).collect::<Vec<_>>())
-      .collect::<Vec<_>>()
-  );
+  f(bt, slice);
 
   Ok(())
+}
+
+fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &str) -> Result<(), String> {
+  process_slice(path, entry, caller, target, |bt, slice| {
+    // Get the function traces
+    let block_traces = bt.function_traces(&slice);
+    println!("{:?}", block_traces);
+  })
+}
+
+fn test_block_trace(path: &Path, entry: &str, caller: &str, target: &str) -> Result<(), String> {
+  process_slice(path, entry, caller, target, |bt, slice| {
+    // Get the function traces
+    let block_traces = bt.block_traces(&slice);
+    println!("{:?}", block_traces);
+  })
 }
 
 #[test]
@@ -90,5 +104,17 @@ fn slice_function_trace_example_5() -> Result<(), String> {
 #[test]
 fn slice_function_trace_example_7() -> Result<(), String> {
   let path = Path::new("tests/c_files/basic/example_7.bc");
+  test_slice_function_trace(path, "main", "f", "malloc")
+}
+
+#[test]
+fn slice_block_trace_example_3() -> Result<(), String> {
+  let path = Path::new("tests/c_files/basic/example_3.bc");
+  test_block_trace(path, "main", "f", "malloc")
+}
+
+#[test]
+fn slice_block_trace_example_temp() -> Result<(), String> {
+  let path = Path::new("tests/c_files/trace/block_trace_2.bc");
   test_slice_function_trace(path, "main", "f", "malloc")
 }
