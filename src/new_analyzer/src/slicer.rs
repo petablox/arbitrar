@@ -1,5 +1,6 @@
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
+use std::collections::HashMap;
 use petgraph::{
   graph::{EdgeIndex, NodeIndex},
   Direction,
@@ -8,6 +9,10 @@ use rayon::prelude::*;
 use regex::Regex;
 use std::collections::HashSet;
 use std::slice::Chunks;
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use crate::call_graph::*;
 use crate::context::AnalyzerContext;
@@ -108,6 +113,10 @@ impl<'ctx> Slice<'ctx> {
     println!("}}");
   }
 
+  pub fn dump_json(&self, path: PathBuf) -> Result<(), String> {
+    Ok(())
+  }
+
   pub fn target_function_name(&self) -> String {
     self.callee.simp_name()
   }
@@ -148,6 +157,51 @@ impl TargetFilter {
   }
 }
 
+/// Map from function name to Edges (`Vec<Edge>`)
+pub type TargetEdgesMap = HashMap<String, Vec<EdgeIndex>>;
+
+/// Map from function name to (slice_id_offset, Vec<Edge>)
+///
+/// We need slice_id_offset because we need a global offset of slice_id, so that
+/// all the slices inside `Vec<Edge>` will get a slice_id of `slice_id_offset + i`
+pub type BatchedTargetEdgesMap = HashMap<String, (usize, Vec<EdgeIndex>)>;
+
+pub trait Batching {
+  type Iter : Iterator;
+
+  fn batches(self) -> Self::Iter;
+}
+
+pub struct TargetEdgesMapBatchIterator {
+  // pub base: TargetEdgesMap,
+  // pub total: usize,
+
+}
+
+pub struct TargetEdgesMapBatch {
+  pub is_only_batch: bool,
+  pub batch_index: usize,
+  pub content: BatchedTargetEdgesMap,
+}
+
+impl Iterator for TargetEdgesMapBatchIterator {
+  type Item = TargetEdgesMapBatch;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    // TODO
+    None
+  }
+}
+
+impl Batching for TargetEdgesMap {
+  type Iter = TargetEdgesMapBatchIterator;
+
+  fn batches(self) -> Self::Iter {
+    // TODO
+    Self::Iter {}
+  }
+}
+
 pub struct SlicerContext<'a, 'ctx> {
   pub ctx: &'a AnalyzerContext<'ctx>,
   pub call_graph: &'a CallGraph<'ctx>,
@@ -164,7 +218,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     })
   }
 
-  pub fn relavant_edges(&self) -> Result<Vec<EdgeIndex>, String> {
+  pub fn relavant_edges(&self) -> Result<TargetEdgesMap, String> {
     let inclusion_filter = TargetFilter::new(
       self.options.target_inclusion_filter.clone(),
       self.options.use_regex_filter,
@@ -175,7 +229,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       self.options.use_regex_filter,
       false,
     )?;
-    let mut edges = vec![];
+    let mut target_edges_map = TargetEdgesMap::new();
     for callee_id in self.call_graph.node_indices() {
       let func = self.call_graph[callee_id];
       let func_name = func.simp_name();
@@ -187,11 +241,12 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       };
       if include {
         for caller_id in self.call_graph.neighbors_directed(callee_id, Direction::Incoming) {
-          edges.push(self.call_graph.find_edge(caller_id, callee_id).unwrap());
+          let edge = self.call_graph.find_edge(caller_id, callee_id).unwrap();
+          target_edges_map.entry(func_name.clone()).or_insert(Vec::new()).push(edge);
         }
       }
     }
-    Ok(edges)
+    Ok(target_edges_map)
   }
 
   pub fn num_batches<'b>(&self, edges: &'b Vec<EdgeIndex>) -> u32 {
@@ -257,7 +312,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       .collect()
   }
 
-  pub fn _directly_related(&self, _c1: CallInstruction<'ctx>, _c2: CallInstruction<'ctx>) -> bool {
+  pub fn directly_related(&self, _c1: CallInstruction<'ctx>, _c2: CallInstruction<'ctx>) -> bool {
     // TODO
     // let share_prefix = {
     //   let (c1_name, c2_name) = (f1.function_name(), f2.function_name());
@@ -353,4 +408,8 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       edges.par_iter().map(f).flatten().collect()
     }
   }
+
+  // pub fn dump_slices(&self, slices: &Vec<Slice<'ctx>>) -> Result<(), String> {
+  //   slices.par_iter().enumerate().for_each(|slice_id, )
+  // }
 }

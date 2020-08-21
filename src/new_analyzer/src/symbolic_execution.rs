@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::context::AnalyzerContext;
+use crate::block_tracer::*;
 use crate::options::Options;
 use crate::semantics::*;
 use crate::slicer::Slice;
@@ -205,55 +206,6 @@ pub struct TraceNode<'ctx> {
   pub instr: Instruction<'ctx>,
   pub semantics: Semantics,
   pub result: Option<Rc<Value>>,
-}
-
-pub type BlockTrace<'ctx> = Vec<Block<'ctx>>;
-
-pub trait BlockTraceTrait<'ctx> {
-  fn equals(&self, other: &Self) -> bool;
-}
-
-impl<'ctx> BlockTraceTrait<'ctx> for BlockTrace<'ctx> {
-  fn equals(&self, other: &Self) -> bool {
-    if self.len() == other.len() {
-      for i in 0..self.len() {
-        if self[i] != other[i] {
-          return false;
-        }
-      }
-      true
-    } else {
-      false
-    }
-  }
-}
-
-pub struct BlockTraceIterator<'ctx> {
-  pub trace: BlockTrace<'ctx>,
-  pub curr_pointer: usize,
-}
-
-impl<'ctx> BlockTraceIterator<'ctx> {
-  pub fn new(trace: BlockTrace<'ctx>) -> Self {
-    Self { trace, curr_pointer: 0 }
-  }
-
-  // pub fn peek_curr(&self) -> &Block<'ctx> {
-  //   &self.trace[self.curr_pointer]
-  // }
-
-  // pub fn peek_next(&self) -> Option<&Block<'ctx>> {
-  //   self.trace.get(self.curr_pointer + 1)
-  // }
-
-  // pub fn next(&mut self) -> Option<&Block<'ctx>> {
-  //   self.curr_pointer += 1;
-  //   self.trace.get(self.curr_pointer)
-  // }
-
-  // pub fn has_next(&self) -> bool {
-  //   self.curr_pointer < self.trace.len()
-  // }
 }
 
 pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
@@ -1056,28 +1008,28 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       && metadata.proper_trace_count < self.options.max_trace_per_slice
   }
 
-  pub fn execute_block_trace(
-    &self,
-    slice: &Slice<'ctx>,
-    block_trace_iter: BlockTraceIterator<'ctx>,
-    slice_id: usize,
-  ) -> State<'ctx> {
-    State::new(&slice)
-  }
+  // pub fn execute_block_trace(
+  //   &self,
+  //   slice: &Slice<'ctx>,
+  //   block_trace_iter: BlockTraceIterator<'ctx>,
+  //   slice_id: usize,
+  // ) -> State<'ctx> {
+  //   State::new(&slice)
+  // }
 
-  pub fn get_block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
-    vec![]
-  }
+  // pub fn get_block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
+  //   vec![]
+  // }
 
   pub fn execute_slice_with_precomputed_block_trace(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
-    let mut env = Environment::new(slice);
-    let block_traces = self.get_block_traces(&env.slice);
-    for block_trace in block_traces {
-      let block_trace_iter = BlockTraceIterator::new(block_trace);
-      let end_state = self.execute_block_trace(&env.slice, block_trace_iter, slice_id);
-      self.finish_execution(end_state, slice_id, &mut metadata, &mut env);
-    }
+    // let mut env = Environment::new(slice);
+    // let block_traces = self.get_block_traces(&env.slice);
+    // for block_trace in block_traces {
+    //   let block_trace_iter = BlockTraceIterator::new(block_trace);
+    //   let end_state = self.execute_block_trace(&env.slice, block_trace_iter, slice_id);
+    //   self.finish_execution(end_state, slice_id, &mut metadata, &mut env);
+    // }
     metadata
   }
 
