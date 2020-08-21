@@ -38,9 +38,7 @@ fn main() -> Result<(), String> {
   let target_edges_map = slicer_ctx.relavant_edges()?;
 
   // Divide target edges into batches
-  for batch in target_edges_map.batches() {
-
-  }
+  for batch in target_edges_map.batches() {}
 
   Ok(())
 
@@ -49,31 +47,31 @@ fn main() -> Result<(), String> {
   // if num_edges == 0 {
   //   Err("No relevant call edge found".to_string())
   // } else {
-    // Execute in batches
-    // let num_batches = slicer_ctx.num_batches(&edges);
-    // if num_batches > 1 {
-    //   logging_ctx.log(format!("Found {} edges, dividing into {} batches...", num_edges, num_batches).as_str())?;
-    // } else {
-    //   logging_ctx.log(format!("Found {} edges, running slicer...", num_edges).as_str())?;
-    // }
-    // for (batch_id, edges_batch) in slicer_ctx.batches(&edges).enumerate() {
-    //   // Slicing
-    //   if num_batches > 1 {
-    //     logging_ctx.log(format!("Running slicer on batch #{}...", batch_id).as_str())?;
-    //   }
-    //   let slices = slicer_ctx.slices_of_call_edges(edges_batch);
-    //   logging_ctx.log(format!("Slicer created {} slices. Running symbolic execution...", slices.len()).as_str())?;
+  // Execute in batches
+  // let num_batches = slicer_ctx.num_batches(&edges);
+  // if num_batches > 1 {
+  //   logging_ctx.log(format!("Found {} edges, dividing into {} batches...", num_edges, num_batches).as_str())?;
+  // } else {
+  //   logging_ctx.log(format!("Found {} edges, running slicer...", num_edges).as_str())?;
+  // }
+  // for (batch_id, edges_batch) in slicer_ctx.batches(&edges).enumerate() {
+  //   // Slicing
+  //   if num_batches > 1 {
+  //     logging_ctx.log(format!("Running slicer on batch #{}...", batch_id).as_str())?;
+  //   }
+  //   let slices = slicer_ctx.slices_of_call_edges(edges_batch);
+  //   logging_ctx.log(format!("Slicer created {} slices. Running symbolic execution...", slices.len()).as_str())?;
 
-    //   // Symbolic execution
-    //   let sym_exec_ctx = SymbolicExecutionContext::new(&analyzer_ctx)?;
-    //   let metadata = sym_exec_ctx.execute_slices(slices);
-    //   logging_ctx.log(format!("Execution Stats: {:?}", metadata).as_str())?;
+  //   // Symbolic execution
+  //   let sym_exec_ctx = SymbolicExecutionContext::new(&analyzer_ctx)?;
+  //   let metadata = sym_exec_ctx.execute_slices(slices);
+  //   logging_ctx.log(format!("Execution Stats: {:?}", metadata).as_str())?;
 
-    //   // Feature Extraction
-    //   let feat_extr_ctx = FeatureExtractionContext::new(&analyzer_ctx)?;
-    //   let extrs = feat_extr_ctx.init();
-    //   feat_extr_ctx.extract(extrs);
-    // }
-    // Ok(())
+  //   // Feature Extraction
+  //   let feat_extr_ctx = FeatureExtractionContext::new(&analyzer_ctx)?;
+  //   let extrs = feat_extr_ctx.init();
+  //   feat_extr_ctx.extract(extrs);
+  // }
+  // Ok(())
   // }
 }

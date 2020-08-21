@@ -1,11 +1,11 @@
 extern crate analyzer;
 
-use std::path::{Path};
-use llir::{*, values::*};
+use llir::{values::*, *};
+use std::path::Path;
 
+use analyzer::block_tracer::*;
 use analyzer::call_graph::*;
 use analyzer::slicer::*;
-use analyzer::block_tracer::*;
 
 fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &str) -> Result<(), String> {
   let ctx = Context::create();
@@ -14,7 +14,10 @@ fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &st
   // Build call graph
   let call_graph = call_graph_from_module(&module, false);
   call_graph.graph.dump();
-  let bt = BlockTracer { call_graph: &call_graph, slicer_options: &SlicerOptions::default() };
+  let bt = BlockTracer {
+    call_graph: &call_graph,
+    slicer_options: &SlicerOptions::default(),
+  };
 
   // Build the slice
   let entry_func = module.get_function(entry).unwrap();
@@ -24,14 +27,16 @@ fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &st
     let mut call_instr = None;
     for instr in caller_func.iter_instructions() {
       match instr {
-        Instruction::Call(call) => if !call.is_intrinsic_call() {
-          match call.callee_function() {
-            Some(f) if f == target_func => {
-              call_instr = Some(call);
+        Instruction::Call(call) => {
+          if !call.is_intrinsic_call() {
+            match call.callee_function() {
+              Some(f) if f == target_func => {
+                call_instr = Some(call);
+              }
+              _ => {}
             }
-            _ => {}
           }
-        },
+        }
         _ => {}
       }
     }
@@ -47,7 +52,13 @@ fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &st
 
   // Get the function traces
   let function_traces = bt.function_traces(&slice);
-  println!("{:?}", function_traces.into_iter().map(|fs| fs.into_iter().map(|f| f.name()).collect::<Vec<_>>()).collect::<Vec<_>>());
+  println!(
+    "{:?}",
+    function_traces
+      .into_iter()
+      .map(|fs| fs.into_iter().map(|f| f.name()).collect::<Vec<_>>())
+      .collect::<Vec<_>>()
+  );
 
   Ok(())
 }

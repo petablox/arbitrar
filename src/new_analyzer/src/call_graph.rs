@@ -1,5 +1,5 @@
 use clap::{App, Arg, ArgMatches};
-use llir::{*, values::*};
+use llir::{values::*, *};
 use petgraph::graph::{DiGraph, EdgeIndex, Graph, NodeIndex};
 use std::collections::HashMap;
 
@@ -10,7 +10,7 @@ use crate::utils::*;
 pub struct CallEdge<'ctx> {
   pub caller: Function<'ctx>,
   pub callee: Function<'ctx>,
-  pub instr: Instruction<'ctx>,
+  pub instr: CallInstruction<'ctx>,
 }
 
 impl<'ctx> CallEdge<'ctx> {
@@ -20,7 +20,7 @@ impl<'ctx> CallEdge<'ctx> {
 }
 
 /// CallGraph is defined by function vertices + instruction edges connecting caller & callee
-pub type CallGraphRaw<'ctx> = DiGraph<Function<'ctx>, Instruction<'ctx>>;
+pub type CallGraphRaw<'ctx> = DiGraph<Function<'ctx>, CallInstruction<'ctx>>;
 
 pub trait CallGraphTrait<'ctx> {
   type Edge;
@@ -103,11 +103,7 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
   }
 }
 
-pub fn call_graph_from_module<'ctx>(
-  module: &Module<'ctx>,
-  no_remove_llvm_funcs: bool
-) -> CallGraph<'ctx>
-{
+pub fn call_graph_from_module<'ctx>(module: &Module<'ctx>, no_remove_llvm_funcs: bool) -> CallGraph<'ctx> {
   let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
   // Generate Call Graph by iterating through all blocks & instructions for each function
@@ -128,7 +124,7 @@ pub fn call_graph_from_module<'ctx>(
                     .entry(callee)
                     .or_insert_with(|| cg.add_node(callee))
                     .clone();
-                  cg.add_edge(caller_id, callee_id, i);
+                  cg.add_edge(caller_id, callee_id, call_instr);
                 }
                 None => {}
               }
@@ -142,5 +138,8 @@ pub fn call_graph_from_module<'ctx>(
   }
 
   // Return the call graph
-  CallGraph { graph: cg, function_id_map: value_id_map }
+  CallGraph {
+    graph: cg,
+    function_id_map: value_id_map,
+  }
 }

@@ -1,10 +1,12 @@
 use llir::values::*;
 
-use crate::context::*;
 use crate::call_graph::CallGraph;
 use crate::slicer::{Slice, SlicerOptions};
 
-pub type FunctionTrace<'ctx> = Vec<Function<'ctx>>;
+pub struct FunctionTrace<'ctx> {
+  begin: Function<'ctx>,
+  functions: Vec<(CallInstruction<'ctx>, Function<'ctx>)>,
+}
 
 pub type BlockTrace<'ctx> = Vec<Block<'ctx>>;
 
@@ -65,29 +67,43 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
     &self,
     f1: Function<'ctx>,
     f2: Function<'ctx>,
-    instr: CallInstruction<'ctx>
+    instr: CallInstruction<'ctx>,
   ) -> Vec<BlockTrace<'ctx>> {
     // TODO
     vec![]
   }
 
-  pub fn block_traces_of_function_trace(&self, slice: &Slice<'ctx>, func_trace: FunctionTrace<'ctx>) -> Vec<BlockTrace<'ctx>> {
+  pub fn block_traces_of_function_trace(
+    &self,
+    slice: &Slice<'ctx>,
+    func_trace: FunctionTrace<'ctx>,
+  ) -> Vec<BlockTrace<'ctx>> {
     // TODO
     vec![]
   }
 
   pub fn function_traces(&self, slice: &Slice<'ctx>) -> Vec<FunctionTrace<'ctx>> {
-    if slice.entry == slice.caller { vec![vec![slice.entry, slice.callee]] }
-    else {
+    if slice.entry == slice.caller {
+      vec![vec![slice.entry, slice.callee]]
+    } else {
       petgraph::algo::all_simple_paths(
         &self.call_graph.graph,
         self.call_graph.function_id_map[&slice.entry],
         self.call_graph.function_id_map[&slice.callee],
         0,
-        Some(self.slicer_options.depth as usize * 2)
-      ).map(|path: Vec<_>| {
-        path.into_iter().map(|i| self.call_graph.graph[i].clone()).collect()
-      }).collect()
+        Some(self.slicer_options.depth as usize * 2),
+      )
+      .map(|path: Vec<_>| {
+        let begin = self.call_graph.graph[path[0]];
+        let mut functions = vec![];
+        for i in 0..path.len() - 1 {
+          let edge_id = self.call_graph.graph.find_edge(path[i], path[i + 1]).unwrap();
+          let call_instr = self.call_graph.graph[edge_id];
+          functions.push((call_instr, self.call_graph.graph[path[i + 1]]));
+        }
+        FunctionTrace { begin, functions }
+      })
+      .collect()
     }
   }
 

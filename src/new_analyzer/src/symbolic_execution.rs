@@ -11,8 +11,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::context::AnalyzerContext;
 use crate::block_tracer::*;
+use crate::context::AnalyzerContext;
 use crate::options::Options;
 use crate::semantics::*;
 use crate::slicer::Slice;
@@ -792,7 +792,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       state.trace.push(node);
 
       // Update the target_node in state if the target is now visited
-      if instr.as_instruction() == env.slice.instr && state.target_node.is_none() {
+      if instr == env.slice.instr && state.target_node.is_none() {
         state.target_node = Some(node_id);
       }
 

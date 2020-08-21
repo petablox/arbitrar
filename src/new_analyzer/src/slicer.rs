@@ -1,18 +1,18 @@
 use clap::{App, Arg, ArgMatches};
 use llir::values::*;
-use std::collections::HashMap;
 use petgraph::{
   graph::{EdgeIndex, NodeIndex},
   Direction,
 };
 use rayon::prelude::*;
 use regex::Regex;
+use std::collections::HashMap;
 use std::collections::HashSet;
-use std::slice::Chunks;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::slice::Chunks;
 
 use crate::call_graph::*;
 use crate::context::AnalyzerContext;
@@ -108,7 +108,7 @@ pub struct Slice<'ctx> {
   pub entry: Function<'ctx>,
   pub caller: Function<'ctx>,
   pub callee: Function<'ctx>,
-  pub instr: Instruction<'ctx>,
+  pub instr: CallInstruction<'ctx>,
   pub functions: HashSet<Function<'ctx>>,
 }
 
@@ -183,15 +183,14 @@ pub type TargetEdgesMap = HashMap<String, Vec<EdgeIndex>>;
 pub type BatchedTargetEdgesMap = HashMap<String, (usize, Vec<EdgeIndex>)>;
 
 pub trait Batching {
-  type Iter : Iterator;
+  type Iter: Iterator;
 
   fn batches(self) -> Self::Iter;
 }
 
 pub struct TargetEdgesMapBatchIterator {
   // pub base: TargetEdgesMap,
-  // pub total: usize,
-
+// pub total: usize,
 }
 
 pub struct TargetEdgesMapBatch {
@@ -258,7 +257,10 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       if include {
         for caller_id in self.call_graph.graph.neighbors_directed(callee_id, Direction::Incoming) {
           let edge = self.call_graph.graph.find_edge(caller_id, callee_id).unwrap();
-          target_edges_map.entry(func_name.clone()).or_insert(Vec::new()).push(edge);
+          target_edges_map
+            .entry(func_name.clone())
+            .or_insert(Vec::new())
+            .push(edge);
         }
       }
     }
@@ -363,7 +365,11 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     let instr = self.call_graph.graph[edge_id];
     let (caller, callee_id, callee) = {
       let (caller_id, callee_id) = self.call_graph.graph.edge_endpoints(edge_id).unwrap();
-      (self.call_graph.graph[caller_id], callee_id, self.call_graph.graph[callee_id])
+      (
+        self.call_graph.graph[caller_id],
+        callee_id,
+        self.call_graph.graph[callee_id],
+      )
     };
 
     // Get included functions
@@ -398,7 +404,10 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     };
 
     // Generate slice
-    let functions = function_ids.iter().map(|func_id| self.call_graph.graph[*func_id]).collect();
+    let functions = function_ids
+      .iter()
+      .map(|func_id| self.call_graph.graph[*func_id])
+      .collect();
     Slice {
       caller,
       callee,
