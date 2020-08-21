@@ -1,7 +1,8 @@
 use llir::values::*;
 
+use crate::context::*;
 use crate::call_graph::CallGraph;
-use crate::slicer::Slice;
+use crate::slicer::{Slice, SlicerOptions};
 
 pub type FunctionTrace<'ctx> = Vec<Function<'ctx>>;
 
@@ -55,7 +56,8 @@ impl<'ctx> BlockTraceIterator<'ctx> {
 }
 
 pub struct BlockTracer<'a, 'ctx> {
-  pub call_graph: &'a CallGraph<'ctx>
+  pub slicer_options: &'a SlicerOptions,
+  pub call_graph: &'a CallGraph<'ctx>,
 }
 
 impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
@@ -75,8 +77,18 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
   }
 
   pub fn function_traces(&self, slice: &Slice<'ctx>) -> Vec<FunctionTrace<'ctx>> {
-    // TODO
-    vec![]
+    if slice.entry == slice.caller { vec![vec![slice.entry, slice.callee]] }
+    else {
+      petgraph::algo::all_simple_paths(
+        &self.call_graph.graph,
+        self.call_graph.function_id_map[&slice.entry],
+        self.call_graph.function_id_map[&slice.callee],
+        0,
+        Some(self.slicer_options.depth as usize * 2)
+      ).map(|path: Vec<_>| {
+        path.into_iter().map(|i| self.call_graph.graph[i].clone()).collect()
+      }).collect()
+    }
   }
 
   pub fn block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {

@@ -19,6 +19,7 @@ use crate::context::AnalyzerContext;
 use crate::options::Options;
 use crate::utils::*;
 
+#[derive(Clone)]
 pub struct SlicerOptions {
   pub depth: u8,
   pub target_inclusion_filter: Option<String>,
@@ -28,6 +29,21 @@ pub struct SlicerOptions {
   pub use_batch: bool,
   pub batch_size: u32,
   pub use_regex_filter: bool,
+}
+
+impl Default for SlicerOptions {
+  fn default() -> Self {
+    Self {
+      depth: 1,
+      target_inclusion_filter: None,
+      target_exclusion_filter: None,
+      entry_filter: None,
+      reduce_slice: true,
+      use_batch: false,
+      batch_size: 0,
+      use_regex_filter: false,
+    }
+  }
 }
 
 impl Options for SlicerOptions {
@@ -230,8 +246,8 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       false,
     )?;
     let mut target_edges_map = TargetEdgesMap::new();
-    for callee_id in self.call_graph.node_indices() {
-      let func = self.call_graph[callee_id];
+    for callee_id in self.call_graph.graph.node_indices() {
+      let func = self.call_graph.graph[callee_id];
       let func_name = func.simp_name();
       let include_from_inclusion = inclusion_filter.matches(func_name.as_str());
       let include = if !include_from_inclusion {
@@ -240,8 +256,8 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
         !exclusion_filter.matches(func_name.as_str())
       };
       if include {
-        for caller_id in self.call_graph.neighbors_directed(callee_id, Direction::Incoming) {
-          let edge = self.call_graph.find_edge(caller_id, callee_id).unwrap();
+        for caller_id in self.call_graph.graph.neighbors_directed(callee_id, Direction::Incoming) {
+          let edge = self.call_graph.graph.find_edge(caller_id, callee_id).unwrap();
           target_edges_map.entry(func_name.clone()).or_insert(Vec::new()).push(edge);
         }
       }
@@ -275,7 +291,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       None => None,
     };
     let mut result = HashSet::new();
-    match self.call_graph.edge_endpoints(edge_id) {
+    match self.call_graph.graph.edge_endpoints(edge_id) {
       Some((func_id, _)) => {
         let mut fringe = Vec::new();
         fringe.push((func_id, self.options.depth));
@@ -285,7 +301,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
             result.insert(func_id);
           } else {
             let mut contains_parent = false;
-            for caller_id in self.call_graph.neighbors_directed(func_id, Direction::Incoming) {
+            for caller_id in self.call_graph.graph.neighbors_directed(func_id, Direction::Incoming) {
               contains_parent = true;
               fringe.push((caller_id, depth - 1));
             }
@@ -301,7 +317,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       .into_iter()
       .filter(|func_id| match &entry_location_filter {
         Some(regex) => {
-          let func = self.call_graph.node_weight(*func_id).unwrap();
+          let func = self.call_graph.graph.node_weight(*func_id).unwrap();
           match func.filename() {
             Some(name) => regex.is_match(name.as_str()),
             _ => true,
@@ -343,11 +359,11 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
 
   pub fn slice_of_entry(&self, entry_id: NodeIndex, edge_id: EdgeIndex) -> Slice<'ctx> {
     // Get basic informations
-    let entry = self.call_graph[entry_id];
-    let instr = self.call_graph[edge_id];
+    let entry = self.call_graph.graph[entry_id];
+    let instr = self.call_graph.graph[edge_id];
     let (caller, callee_id, callee) = {
-      let (caller_id, callee_id) = self.call_graph.edge_endpoints(edge_id).unwrap();
-      (self.call_graph[caller_id], callee_id, self.call_graph[callee_id])
+      let (caller_id, callee_id) = self.call_graph.graph.edge_endpoints(edge_id).unwrap();
+      (self.call_graph.graph[caller_id], callee_id, self.call_graph.graph[callee_id])
     };
 
     // Get included functions
@@ -365,7 +381,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
 
         // Iterate through callees
         if depth > 0 {
-          for callee_id in self.call_graph.neighbors_directed(func_id, Direction::Outgoing) {
+          for callee_id in self.call_graph.graph.neighbors_directed(func_id, Direction::Outgoing) {
             if !visited.contains(&callee_id) {
               fringe.push((callee_id, depth - 1));
             }
@@ -382,7 +398,7 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
     };
 
     // Generate slice
-    let functions = function_ids.iter().map(|func_id| self.call_graph[*func_id]).collect();
+    let functions = function_ids.iter().map(|func_id| self.call_graph.graph[*func_id]).collect();
     Slice {
       caller,
       callee,

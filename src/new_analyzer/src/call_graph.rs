@@ -20,7 +20,7 @@ impl<'ctx> CallEdge<'ctx> {
 }
 
 /// CallGraph is defined by function vertices + instruction edges connecting caller & callee
-pub type CallGraph<'ctx> = DiGraph<Function<'ctx>, Instruction<'ctx>>;
+pub type CallGraphRaw<'ctx> = DiGraph<Function<'ctx>, Instruction<'ctx>>;
 
 pub trait CallGraphTrait<'ctx> {
   type Edge;
@@ -32,7 +32,7 @@ pub trait CallGraphTrait<'ctx> {
   fn dump(&self);
 }
 
-impl<'ctx> CallGraphTrait<'ctx> for CallGraph<'ctx> {
+impl<'ctx> CallGraphTrait<'ctx> for CallGraphRaw<'ctx> {
   type Edge = EdgeIndex;
 
   fn remove_llvm_funcs(&mut self) {
@@ -60,6 +60,13 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraph<'ctx> {
       }
     }
   }
+}
+
+pub type FunctionIdMap<'ctx> = HashMap<Function<'ctx>, NodeIndex>;
+
+pub struct CallGraph<'ctx> {
+  pub graph: CallGraphRaw<'ctx>,
+  pub function_id_map: FunctionIdMap<'ctx>,
 }
 
 pub struct CallGraphOptions {
@@ -96,40 +103,44 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
   }
 }
 
-pub fn call_graph_from_module<'ctx>(module: &Module<'ctx>, no_remove_llvm_funcs: bool) -> CallGraph<'ctx> {
+pub fn call_graph_from_module<'ctx>(
+  module: &Module<'ctx>,
+  no_remove_llvm_funcs: bool
+) -> CallGraph<'ctx>
+{
   let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
-    // Generate Call Graph by iterating through all blocks & instructions for each function
-    let mut cg = Graph::new();
-    for caller in module.iter_functions() {
-      let caller_id = value_id_map
-        .entry(caller)
-        .or_insert_with(|| cg.add_node(caller))
-        .clone();
-      for b in caller.iter_blocks() {
-        for i in b.iter_instructions() {
-          match i {
-            Instruction::Call(call_instr) => {
-              if no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
-                match call_instr.callee_function() {
-                  Some(callee) => {
-                    let callee_id = value_id_map
-                      .entry(callee)
-                      .or_insert_with(|| cg.add_node(callee))
-                      .clone();
-                    cg.add_edge(caller_id, callee_id, i);
-                  }
-                  None => {}
+  // Generate Call Graph by iterating through all blocks & instructions for each function
+  let mut cg = Graph::new();
+  for caller in module.iter_functions() {
+    let caller_id = value_id_map
+      .entry(caller)
+      .or_insert_with(|| cg.add_node(caller))
+      .clone();
+    for b in caller.iter_blocks() {
+      for i in b.iter_instructions() {
+        match i {
+          Instruction::Call(call_instr) => {
+            if no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
+              match call_instr.callee_function() {
+                Some(callee) => {
+                  let callee_id = value_id_map
+                    .entry(callee)
+                    .or_insert_with(|| cg.add_node(callee))
+                    .clone();
+                  cg.add_edge(caller_id, callee_id, i);
                 }
-              } else {
+                None => {}
               }
+            } else {
             }
-            _ => {}
           }
+          _ => {}
         }
       }
     }
+  }
 
-    // Return the call graph
-    cg
+  // Return the call graph
+  CallGraph { graph: cg, function_id_map: value_id_map }
 }
