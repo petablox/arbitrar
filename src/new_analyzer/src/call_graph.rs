@@ -1,5 +1,5 @@
 use clap::{App, Arg, ArgMatches};
-use llir::values::*;
+use llir::{*, values::*};
 use petgraph::graph::{DiGraph, EdgeIndex, Graph, NodeIndex};
 use std::collections::HashMap;
 
@@ -92,11 +92,16 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
   }
 
   pub fn call_graph(&self) -> CallGraph<'ctx> {
-    let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
+    call_graph_from_module(&self.ctx.llmod, self.options.no_remove_llvm_funcs)
+  }
+}
+
+pub fn call_graph_from_module<'ctx>(module: &Module<'ctx>, no_remove_llvm_funcs: bool) -> CallGraph<'ctx> {
+  let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
     // Generate Call Graph by iterating through all blocks & instructions for each function
     let mut cg = Graph::new();
-    for caller in self.ctx.llmod.iter_functions() {
+    for caller in module.iter_functions() {
       let caller_id = value_id_map
         .entry(caller)
         .or_insert_with(|| cg.add_node(caller))
@@ -105,7 +110,7 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
         for i in b.iter_instructions() {
           match i {
             Instruction::Call(call_instr) => {
-              if self.options.no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
+              if no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
                 match call_instr.callee_function() {
                   Some(callee) => {
                     let callee_id = value_id_map
@@ -127,5 +132,4 @@ impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
 
     // Return the call graph
     cg
-  }
 }

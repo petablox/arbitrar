@@ -258,9 +258,9 @@ checksum = "755456fae044e6fa1ebbbd1b3e902ae19e73097ed4ed87bb79934a867c007bc3"
 
 [[package]]
 name = "llir"
-version = "0.1.6"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c92f877d41c38c8d037c26432599b1a80bf3cec2be82c5bb7514e1ba703c22f"
+checksum = "48047d14de3bd6e356118a687afd8e6cdeabb41313f6e13faee8cf695233daf0"
 dependencies = [
  "libc",
  "llvm-sys",

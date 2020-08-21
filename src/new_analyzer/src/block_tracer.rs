@@ -3,6 +3,8 @@ use llir::values::*;
 use crate::call_graph::CallGraph;
 use crate::slicer::Slice;
 
+pub type FunctionTrace<'ctx> = Vec<Function<'ctx>>;
+
 pub type BlockTrace<'ctx> = Vec<Block<'ctx>>;
 
 pub trait BlockTraceTrait<'ctx> {
@@ -57,7 +59,31 @@ pub struct BlockTracer<'a, 'ctx> {
 }
 
 impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
-  pub fn block_traces(&self, slice: Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
+  pub fn block_traces_of_function_call(
+    &self,
+    f1: Function<'ctx>,
+    f2: Function<'ctx>,
+    instr: CallInstruction<'ctx>
+  ) -> Vec<BlockTrace<'ctx>> {
+    // TODO
     vec![]
+  }
+
+  pub fn block_traces_of_function_trace(&self, slice: &Slice<'ctx>, func_trace: FunctionTrace<'ctx>) -> Vec<BlockTrace<'ctx>> {
+    // TODO
+    vec![]
+  }
+
+  pub fn function_traces(&self, slice: &Slice<'ctx>) -> Vec<FunctionTrace<'ctx>> {
+    // TODO
+    vec![]
+  }
+
+  pub fn block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
+    let mut traces = vec![];
+    for func_trace in self.function_traces(slice) {
+      traces.extend(self.block_traces_of_function_trace(slice, func_trace));
+    }
+    traces
   }
 }

@@ -1,16 +1,6 @@
 use clap::{App, ArgMatches};
 
-mod call_graph;
-mod context;
-mod feature_extraction;
-mod feature_extractors;
-mod options;
-mod semantics;
-mod slicer;
-mod block_tracer;
-mod symbolic_execution;
-mod utils;
-
+use analyzer::*;
 use call_graph::*;
 use context::*;
 use feature_extraction::*;
