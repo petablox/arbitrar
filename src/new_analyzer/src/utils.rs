@@ -15,9 +15,11 @@ impl<'ctx> FunctionNameUtil for Function<'ctx> {
 }
 
 pub fn cartesian(v: &Vec<usize>) -> Vec<Vec<usize>> {
-  if v.len() == 0 { vec![] }
-  else if v.len() == 1 { singleton(v) }
-  else if v.len() == 2 {
+  if v.len() == 0 {
+    vec![]
+  } else if v.len() == 1 {
+    singleton(v)
+  } else if v.len() == 2 {
     let mut r = Vec::with_capacity(v[0] * v[1]);
     for i in 0..v[0] {
       for j in 0..v[1] {
@@ -25,8 +27,7 @@ pub fn cartesian(v: &Vec<usize>) -> Vec<Vec<usize>> {
       }
     }
     r
-  }
-  else if v.len() == 3 {
+  } else if v.len() == 3 {
     let mut r = Vec::with_capacity(v[0] * v[1] * v[2]);
     for i in 0..v[0] {
       for j in 0..v[1] {
@@ -54,9 +55,11 @@ pub fn cartesian(v: &Vec<usize>) -> Vec<Vec<usize>> {
 }
 
 pub fn cartesian_array<T: Copy + Clone>(v: &Vec<Vec<T>>) -> Vec<Vec<T>> {
-  if v.len() == 0 { vec![] }
-  else if v.len() == 1 { v.clone() }
-  else {
+  if v.len() == 0 {
+    vec![]
+  } else if v.len() == 1 {
+    v.clone()
+  } else {
     let mut curr_prod = cartesian_two(&singleton(&v[0]), &singleton(&v[1]));
     for i in 2..v.len() {
       curr_prod = cartesian_two(&curr_prod, &singleton(&v[i]));

@@ -1,7 +1,10 @@
 use clap::{App, Arg, ArgMatches};
 use llir::{values::*, *};
-use petgraph::graph::{DiGraph, EdgeIndex, Graph, NodeIndex};
-use std::collections::HashMap;
+use petgraph::{
+  graph::{DiGraph, EdgeIndex, Graph, NodeIndex},
+  visit::EdgeRef,
+};
+use std::collections::{HashMap, HashSet};
 
 use crate::context::*;
 use crate::options::Options;
@@ -64,9 +67,123 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraphRaw<'ctx> {
 
 pub type FunctionIdMap<'ctx> = HashMap<Function<'ctx>, NodeIndex>;
 
+#[derive(Debug, Clone)]
+pub struct GraphPath<N, E>
+where
+  N: Clone,
+  E: Clone,
+{
+  pub begin: N,
+  pub succ: Vec<(E, N)>,
+}
+
+impl<N, E> GraphPath<N, E>
+where
+  N: Clone,
+  E: Clone,
+{
+  /// Get the last element in the path. Since
+  pub fn last(&self) -> &N {
+    if self.succ.is_empty() {
+      &self.begin
+    } else {
+      &self.succ[self.succ.len() - 1].1
+    }
+  }
+
+  pub fn visited(&self, n: N) -> bool
+  where
+    N: Eq,
+  {
+    if self.begin == n {
+      true
+    } else {
+      self.succ.iter().find(|(_, other_n)| other_n.clone() == n).is_some()
+    }
+  }
+
+  /// Push an element into the back of the path
+  pub fn push(&mut self, e: E, n: N) {
+    self.succ.push((e, n));
+  }
+
+  /// The length of the path. e.g. If a path contains 5 nodes, then the length is 4.
+  pub fn len(&self) -> usize {
+    self.succ.len()
+  }
+}
+
+pub type IndexedGraphPath = GraphPath<NodeIndex, EdgeIndex>;
+
+impl IndexedGraphPath {
+  pub fn into_elements<N, E>(&self, graph: &Graph<N, E>) -> GraphPath<N, E>
+  where
+    N: Clone,
+    E: Clone,
+  {
+    GraphPath {
+      begin: graph[self.begin].clone(),
+      succ: self
+        .succ
+        .iter()
+        .map(|(e, n)| (graph[*e].clone(), graph[*n].clone()))
+        .collect(),
+    }
+  }
+}
+
+pub trait GraphTrait {
+  fn paths(&self, from: NodeIndex, to: NodeIndex, max_depth: usize) -> Vec<IndexedGraphPath>;
+}
+
+impl<N, E> GraphTrait for Graph<N, E> {
+  fn paths(&self, from: NodeIndex, to: NodeIndex, max_depth: usize) -> Vec<IndexedGraphPath> {
+    let mut fringe = vec![IndexedGraphPath {
+      begin: from,
+      succ: vec![],
+    }];
+    let mut paths = vec![];
+    while !fringe.is_empty() {
+      let curr_path = fringe.pop().unwrap();
+      let prev_node_id = curr_path.last().clone();
+      if curr_path.len() >= max_depth {
+        continue;
+      } else {
+        for next_edge in self.edges(prev_node_id) {
+          let next_edge_id = next_edge.id();
+          let next_node_id = next_edge.target();
+          if next_node_id == to {
+            let mut new_path = curr_path.clone();
+            new_path.push(next_edge_id, next_node_id);
+            paths.push(new_path);
+          } else {
+            if !curr_path.visited(next_node_id) {
+              let mut new_path = curr_path.clone();
+              new_path.push(next_edge_id, next_node_id);
+              fringe.push(new_path);
+            }
+          }
+        }
+      }
+    }
+    paths
+  }
+}
+
+pub type CallGraphPath<'ctx> = GraphPath<Function<'ctx>, CallInstruction<'ctx>>;
+
 pub struct CallGraph<'ctx> {
   pub graph: CallGraphRaw<'ctx>,
   pub function_id_map: FunctionIdMap<'ctx>,
+}
+
+impl<'ctx> CallGraph<'ctx> {
+  pub fn paths(&self, from: Function<'ctx>, to: Function<'ctx>, max_depth: usize) -> Vec<CallGraphPath<'ctx>> {
+    let from_id = self.function_id_map[&from];
+    let to_id = self.function_id_map[&to];
+    let paths = self.graph.paths(from_id, to_id, max_depth);
+    paths.into_iter().map(|path| path.into_elements(&self.graph)).collect()
+  }
 }
 
 pub struct CallGraphOptions {

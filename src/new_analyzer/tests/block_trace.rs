@@ -7,13 +7,10 @@ use analyzer::block_tracer::*;
 use analyzer::call_graph::*;
 use analyzer::slicer::*;
 
-fn process_slice<F>(
-  path: &Path,
-  entry: &str,
-  caller: &str,
-  target: &str,
-  f: F,
-) -> Result<(), String> where F : Fn(BlockTracer, Slice) {
+fn process_slice<F>(path: &Path, entry: &str, caller: &str, target: &str, f: F) -> Result<(), String>
+where
+  F: Fn(BlockTracer, Slice),
+{
   let ctx = Context::create();
   let module = ctx.load_module(path)?;
 

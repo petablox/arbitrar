@@ -1222,4 +1222,3 @@ impl<'ctx> BlockTraceIterator<'ctx> {
   //   self.curr_pointer < self.trace.len()
   // }
 }
-
