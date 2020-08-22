@@ -4,11 +4,34 @@ use petgraph::{
   graph::{DiGraph, EdgeIndex, Graph, NodeIndex},
   visit::EdgeRef,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 
-use crate::context::*;
 use crate::options::Options;
 use crate::utils::*;
+
+pub struct CallGraphOptions {
+  pub no_remove_llvm_funcs: bool,
+}
+
+impl Options for CallGraphOptions {
+  fn setup_parser<'a>(app: App<'a>) -> App<'a> {
+    app.args(&[Arg::new("no_remove_llvm_funcs")
+      .long("--no-remove-llvm-funcs")
+      .about("Do not remove llvm functions")])
+  }
+
+  fn from_matches(args: &ArgMatches) -> Result<Self, String> {
+    Ok(Self {
+      no_remove_llvm_funcs: args.is_present("no_remove_llvm_funcs"),
+    })
+  }
+}
+
+impl Default for CallGraphOptions {
+  fn default() -> Self {
+    Self { no_remove_llvm_funcs: false }
+  }
+}
 
 pub struct CallEdge<'ctx> {
   pub caller: Function<'ctx>,
@@ -184,79 +207,45 @@ impl<'ctx> CallGraph<'ctx> {
     let paths = self.graph.paths(from_id, to_id, max_depth);
     paths.into_iter().map(|path| path.into_elements(&self.graph)).collect()
   }
-}
 
-pub struct CallGraphOptions {
-  pub no_remove_llvm_funcs: bool,
-}
+  pub fn from_module(module: &Module<'ctx>, options: &CallGraphOptions) -> Self {
+    let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
-impl Options for CallGraphOptions {
-  fn setup_parser<'a>(app: App<'a>) -> App<'a> {
-    app.args(&[Arg::new("no_remove_llvm_funcs")
-      .long("--no-remove-llvm-funcs")
-      .about("Do not remove llvm functions")])
-  }
-
-  fn from_matches(args: &ArgMatches) -> Result<Self, String> {
-    Ok(Self {
-      no_remove_llvm_funcs: args.is_present("no_remove_llvm_funcs"),
-    })
-  }
-}
-
-pub struct CallGraphContext<'a, 'ctx> {
-  pub ctx: &'a AnalyzerContext<'ctx>,
-  pub options: CallGraphOptions,
-}
-
-impl<'a, 'ctx> CallGraphContext<'a, 'ctx> {
-  pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
-    let options = CallGraphOptions::from_matches(&ctx.args)?;
-    Ok(Self { ctx, options })
-  }
-
-  pub fn call_graph(&self) -> CallGraph<'ctx> {
-    call_graph_from_module(&self.ctx.llmod, self.options.no_remove_llvm_funcs)
-  }
-}
-
-pub fn call_graph_from_module<'ctx>(module: &Module<'ctx>, no_remove_llvm_funcs: bool) -> CallGraph<'ctx> {
-  let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
-
-  // Generate Call Graph by iterating through all blocks & instructions for each function
-  let mut cg = Graph::new();
-  for caller in module.iter_functions() {
-    let caller_id = value_id_map
-      .entry(caller)
-      .or_insert_with(|| cg.add_node(caller))
-      .clone();
-    for b in caller.iter_blocks() {
-      for i in b.iter_instructions() {
-        match i {
-          Instruction::Call(call_instr) => {
-            if no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
-              match call_instr.callee_function() {
-                Some(callee) => {
-                  let callee_id = value_id_map
-                    .entry(callee)
-                    .or_insert_with(|| cg.add_node(callee))
-                    .clone();
-                  cg.add_edge(caller_id, callee_id, call_instr);
+    // Generate Call Graph by iterating through all blocks & instructions for each function
+    let mut cg = Graph::new();
+    for caller in module.iter_functions() {
+      let caller_id = value_id_map
+        .entry(caller)
+        .or_insert_with(|| cg.add_node(caller))
+        .clone();
+      for b in caller.iter_blocks() {
+        for i in b.iter_instructions() {
+          match i {
+            Instruction::Call(call_instr) => {
+              if options.no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
+                match call_instr.callee_function() {
+                  Some(callee) => {
+                    let callee_id = value_id_map
+                      .entry(callee)
+                      .or_insert_with(|| cg.add_node(callee))
+                      .clone();
+                    cg.add_edge(caller_id, callee_id, call_instr);
+                  }
+                  None => {}
                 }
-                None => {}
+              } else {
               }
-            } else {
             }
+            _ => {}
           }
-          _ => {}
         }
       }
     }
-  }
 
-  // Return the call graph
-  CallGraph {
-    graph: cg,
-    function_id_map: value_id_map,
+    // Return the call graph
+    Self {
+      graph: cg,
+      function_id_map: value_id_map,
+    }
   }
 }

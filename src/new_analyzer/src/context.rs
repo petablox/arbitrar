@@ -6,6 +6,7 @@ use std::path::Path;
 
 use crate::options::Options;
 
+#[derive(Clone)]
 pub struct GeneralOptions {
   pub input_path: String,
   pub output_path: String,

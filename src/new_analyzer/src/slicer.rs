@@ -27,7 +27,7 @@ pub struct SlicerOptions {
   pub entry_filter: Option<String>,
   pub reduce_slice: bool,
   pub use_batch: bool,
-  pub batch_size: u32,
+  pub batch_size: usize,
   pub use_regex_filter: bool,
 }
 
@@ -97,7 +97,7 @@ impl Options for SlicerOptions {
       reduce_slice: matches.is_present("reduce_slice"),
       use_batch: matches.is_present("use_batch"),
       batch_size: matches
-        .value_of_t::<u32>("batch_size")
+        .value_of_t::<usize>("batch_size")
         .map_err(|_| String::from("Cannot parse batch size"))?,
       use_regex_filter: matches.is_present("use_regex_filter"),
     })
@@ -180,44 +180,43 @@ impl TargetFilter {
 /// Map from function name to Edges (`Vec<Edge>`)
 pub type TargetEdgesMap = HashMap<String, Vec<EdgeIndex>>;
 
-/// Map from function name to (slice_id_offset, Vec<Edge>)
-///
-/// We need slice_id_offset because we need a global offset of slice_id, so that
-/// all the slices inside `Vec<Edge>` will get a slice_id of `slice_id_offset + i`
-pub type BatchedTargetEdgesMap = HashMap<String, (usize, Vec<EdgeIndex>)>;
-
-pub trait Batching {
-  type Iter: Iterator;
-
-  fn batches(self) -> Self::Iter;
+pub trait TargetEdgesMapTrait : Sized {
+  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &SlicerOptions) -> Result<Self, String>;
 }
 
-pub struct TargetEdgesMapBatchIterator {
-  // pub base: TargetEdgesMap,
-// pub total: usize,
-}
-
-pub struct TargetEdgesMapBatch {
-  pub is_only_batch: bool,
-  pub batch_index: usize,
-  pub content: BatchedTargetEdgesMap,
-}
-
-impl Iterator for TargetEdgesMapBatchIterator {
-  type Item = TargetEdgesMapBatch;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    // TODO
-    None
-  }
-}
-
-impl Batching for TargetEdgesMap {
-  type Iter = TargetEdgesMapBatchIterator;
-
-  fn batches(self) -> Self::Iter {
-    // TODO
-    Self::Iter {}
+impl TargetEdgesMapTrait for TargetEdgesMap {
+  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &SlicerOptions) -> Result<Self, String> {
+    let inclusion_filter = TargetFilter::new(
+      options.target_inclusion_filter.clone(),
+      options.use_regex_filter,
+      true,
+    )?;
+    let exclusion_filter = TargetFilter::new(
+      options.target_exclusion_filter.clone(),
+      options.use_regex_filter,
+      false,
+    )?;
+    let mut target_edges_map = TargetEdgesMap::new();
+    for callee_id in call_graph.graph.node_indices() {
+      let func = call_graph.graph[callee_id];
+      let func_name = func.simp_name();
+      let include_from_inclusion = inclusion_filter.matches(func_name.as_str());
+      let include = if !include_from_inclusion {
+        false
+      } else {
+        !exclusion_filter.matches(func_name.as_str())
+      };
+      if include {
+        for caller_id in call_graph.graph.neighbors_directed(callee_id, Direction::Incoming) {
+          let edge = call_graph.graph.find_edge(caller_id, callee_id).unwrap();
+          target_edges_map
+            .entry(func_name.clone())
+            .or_insert(Vec::new())
+            .push(edge);
+        }
+      }
+    }
+    Ok(target_edges_map)
   }
 }
 
@@ -235,40 +234,6 @@ impl<'a, 'ctx> SlicerContext<'a, 'ctx> {
       call_graph,
       options,
     })
-  }
-
-  pub fn relavant_edges(&self) -> Result<TargetEdgesMap, String> {
-    let inclusion_filter = TargetFilter::new(
-      self.options.target_inclusion_filter.clone(),
-      self.options.use_regex_filter,
-      true,
-    )?;
-    let exclusion_filter = TargetFilter::new(
-      self.options.target_exclusion_filter.clone(),
-      self.options.use_regex_filter,
-      false,
-    )?;
-    let mut target_edges_map = TargetEdgesMap::new();
-    for callee_id in self.call_graph.graph.node_indices() {
-      let func = self.call_graph.graph[callee_id];
-      let func_name = func.simp_name();
-      let include_from_inclusion = inclusion_filter.matches(func_name.as_str());
-      let include = if !include_from_inclusion {
-        false
-      } else {
-        !exclusion_filter.matches(func_name.as_str())
-      };
-      if include {
-        for caller_id in self.call_graph.graph.neighbors_directed(callee_id, Direction::Incoming) {
-          let edge = self.call_graph.graph.find_edge(caller_id, callee_id).unwrap();
-          target_edges_map
-            .entry(func_name.clone())
-            .or_insert(Vec::new())
-            .push(edge);
-        }
-      }
-    }
-    Ok(target_edges_map)
   }
 
   pub fn num_batches<'b>(&self, edges: &'b Vec<EdgeIndex>) -> u32 {

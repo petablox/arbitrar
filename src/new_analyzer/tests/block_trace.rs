@@ -1,5 +1,3 @@
-extern crate analyzer;
-
 use llir::{values::*, *};
 use std::path::Path;
 
@@ -15,7 +13,7 @@ where
   let module = ctx.load_module(path)?;
 
   // Build call graph
-  let call_graph = call_graph_from_module(&module, false);
+  let call_graph = CallGraph::from_module(&module, &CallGraphOptions::default());
   call_graph.graph.dump();
   let bt = BlockTracer {
     call_graph: &call_graph,
