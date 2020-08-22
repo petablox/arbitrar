@@ -113,5 +113,5 @@ fn slice_block_trace_example_3() -> Result<(), String> {
 #[test]
 fn slice_block_trace_example_temp() -> Result<(), String> {
   let path = Path::new("tests/c_files/trace/block_trace_2.bc");
-  test_slice_function_trace(path, "main", "f", "malloc")
+  test_block_trace(path, "main", "f", "malloc")
 }

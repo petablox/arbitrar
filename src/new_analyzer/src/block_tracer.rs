@@ -117,11 +117,7 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
     }
   }
 
-  pub fn block_traces_of_function_trace(
-    &self,
-    slice: &Slice<'ctx>,
-    func_trace: CallGraphPath<'ctx>,
-  ) -> Vec<BlockTrace<'ctx>> {
+  pub fn block_traces_of_function_trace(&self, func_trace: CallGraphPath<'ctx>) -> Vec<BlockTrace<'ctx>> {
     let mut curr_func = func_trace.begin;
     let mut comp_trace = vec![];
     for (call_instr, next_func) in func_trace.succ {
@@ -146,13 +142,23 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
       self
         .call_graph
         .paths(slice.entry, slice.callee, self.slicer_options.depth as usize * 2)
+        .into_iter()
+        .filter(|path| {
+          for i in 0..path.succ.len() - 1 {
+            if !slice.contains(path.succ[i].1) {
+              return false;
+            }
+          }
+          true
+        })
+        .collect()
     }
   }
 
   pub fn block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
     let mut traces = vec![];
     for func_trace in self.function_traces(slice) {
-      traces.extend(self.block_traces_of_function_trace(slice, func_trace));
+      traces.extend(self.block_traces_of_function_trace(func_trace));
     }
     traces
   }

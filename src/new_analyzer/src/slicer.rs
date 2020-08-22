@@ -129,6 +129,10 @@ impl<'ctx> Slice<'ctx> {
     println!("}}");
   }
 
+  pub fn contains(&self, f: Function<'ctx>) -> bool {
+    self.functions.contains(&f)
+  }
+
   pub fn dump_json(&self, path: PathBuf) -> Result<(), String> {
     Ok(())
   }
