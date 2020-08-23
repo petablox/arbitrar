@@ -47,7 +47,7 @@ fn main() -> Result<(), String> {
     logging_ctx.log_executing_batch(i, options.use_batch, target_slices_map.num_elements())?;
     let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options)?;
     let metadata = sym_exec_ctx.execute_target_slices_map(target_slices_map);
-    logging_ctx.log_metadata(metadata);
+    logging_ctx.log_metadata(metadata)?;
   }
 
   Ok(())

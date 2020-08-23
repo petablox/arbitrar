@@ -16,7 +16,7 @@ impl ReturnValueFeatureExtractor {
 }
 
 impl ReturnValueFeatureExtractor {
-  fn extract_features(&self, slice: &Slice, trace: &Trace) -> ReturnValueFeatures {
+  fn extract_features(&self, _: &Slice, _: &Trace) -> ReturnValueFeatures {
     ReturnValueFeatures {
       used_as_location: false,
     }
@@ -28,11 +28,11 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     "retval".to_string()
   }
 
-  fn filter(&self, slice: &Slice) -> bool {
+  fn filter(&self, _: &Slice) -> bool {
     true
   }
 
-  fn init(&mut self, _: &Slice, trace: &Trace) {}
+  fn init(&mut self, _: &Slice, _: &Trace) {}
 
   fn extract(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
     serde_json::to_value(self.extract_features(slice, trace)).unwrap()

@@ -1,4 +1,3 @@
-pub mod block_tracer;
 pub mod call_graph;
 pub mod feature_extraction;
 pub mod feature_extractors;

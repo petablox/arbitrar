@@ -1,7 +1,7 @@
 use llir::{values::*, *};
 use std::path::Path;
 
-use analyzer::block_tracer::*;
+use analyzer::symbolic_execution::*;
 use analyzer::call_graph::*;
 use analyzer::options::*;
 use analyzer::slicer::*;

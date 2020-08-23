@@ -1,10 +1,8 @@
-use crate::options::Options;
-use clap::{App, Arg, ArgMatches};
 use serde::Deserialize;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+// use std::fs;
+// use std::fs::File;
+// use std::io::Write;
+// use std::path::{Path, PathBuf};
 
 use crate::feature_extractors::*;
 use crate::semantics::*;
@@ -46,6 +44,22 @@ pub trait FeatureExtractor {
 }
 
 pub type Extractors = Vec<Box<dyn FeatureExtractor>>;
+
+pub trait DefaultExtractorsTrait {
+  fn default_extractors() -> Extractors;
+}
+
+impl DefaultExtractorsTrait for Extractors {
+  fn default_extractors() -> Self {
+    vec![
+      Box::new(ReturnValueFeatureExtractor::new()),
+      Box::new(ArgumentValueFeatureExtractor::new(0)),
+      Box::new(ArgumentValueFeatureExtractor::new(1)),
+      Box::new(ArgumentValueFeatureExtractor::new(2)),
+      Box::new(ArgumentValueFeatureExtractor::new(3)),
+    ]
+  }
+}
 
 // pub struct FeatureExtractionContext<'a, 'ctx> {
 //   pub ctx: &'a AnalyzerContext<'ctx>,

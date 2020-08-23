@@ -16,7 +16,7 @@ impl ArgumentValueFeatureExtractor {
     Self { index }
   }
 
-  fn extract_features(&self, slice: &Slice, trace: &Trace) -> ArgumentValueFeatures {
+  fn extract_features(&self, _: &Slice, _: &Trace) -> ArgumentValueFeatures {
     ArgumentValueFeatures {
       used_as_location_after: false,
     }
@@ -28,7 +28,7 @@ impl FeatureExtractor for ArgumentValueFeatureExtractor {
     "retval".to_string()
   }
 
-  fn filter(&self, slice: &Slice) -> bool {
+  fn filter(&self, _: &Slice) -> bool {
     true
   }
 

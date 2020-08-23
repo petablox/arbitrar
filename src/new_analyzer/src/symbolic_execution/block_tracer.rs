@@ -3,7 +3,8 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;
 
 use crate::call_graph::*;
-use crate::slicer::Slice;
+use crate::semantics::*;
+use crate::slicer::*;
 use crate::utils;
 
 /// The block trace inside a function.
@@ -60,6 +61,57 @@ impl<'ctx> GenerateBlockTraceTrait<'ctx> for CompositeBlockTrace<'ctx> {
       block_traces.push(block_trace);
     }
     block_traces
+  }
+}
+
+pub struct BlockTraceIterator<'ctx> {
+  pub block_trace: BlockTrace<'ctx>,
+  pub function_id: usize,
+  pub block_id: usize,
+}
+
+impl<'ctx> BlockTraceIterator<'ctx> {
+  pub fn from_block_trace(block_trace: BlockTrace<'ctx>) -> Self {
+    Self {
+      block_trace,
+      function_id: 0,
+      block_id: 0,
+    }
+  }
+
+  pub fn visit_call(&mut self, instr: CallInstruction<'ctx>) -> bool {
+    if self.block_trace[self.function_id].call_instr == instr {
+      self.function_id += 1;
+      true
+    } else {
+      false
+    }
+  }
+
+  pub fn cond_branch(&self, instr: ConditionalBranchInstruction<'ctx>) -> Option<(Branch, Block<'ctx>)> {
+    let block_trace = &self.block_trace[self.function_id].block_trace;
+    if self.block_id < block_trace.len() && block_trace[self.block_id] == instr.parent_block() {
+      let next_block = block_trace[self.block_id + 1];
+      if next_block == instr.then_block() {
+        return Some((Branch::Then, next_block));
+      } else if next_block == instr.else_block() {
+        return Some((Branch::Else, next_block));
+      }
+    }
+    None
+  }
+
+  pub fn visit_block(&mut self, prev_block: Block<'ctx>, next_block: Block<'ctx>) -> bool {
+    let block_trace = &self.block_trace[self.function_id].block_trace;
+    if self.block_id < block_trace.len() - 1
+      && block_trace[self.block_id] == prev_block
+      && block_trace[self.block_id + 1] == next_block
+    {
+      self.block_id += 1;
+      true
+    } else {
+      false
+    }
   }
 }
 
