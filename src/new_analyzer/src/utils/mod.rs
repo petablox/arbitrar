@@ -1,8 +1,8 @@
 mod cartesian;
-pub use cartesian::*;
-
 mod llvm;
-pub use llvm::*;
-
 mod batching;
+mod logging;
+pub use cartesian::*;
+pub use llvm::*;
 pub use batching::*;
+pub use logging::*;

@@ -1,14 +1,15 @@
 mod environment;
-pub use environment::*;
 mod execution;
-pub use execution::*;
 mod memory;
-pub use memory::*;
 mod metadata;
-pub use metadata::*;
 mod state;
-pub use state::*;
 mod trace;
-pub use trace::*;
 mod work;
+
+pub use execution::*;
+pub use memory::*;
+pub use metadata::*;
+pub use state::*;
 pub use work::*;
+pub use trace::*;
+pub use environment::*;
