@@ -11,7 +11,7 @@ fn test_only_batch() {
   assert_eq!(map.num_elements(), 45, "Map should contain 45 elements");
 
   let mut iter_count = 0;
-  for (i, batch) in map.batches(false, 10000) {
+  for (_, _) in map.batches(false, 10000) {
     iter_count += 1;
   }
   assert_eq!(iter_count, 1, "Only one batch should be generated");
@@ -26,7 +26,7 @@ fn test_many_batches() {
   assert_eq!(map.num_elements(), 45, "Map should contain 45 elements");
 
   let mut iter_count = 0;
-  for (i, batch) in map.batches(true, 5) {
+  for (_, batch) in map.batches(true, 5) {
     // println!("{:?}", batch);
     assert_eq!(batch.num_elements(), 5, "Each batch should contain 5 elements");
     iter_count += 1;
@@ -47,9 +47,14 @@ fn test_lots_of_batches() {
   let batch_size = 500;
   let num_batches = sum / batch_size;
   let mut iter_count = 0;
-  for (i, batch) in map.batches(true, batch_size) {
+  for (_, batch) in map.batches(true, batch_size) {
     // println!("{:?}", batch);
-    assert_eq!(batch.num_elements(), batch_size, "Each batch should contain {} elements", batch_size);
+    assert_eq!(
+      batch.num_elements(),
+      batch_size,
+      "Each batch should contain {} elements",
+      batch_size
+    );
     iter_count += 1;
   }
   assert_eq!(iter_count, num_batches, "{} batches should be generated", num_batches);

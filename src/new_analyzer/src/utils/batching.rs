@@ -46,7 +46,11 @@ pub struct BatchedMapIterator<A, B> {
   pub index: usize,
 }
 
-impl<A, B> Iterator for BatchedMapIterator<A, B> where A : Clone + Hash + Eq, B : Clone {
+impl<A, B> Iterator for BatchedMapIterator<A, B>
+where
+  A: Clone + Hash + Eq,
+  B: Clone,
+{
   type Item = (usize, OffsetBatchableMap<A, B>);
 
   fn next(&mut self) -> Option<Self::Item> {

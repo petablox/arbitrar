@@ -1,9 +1,9 @@
 use llir::{values::*, *};
 use std::path::Path;
 
-use analyzer::options::*;
 use analyzer::block_tracer::*;
 use analyzer::call_graph::*;
+use analyzer::options::*;
 use analyzer::slicer::*;
 
 fn process_slice<F>(path: &Path, entry: &str, caller: &str, target: &str, f: F) -> Result<(), String>

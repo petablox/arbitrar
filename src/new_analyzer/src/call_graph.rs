@@ -4,7 +4,7 @@ use petgraph::{
   graph::{DiGraph, EdgeIndex, Graph, NodeIndex},
   visit::EdgeRef,
 };
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use crate::options::*;
 use crate::utils::*;

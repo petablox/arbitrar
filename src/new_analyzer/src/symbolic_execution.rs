@@ -278,8 +278,7 @@
 //     let mut file = File::create(path).map_err(|_| "Cannot create trace file".to_string())?;
 //     file
 //       .write_all(json_str.as_bytes())
-//       .map_err(|_| "Cannot write to trace file".to_string())?;
-//     Ok(())
+//       .map_err(|_| "Cannot write to trace file".to_string())
 //   }
 // }
 

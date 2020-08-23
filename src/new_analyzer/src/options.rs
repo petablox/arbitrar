@@ -27,7 +27,6 @@ pub struct Options {
   pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
   pub print_trace: bool,
-
   // Feature Extraction Options
 }
 
@@ -62,7 +61,6 @@ impl Default for Options {
 impl Options {
   pub fn setup_parser<'a>(app: App<'a>) -> App<'a> {
     app.args(&[
-
       // General options
       Arg::new("input").value_name("INPUT").index(1).required(true),
       Arg::new("output").value_name("OUTPUT").index(2).required(true),
@@ -70,12 +68,10 @@ impl Options {
         .short('s')
         .long("serial")
         .about("Serialize execution rather than parallel"),
-
       // Call graph options
       Arg::new("no_remove_llvm_funcs")
         .long("--no-remove-llvm-funcs")
         .about("Do not remove llvm functions"),
-
       // Slicer options
       Arg::new("slice_depth")
         .value_name("SLICE_DEPTH")
@@ -111,7 +107,6 @@ impl Options {
         .takes_value(true)
         .default_value("100")
         .long("batch-size"),
-
       // Symbolic Execution Options
       Arg::new("max_trace_per_slice")
         .value_name("MAX_TRACE_PER_SLICE")
@@ -139,7 +134,6 @@ impl Options {
 
   pub fn from_matches(matches: &ArgMatches) -> Result<Self, String> {
     Ok(Self {
-
       // General options
       input: String::from(matches.value_of("input").unwrap()),
       output: String::from(matches.value_of("output").unwrap()),
