@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::fs;
 use std::path::{PathBuf};
+use std::collections::HashMap;
 use llir::{Module, values::*};
 use indicatif::*;
 use rayon::prelude::*;
@@ -624,7 +625,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       && metadata.proper_trace_count < self.options.max_trace_per_slice
   }
 
-  pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
+  pub fn execute_slice(&self, slice: &Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
     while env.has_work() && self.continue_execution(&metadata) {
@@ -727,14 +728,14 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     fs::create_dir_all(path).map_err(|_| "Cannot create trace function slice folder".to_string())
   }
 
-  pub fn execute_slices(&self, slices: Vec<Slice<'ctx>>) -> MetaData {
+  pub fn execute_target_slices(&self, target_name: &String, slice_id_offset: usize, slices: &Vec<Slice<'ctx>>) -> MetaData {
     if self.options.use_serial {
       slices.into_iter().progress().enumerate().fold(
         MetaData::new(),
-        |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
-          let func_name = slice.callee.simp_name();
+        |meta: MetaData, (id, slice): (usize, &Slice<'ctx>)| {
+          let slice_id = slice_id_offset + id;
           self
-            .initialize_traces_function_slice_folder(&func_name, slice_id)
+            .initialize_traces_function_slice_folder(target_name, slice_id)
             .unwrap();
           meta.combine(self.execute_slice(slice, slice_id))
         },
@@ -745,12 +746,31 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .enumerate()
         .fold(
           || MetaData::new(),
-          |meta: MetaData, (slice_id, slice): (usize, Slice<'ctx>)| {
-            let func_name = slice.callee.simp_name();
+          |meta: MetaData, (id, slice): (usize, &Slice<'ctx>)| {
+            let slice_id = slice_id_offset + id;
             self
-              .initialize_traces_function_slice_folder(&func_name, slice_id)
+              .initialize_traces_function_slice_folder(target_name, slice_id)
               .unwrap();
             meta.combine(self.execute_slice(slice, slice_id))
+          },
+        )
+        .progress()
+        .reduce(|| MetaData::new(), MetaData::combine)
+    }
+  }
+
+  pub fn execute_target_slices_map(&self, target_slices_map: HashMap<String, (usize, Vec<Slice<'ctx>>)>) -> MetaData {
+    if self.options.use_serial {
+      target_slices_map.into_iter().fold(MetaData::new(), |meta, (target_name, (offset, slices))| {
+        meta.combine(self.execute_target_slices(&target_name, offset, &slices))
+      })
+    } else {
+      target_slices_map
+        .into_par_iter()
+        .fold(
+          || MetaData::new(),
+          |meta, (target_name, (offset, slices))| {
+            meta.combine(self.execute_target_slices(&target_name, offset, &slices))
           },
         )
         .progress()

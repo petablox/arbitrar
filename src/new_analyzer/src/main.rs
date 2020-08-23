@@ -3,7 +3,7 @@ use clap::App;
 use analyzer::*;
 use call_graph::*;
 use context::*;
-use feature_extraction::*;
+// use feature_extraction::*;
 use options::*;
 use slicer::*;
 use symbolic_execution::*;
@@ -62,6 +62,8 @@ fn main() -> Result<(), String> {
     }
 
     // Generate slices from the edges
+    let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options)?;
+    sym_exec_ctx.execute_target_slices_map(target_slices_map);
   }
 
   Ok(())

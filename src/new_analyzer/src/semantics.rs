@@ -186,18 +186,6 @@ impl Comparison {
   }
 }
 
-// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-// pub enum Location {
-//   // Argument(usize),
-//   Alloca(usize),
-//   GetElementPtr(Rc<Location>, Vec<Rc<Value>>),
-//   ConstPtr(usize), // Pointer ID
-//   Global(String),
-//   Value(Rc<Value>),
-//   NullPtr,
-//   Unknown,
-// }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Branch {
   Then,

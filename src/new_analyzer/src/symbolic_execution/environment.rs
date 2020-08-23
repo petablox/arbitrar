@@ -11,10 +11,10 @@ pub struct Environment<'ctx> {
 }
 
 impl<'ctx> Environment<'ctx> {
-  pub fn new(slice: Slice<'ctx>) -> Self {
+  pub fn new(slice: &Slice<'ctx>) -> Self {
     let initial_work = Work::entry(&slice);
     Self {
-      slice,
+      slice: slice.clone(),
       work_list: vec![initial_work],
       block_traces: vec![],
       call_id: 0,

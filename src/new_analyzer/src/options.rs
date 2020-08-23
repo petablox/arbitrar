@@ -156,7 +156,7 @@ impl Options {
         .map_err(|_| String::from("Cannot parse batch size"))?,
       use_regex_filter: matches.is_present("use_regex_filter"),
 
-      //
+      // Symbolic execution options
       max_trace_per_slice: matches.value_of_t::<usize>("max_trace_per_slice").unwrap(),
       max_explored_trace_per_slice: matches.value_of_t::<usize>("max_explored_trace_per_slice").unwrap(),
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
@@ -165,10 +165,12 @@ impl Options {
     })
   }
 
+  /// Generate input path
   pub fn input_path(&self) -> PathBuf {
     PathBuf::from(self.input.as_str())
   }
 
+  /// Generate output path
   pub fn output_path(&self) -> PathBuf {
     PathBuf::from(self.output.as_str())
   }
