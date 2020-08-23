@@ -40,15 +40,18 @@ fn main() -> Result<(), String> {
   let slicer_options = SlicerOptions::from_matches(&args)?;
   let target_edges_map = TargetEdgesMap::from_call_graph(&call_graph, &slicer_options)?;
 
-  // Divide target edges into batches
-  logging_ctx.log("{} relevant call edges found...")?;
-  for (i, batched_target_edges_map) in target_edges_map.batches(slicer_options.use_batch, slicer_options.batch_size) {
-    if slicer_options.use_batch {
-      logging_ctx.log(format!("Analyzing batch #{} with {} call edges", i, batched_target_edges_map.num_elements()).as_str())?;
-    }
+  // Generate slices
+  let target_slices_map = TargetSlicesMap::from_target_edges_map(&target_edges_map, &slicer_options);
 
-    // Generate slices from the edges
-  }
+  // // Divide target edges into batches
+  // logging_ctx.log("{} relevant call edges found...")?;
+  // for (i, batched_target_edges_map) in target_edges_map.batches(slicer_options.use_batch, slicer_options.batch_size) {
+  //   if slicer_options.use_batch {
+  //     logging_ctx.log(format!("Analyzing batch #{} with {} call edges", i, batched_target_edges_map.num_elements()).as_str())?;
+  //   }
+
+  //   // Generate slices from the edges
+  // }
 
   Ok(())
 }
