@@ -1,15 +1,15 @@
-use std::rc::Rc;
-use std::fs;
-use std::path::{PathBuf};
-use std::collections::HashMap;
-use llir::{Module, values::*};
 use indicatif::*;
+use llir::{values::*, Module};
 use rayon::prelude::*;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::rc::Rc;
 
-use crate::slicer::*;
-use crate::options::*;
 use crate::call_graph::*;
+use crate::options::*;
 use crate::semantics::*;
+use crate::slicer::*;
 use crate::utils::*;
 
 use super::*;
@@ -22,7 +22,11 @@ pub struct SymbolicExecutionContext<'a, 'ctx> {
 
 impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn new(module: &'a Module<'ctx>, call_graph: &'a CallGraph<'ctx>, options: &'a Options) -> Result<Self, String> {
-    Ok(Self { module, call_graph, options })
+    Ok(Self {
+      module,
+      call_graph,
+      options,
+    })
   }
 
   pub fn execute_function(
@@ -657,31 +661,31 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
           // }
           // if !env.has_duplicate(&state.block_trace) {
-            // Add block trace into environment
-            // env.add_block_trace(&state.block_trace);
+          // Add block trace into environment
+          // env.add_block_trace(&state.block_trace);
 
-            if state.path_satisfactory() {
-              let trace_id = metadata.proper_trace_count;
-              let path = self.trace_file_path(env.slice.target_function_name(), slice_id, trace_id);
+          if state.path_satisfactory() {
+            let trace_id = metadata.proper_trace_count;
+            let path = self.trace_file_path(env.slice.target_function_name(), slice_id, trace_id);
 
-              // If printing trace
-              if self.options.print_trace && self.options.use_serial {
-                println!("\nSlice {} Trace {} Log", slice_id, trace_id);
-                state.trace.print();
-              }
-
-              // Dump the json
-              state.dump_json(path).unwrap();
-              metadata.incr_proper();
-            } else {
-              if cfg!(debug_assertions) {
-                for cons in state.constraints {
-                  println!("{:?}", cons);
-                }
-                println!("Path unsat");
-              }
-              metadata.incr_path_unsat()
+            // If printing trace
+            if self.options.print_trace && self.options.use_serial {
+              println!("\nSlice {} Trace {} Log", slice_id, trace_id);
+              state.trace.print();
             }
+
+            // Dump the json
+            state.dump_json(path).unwrap();
+            metadata.incr_proper();
+          } else {
+            if cfg!(debug_assertions) {
+              for cons in state.constraints {
+                println!("{:?}", cons);
+              }
+              println!("Path unsat");
+            }
+            metadata.incr_path_unsat()
+          }
           // } else {
           //   if cfg!(debug_assertions) {
           //     println!("Duplicated");
@@ -713,7 +717,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn trace_file_path(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
-    self.options.output_path()
+    self
+      .options
+      .output_path()
       .join("traces")
       .join(func_name.as_str())
       .join(slice_id.to_string())
@@ -721,14 +727,21 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   fn initialize_traces_function_slice_folder(&self, func_name: &String, slice_id: usize) -> Result<(), String> {
-    let path = self.options.output_path()
+    let path = self
+      .options
+      .output_path()
       .join("traces")
       .join(func_name.as_str())
       .join(slice_id.to_string());
     fs::create_dir_all(path).map_err(|_| "Cannot create trace function slice folder".to_string())
   }
 
-  pub fn execute_target_slices(&self, target_name: &String, slice_id_offset: usize, slices: &Vec<Slice<'ctx>>) -> MetaData {
+  pub fn execute_target_slices(
+    &self,
+    target_name: &String,
+    slice_id_offset: usize,
+    slices: &Vec<Slice<'ctx>>,
+  ) -> MetaData {
     if self.options.use_serial {
       slices.into_iter().progress().enumerate().fold(
         MetaData::new(),
@@ -761,9 +774,11 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn execute_target_slices_map(&self, target_slices_map: HashMap<String, (usize, Vec<Slice<'ctx>>)>) -> MetaData {
     if self.options.use_serial {
-      target_slices_map.into_iter().fold(MetaData::new(), |meta, (target_name, (offset, slices))| {
-        meta.combine(self.execute_target_slices(&target_name, offset, &slices))
-      })
+      target_slices_map
+        .into_iter()
+        .fold(MetaData::new(), |meta, (target_name, (offset, slices))| {
+          meta.combine(self.execute_target_slices(&target_name, offset, &slices))
+        })
     } else {
       target_slices_map
         .into_par_iter()

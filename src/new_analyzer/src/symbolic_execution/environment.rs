@@ -1,7 +1,7 @@
 use llir::values::*;
 
-use crate::slicer::*;
 use super::work::*;
+use crate::slicer::*;
 
 pub struct Environment<'ctx> {
   pub slice: Slice<'ctx>,

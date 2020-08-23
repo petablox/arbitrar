@@ -43,11 +43,11 @@ fn main() -> Result<(), String> {
   // Divide target slices into batches
   logging_ctx.log_dividing_batches()?;
   for (i, target_slices_map) in target_slices_map.batches(options.use_batch, options.batch_size) {
-
     // Generate slices from the edges
     logging_ctx.log_executing_batch(i, options.use_batch, target_slices_map.num_elements())?;
     let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options)?;
-    sym_exec_ctx.execute_target_slices_map(target_slices_map);
+    let metadata = sym_exec_ctx.execute_target_slices_map(target_slices_map);
+    logging_ctx.log_metadata(metadata);
   }
 
   Ok(())

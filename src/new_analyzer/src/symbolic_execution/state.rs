@@ -1,15 +1,15 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 
-use serde_json::json;
 use llir::values::*;
+use serde_json::json;
 
-use crate::slicer::*;
-use crate::semantics::*;
 use super::memory::*;
 use super::trace::*;
+use crate::semantics::*;
+use crate::slicer::*;
 
 #[derive(Clone)]
 pub enum FinishState {

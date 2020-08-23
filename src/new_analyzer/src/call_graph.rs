@@ -16,7 +16,11 @@ pub struct CallEdge<'ctx> {
 
 impl<'ctx> std::fmt::Display for CallEdge<'ctx> {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    f.write_fmt(format_args!("{} -> {}", self.caller.simp_name(), self.callee.simp_name()))
+    f.write_fmt(format_args!(
+      "{} -> {}",
+      self.caller.simp_name(),
+      self.callee.simp_name()
+    ))
   }
 }
 

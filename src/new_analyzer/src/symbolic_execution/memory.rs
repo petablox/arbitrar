@@ -1,6 +1,6 @@
-use std::rc::Rc;
-use std::collections::{HashMap, HashSet};
 use llir::values::*;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::semantics::*;
 

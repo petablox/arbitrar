@@ -1,7 +1,7 @@
 use llir::values::*;
 
-use crate::slicer::*;
 use super::state::*;
+use crate::slicer::*;
 
 pub trait BlockTraceComparison {
   fn equals(&self, other: &Self) -> bool;
@@ -14,7 +14,7 @@ impl<'ctx> BlockTraceComparison for Vec<Block<'ctx>> {
     } else {
       for i in 0..self.len() {
         if self[i] != other[i] {
-          return false
+          return false;
         }
       }
       true

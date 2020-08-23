@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use crate::options::Options;
+use crate::symbolic_execution::*;
 
 pub struct LoggingContext {
   pub log_file: File,
@@ -48,13 +49,7 @@ impl LoggingContext {
   }
 
   pub fn log_generated_slices(&mut self, num_slices: usize) -> Result<(), String> {
-    self.log(
-      format!(
-        "{} slices generated, dumping slices to json...",
-        num_slices
-      )
-      .as_str(),
-    )
+    self.log(format!("{} slices generated, dumping slices to json...", num_slices).as_str())
   }
 
   pub fn log_dividing_batches(&mut self) -> Result<(), String> {
@@ -66,19 +61,16 @@ impl LoggingContext {
       self.log(
         format!(
           "Running symbolic execution on batch #{} with {} slices",
-          batch_index,
-          num_slices
+          batch_index, num_slices
         )
         .as_str(),
       )
     } else {
-      self.log(
-        format!(
-          "Running symbolic execution on {} slices",
-          num_slices
-        )
-        .as_str(),
-      )
+      self.log(format!("Running symbolic execution on {} slices", num_slices).as_str())
     }
+  }
+
+  pub fn log_metadata(&mut self, metadata: MetaData) -> Result<(), String> {
+    self.log(format!("Finished symbolic execution; {:?}", metadata).as_str())
   }
 }

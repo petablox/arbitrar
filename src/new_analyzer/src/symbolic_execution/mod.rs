@@ -6,10 +6,10 @@ mod state;
 mod trace;
 mod work;
 
+pub use environment::*;
 pub use execution::*;
 pub use memory::*;
 pub use metadata::*;
 pub use state::*;
-pub use work::*;
 pub use trace::*;
-pub use environment::*;
+pub use work::*;
