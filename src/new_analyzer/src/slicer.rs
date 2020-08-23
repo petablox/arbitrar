@@ -1,9 +1,5 @@
-use clap::{App, Arg, ArgMatches};
 use llir::values::*;
-use petgraph::{
-  graph::{EdgeIndex, NodeIndex},
-  Direction,
-};
+use petgraph::{graph::*, Direction};
 use rayon::prelude::*;
 use regex::Regex;
 use std::collections::HashMap;
@@ -15,94 +11,8 @@ use std::path::{Path, PathBuf};
 use std::slice::Chunks;
 
 use crate::call_graph::*;
-use crate::context::AnalyzerContext;
-use crate::options::Options;
+use crate::options::*;
 use crate::utils::*;
-
-#[derive(Clone)]
-pub struct SlicerOptions {
-  pub depth: u8,
-  pub target_inclusion_filter: Option<String>,
-  pub target_exclusion_filter: Option<String>,
-  pub entry_filter: Option<String>,
-  pub reduce_slice: bool,
-  pub use_batch: bool,
-  pub batch_size: usize,
-  pub use_regex_filter: bool,
-}
-
-impl Default for SlicerOptions {
-  fn default() -> Self {
-    Self {
-      depth: 1,
-      target_inclusion_filter: None,
-      target_exclusion_filter: None,
-      entry_filter: None,
-      reduce_slice: true,
-      use_batch: false,
-      batch_size: 0,
-      use_regex_filter: false,
-    }
-  }
-}
-
-impl Options for SlicerOptions {
-  fn setup_parser<'a>(app: App<'a>) -> App<'a> {
-    app.args(&[
-      Arg::new("depth")
-        .value_name("DEPTH")
-        .takes_value(true)
-        .short('d')
-        .long("depth")
-        .about("Slice depth")
-        .default_value("1"),
-      Arg::new("target_inclusion_filter")
-        .value_name("INCLUDE_TARGET")
-        .takes_value(true)
-        .long("include-target")
-        .about("Include target functions. In the form of Regex"),
-      Arg::new("use_regex_filter")
-        .long("use-regex-filter")
-        .about("Use Regex in inclusion/exclusion filter"),
-      Arg::new("target_exclusion_filter")
-        .value_name("EXCLUDE_TARGET")
-        .takes_value(true)
-        .long("exclude-target")
-        .about("Exclude target functions. In the form of Regex"),
-      Arg::new("entry_filter")
-        .value_name("ENTRY_LOCATION")
-        .takes_value(true)
-        .long("entry-location")
-        .about("Entry location filters. In the form of Regex"),
-      Arg::new("reduce_slice")
-        .long("reduce-slice")
-        .about("Reduce slice using relevancy test"),
-      Arg::new("use_batch").long("use-batch").about("Use batched execution"),
-      Arg::new("batch_size")
-        .value_name("BATCH_SIZE")
-        .takes_value(true)
-        .default_value("100")
-        .long("batch-size"),
-    ])
-  }
-
-  fn from_matches(matches: &ArgMatches) -> Result<Self, String> {
-    Ok(Self {
-      depth: matches
-        .value_of_t::<u8>("depth")
-        .map_err(|_| String::from("Cannot parse depth"))?,
-      target_inclusion_filter: matches.value_of("target_inclusion_filter").map(String::from),
-      target_exclusion_filter: matches.value_of("target_exclusion_filter").map(String::from),
-      entry_filter: matches.value_of("entry_filter").map(String::from),
-      reduce_slice: matches.is_present("reduce_slice"),
-      use_batch: matches.is_present("use_batch"),
-      batch_size: matches
-        .value_of_t::<usize>("batch_size")
-        .map_err(|_| String::from("Cannot parse batch size"))?,
-      use_regex_filter: matches.is_present("use_regex_filter"),
-    })
-  }
-}
 
 pub struct Slice<'ctx> {
   pub entry: Function<'ctx>,
@@ -181,11 +91,11 @@ impl TargetFilter {
 pub type TargetEdgesMap = HashMap<String, Vec<EdgeIndex>>;
 
 pub trait TargetEdgesMapTrait : Sized {
-  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &SlicerOptions) -> Result<Self, String>;
+  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &Options) -> Result<Self, String>;
 }
 
 impl TargetEdgesMapTrait for TargetEdgesMap {
-  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &SlicerOptions) -> Result<Self, String> {
+  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &Options) -> Result<Self, String> {
     let inclusion_filter = TargetFilter::new(
       options.target_inclusion_filter.clone(),
       options.use_regex_filter,
@@ -224,11 +134,11 @@ impl TargetEdgesMapTrait for TargetEdgesMap {
 pub type TargetSlicesMap<'ctx> = HashMap<String, Vec<Slice<'ctx>>>;
 
 pub trait TargetSlicesMapTrait : Sized {
-  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, options: &SlicerOptions) -> Self;
+  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, options: &Options) -> Self;
 }
 
 impl<'ctx> TargetSlicesMapTrait for TargetSlicesMap<'ctx> {
-  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, options: &SlicerOptions) -> Self {
+  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, options: &Options) -> Self {
     let mut result = HashMap::new();
     for (target, edges) in target_edges_map {
       let slices = edges.iter().map(|_| vec![]).flatten().collect();

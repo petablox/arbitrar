@@ -6,32 +6,8 @@ use petgraph::{
 };
 use std::collections::{HashMap};
 
-use crate::options::Options;
+use crate::options::*;
 use crate::utils::*;
-
-pub struct CallGraphOptions {
-  pub no_remove_llvm_funcs: bool,
-}
-
-impl Options for CallGraphOptions {
-  fn setup_parser<'a>(app: App<'a>) -> App<'a> {
-    app.args(&[Arg::new("no_remove_llvm_funcs")
-      .long("--no-remove-llvm-funcs")
-      .about("Do not remove llvm functions")])
-  }
-
-  fn from_matches(args: &ArgMatches) -> Result<Self, String> {
-    Ok(Self {
-      no_remove_llvm_funcs: args.is_present("no_remove_llvm_funcs"),
-    })
-  }
-}
-
-impl Default for CallGraphOptions {
-  fn default() -> Self {
-    Self { no_remove_llvm_funcs: false }
-  }
-}
 
 pub struct CallEdge<'ctx> {
   pub caller: Function<'ctx>,
@@ -208,7 +184,7 @@ impl<'ctx> CallGraph<'ctx> {
     paths.into_iter().map(|path| path.into_elements(&self.graph)).collect()
   }
 
-  pub fn from_module(module: &Module<'ctx>, options: &CallGraphOptions) -> Self {
+  pub fn from_module(module: &Module<'ctx>, options: &Options) -> Self {
     let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
     // Generate Call Graph by iterating through all blocks & instructions for each function

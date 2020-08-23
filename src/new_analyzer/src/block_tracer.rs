@@ -3,7 +3,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use std::collections::HashMap;
 
 use crate::call_graph::*;
-use crate::slicer::{Slice, SlicerOptions};
+use crate::slicer::Slice;
 use crate::utils;
 
 /// The block trace inside a function.
@@ -68,16 +68,17 @@ pub struct BlockGraph<'ctx> {
   block_id_map: HashMap<Block<'ctx>, NodeIndex>,
 }
 
-pub struct BlockTracer<'a, 'ctx> {
-  pub slicer_options: &'a SlicerOptions,
-  pub call_graph: &'a CallGraph<'ctx>,
+pub trait FunctionBlockGraphTrait<'ctx> {
+  fn block_graph(&self) -> BlockGraph<'ctx>;
+
+  fn block_traces_to_instr(&self, instr: Instruction<'ctx>) -> Vec<Vec<Block<'ctx>>>;
 }
 
-impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
-  pub fn block_graph_of_function(&self, f: Function<'ctx>) -> BlockGraph<'ctx> {
+impl<'ctx> FunctionBlockGraphTrait<'ctx> for Function<'ctx> {
+  fn block_graph(&self) -> BlockGraph<'ctx> {
     let mut block_id_map = HashMap::new();
     let mut graph = DiGraph::new();
-    for block in f.iter_blocks() {
+    for block in self.iter_blocks() {
       let block_id = block_id_map
         .entry(block)
         .or_insert_with(|| graph.add_node(block))
@@ -95,16 +96,12 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
     BlockGraph { graph, block_id_map }
   }
 
-  pub fn block_traces_of_function_call(
-    &self,
-    func: Function<'ctx>,
-    instr: CallInstruction<'ctx>,
-  ) -> Vec<Vec<Block<'ctx>>> {
-    let entry_block = func.first_block().unwrap();
+  fn block_traces_to_instr(&self, instr: Instruction<'ctx>) -> Vec<Vec<Block<'ctx>>> {
+    let entry_block = self.first_block().unwrap();
     if entry_block == instr.parent_block() {
       vec![vec![entry_block]]
     } else {
-      let block_graph = self.block_graph_of_function(func);
+      let block_graph = self.block_graph();
       petgraph::algo::all_simple_paths(
         &block_graph.graph,
         block_graph.block_id_map[&entry_block],
@@ -116,36 +113,49 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
       .collect()
     }
   }
+}
 
-  pub fn block_traces_of_function_trace(&self, func_trace: CallGraphPath<'ctx>) -> Vec<BlockTrace<'ctx>> {
-    let mut curr_func = func_trace.begin;
+pub trait BlockTracesFromCallGraphPath<'ctx> {
+  fn block_traces(&self) -> Vec<BlockTrace<'ctx>>;
+}
+
+impl<'ctx> BlockTracesFromCallGraphPath<'ctx> for CallGraphPath<'ctx> {
+  fn block_traces(&self) -> Vec<BlockTrace<'ctx>> {
+    let mut curr_func = self.begin;
     let mut comp_trace = vec![];
-    for (call_instr, next_func) in func_trace.succ {
-      let block_traces = self.block_traces_of_function_call(curr_func, call_instr);
+    for (call_instr, next_func) in &self.succ {
+      let block_traces = curr_func.block_traces_to_instr(call_instr.as_instruction());
       comp_trace.push(CompositeFunctionBlockTraces {
         function: curr_func,
         block_traces,
-        call_instr,
+        call_instr: call_instr.clone(),
       });
-      curr_func = next_func;
+      curr_func = next_func.clone();
     }
     comp_trace.block_traces()
   }
+}
 
-  pub fn function_traces(&self, slice: &Slice<'ctx>) -> Vec<CallGraphPath<'ctx>> {
-    if slice.entry == slice.caller {
+pub trait BlockTracesFromSlice<'ctx> {
+  fn function_traces(&self, cg: &CallGraph<'ctx>, d: usize) -> Vec<CallGraphPath<'ctx>>;
+
+  fn block_traces(&self, cg: &CallGraph<'ctx>, d: usize) -> Vec<BlockTrace<'ctx>>;
+}
+
+impl<'ctx> BlockTracesFromSlice<'ctx> for Slice<'ctx> {
+  fn function_traces(&self, call_graph: &CallGraph<'ctx>, max_depth: usize) -> Vec<CallGraphPath<'ctx>> {
+    if self.entry == self.caller {
       vec![CallGraphPath {
-        begin: slice.entry,
-        succ: vec![(slice.instr, slice.callee)],
+        begin: self.entry,
+        succ: vec![(self.instr, self.callee)],
       }]
     } else {
-      self
-        .call_graph
-        .paths(slice.entry, slice.callee, self.slicer_options.depth as usize * 2)
+      call_graph
+        .paths(self.entry, self.callee, max_depth * 2)
         .into_iter()
         .filter(|path| {
           for i in 0..path.succ.len() - 1 {
-            if !slice.contains(path.succ[i].1) {
+            if !self.contains(path.succ[i].1) {
               return false;
             }
           }
@@ -155,10 +165,10 @@ impl<'a, 'ctx> BlockTracer<'a, 'ctx> {
     }
   }
 
-  pub fn block_traces(&self, slice: &Slice<'ctx>) -> Vec<BlockTrace<'ctx>> {
+  fn block_traces(&self, call_graph: &CallGraph<'ctx>, max_func_depth: usize) -> Vec<BlockTrace<'ctx>> {
     let mut traces = vec![];
-    for func_trace in self.function_traces(slice) {
-      traces.extend(self.block_traces_of_function_trace(func_trace));
+    for func_trace in self.function_traces(call_graph, max_func_depth) {
+      traces.extend(func_trace.block_traces());
     }
     traces
   }

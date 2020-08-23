@@ -1,24 +1,20 @@
 use llir::{values::*, *};
 use std::path::Path;
 
+use analyzer::options::*;
 use analyzer::block_tracer::*;
 use analyzer::call_graph::*;
 use analyzer::slicer::*;
 
 fn process_slice<F>(path: &Path, entry: &str, caller: &str, target: &str, f: F) -> Result<(), String>
 where
-  F: Fn(BlockTracer, Slice),
+  F: Fn(CallGraph, Slice),
 {
   let ctx = Context::create();
   let module = ctx.load_module(path)?;
 
   // Build call graph
-  let call_graph = CallGraph::from_module(&module, &CallGraphOptions::default());
-  call_graph.graph.dump();
-  let bt = BlockTracer {
-    call_graph: &call_graph,
-    slicer_options: &SlicerOptions::default(),
-  };
+  let call_graph = CallGraph::from_module(&module, &Options::default());
 
   // Build the slice
   let entry_func = module.get_function(entry).unwrap();
@@ -51,23 +47,23 @@ where
     functions: vec![caller_func, caller_func, target_func].iter().cloned().collect(),
   };
 
-  f(bt, slice);
+  f(call_graph, slice);
 
   Ok(())
 }
 
 fn test_slice_function_trace(path: &Path, entry: &str, caller: &str, target: &str) -> Result<(), String> {
-  process_slice(path, entry, caller, target, |bt, slice| {
+  process_slice(path, entry, caller, target, |cg, slice| {
     // Get the function traces
-    let block_traces = bt.function_traces(&slice);
+    let block_traces = slice.function_traces(&cg, 1);
     println!("{:?}", block_traces);
   })
 }
 
 fn test_block_trace(path: &Path, entry: &str, caller: &str, target: &str) -> Result<(), String> {
-  process_slice(path, entry, caller, target, |bt, slice| {
+  process_slice(path, entry, caller, target, |cg, slice| {
     // Get the function traces
-    let block_traces = bt.block_traces(&slice);
+    let block_traces = slice.block_traces(&cg, 1);
     println!("{:?}", block_traces);
   })
 }
