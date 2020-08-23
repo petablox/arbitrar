@@ -1,4 +1,3 @@
-use clap::{App, Arg, ArgMatches};
 use llir::{values::*, *};
 use petgraph::{
   graph::{DiGraph, EdgeIndex, Graph, NodeIndex},
@@ -15,9 +14,9 @@ pub struct CallEdge<'ctx> {
   pub instr: CallInstruction<'ctx>,
 }
 
-impl<'ctx> CallEdge<'ctx> {
-  pub fn dump(&self) {
-    println!("{} -> {}", self.caller.simp_name(), self.callee.simp_name());
+impl<'ctx> std::fmt::Display for CallEdge<'ctx> {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    f.write_fmt(format_args!("{} -> {}", self.caller.simp_name(), self.callee.simp_name()))
   }
 }
 
@@ -57,7 +56,7 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraphRaw<'ctx> {
   fn dump(&self) {
     for edge_id in self.edge_indices() {
       match self.call_edge(edge_id) {
-        Some(ce) => ce.dump(),
+        Some(ce) => println!("{}", ce.to_string()),
         None => {}
       }
     }
