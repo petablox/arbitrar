@@ -27,6 +27,7 @@ pub struct Options {
   pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
   pub print_trace: bool,
+  pub no_prefilter_block_trace: bool,
   // Feature Extraction Options
 }
 
@@ -54,6 +55,7 @@ impl Default for Options {
       max_node_per_trace: 5000,
       no_trace_reduction: false,
       print_trace: false,
+      no_prefilter_block_trace: false,
     }
   }
 }
@@ -129,6 +131,9 @@ impl Options {
         .long("no-reduce-trace")
         .about("No trace reduction"),
       Arg::new("print_trace").long("print-trace").about("Print out trace"),
+      Arg::new("no_prefilter_block_trace")
+        .long("no-prefilter-block-trace")
+        .about("No prefilter of block trace"),
     ])
   }
 
@@ -162,6 +167,7 @@ impl Options {
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
       no_trace_reduction: matches.is_present("no_reduce_trace"),
       print_trace: matches.is_present("print_trace"),
+      no_prefilter_block_trace: matches.is_present("no_prefilter_block_trace"),
     })
   }
 

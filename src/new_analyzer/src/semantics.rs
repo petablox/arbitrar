@@ -186,10 +186,26 @@ impl Comparison {
   }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Branch {
   Then,
   Else,
+}
+
+impl Branch {
+  pub fn is_then(&self) -> bool {
+    match self {
+      Self::Then => true,
+      _ => false
+    }
+  }
+
+  pub fn is_else(&self) -> bool {
+    match self {
+      Self::Else => true,
+      _ => false
+    }
+  }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

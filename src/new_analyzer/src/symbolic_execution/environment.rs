@@ -1,7 +1,8 @@
 use llir::values::*;
 
-use super::work::*;
 use crate::slicer::*;
+use crate::symbolic_execution::*;
+use crate::utils::*;
 
 pub struct Environment<'ctx> {
   pub slice: Slice<'ctx>,
@@ -12,10 +13,9 @@ pub struct Environment<'ctx> {
 
 impl<'ctx> Environment<'ctx> {
   pub fn new(slice: &Slice<'ctx>) -> Self {
-    let initial_work = Work::entry(&slice);
     Self {
       slice: slice.clone(),
-      work_list: vec![initial_work],
+      work_list: vec![],
       block_traces: vec![],
       call_id: 0,
     }

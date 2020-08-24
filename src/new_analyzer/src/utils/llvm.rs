@@ -15,6 +15,25 @@ impl<'ctx> FunctionNameUtil for Function<'ctx> {
   }
 }
 
+pub trait BlockTraceComparison {
+  fn equals(&self, other: &Self) -> bool;
+}
+
+impl<'ctx> BlockTraceComparison for Vec<Block<'ctx>> {
+  fn equals(&self, other: &Self) -> bool {
+    if self.len() != other.len() {
+      false
+    } else {
+      for i in 0..self.len() {
+        if self[i] != other[i] {
+          return false;
+        }
+      }
+      true
+    }
+  }
+}
+
 pub trait FunctionTypesTrait<'ctx> {
   fn function_types(&self) -> HashMap<String, FunctionType<'ctx>>;
 }

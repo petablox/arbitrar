@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use llir::values::*;
 use serde_json::json;
 
+use super::block_tracer::*;
 use super::memory::*;
 use super::trace::*;
 use crate::semantics::*;
@@ -23,9 +24,8 @@ pub enum FinishState {
 pub struct State<'ctx> {
   pub stack: Stack<'ctx>,
   pub memory: Memory,
+  pub block_trace_iter: BlockTraceIterator<'ctx>,
   pub visited_branch: VisitedBranch<'ctx>,
-  // pub global_usage: GlobalUsage<'ctx>,
-  // pub block_trace: BlockTrace<'ctx>,
   pub trace: Trace<'ctx>,
   pub target_node: Option<usize>,
   pub prev_block: Option<Block<'ctx>>,
@@ -44,9 +44,26 @@ impl<'ctx> State<'ctx> {
     Self {
       stack: vec![StackFrame::entry(slice.entry)],
       memory: Memory::new(),
+      block_trace_iter: BlockTraceIterator::empty(),
       visited_branch: VisitedBranch::new(),
-      // global_usage: GlobalUsage::new(),
-      // block_trace: BlockTrace::new(),
+      trace: Vec::new(),
+      target_node: None,
+      prev_block: None,
+      finish_state: FinishState::ProperlyReturned,
+      pointer_value_id_map: HashMap::new(),
+      constraints: Vec::new(),
+      alloca_id: 0,
+      symbol_id: 0,
+      pointer_value_id: 0,
+    }
+  }
+
+  pub fn from_block_trace(slice: &Slice<'ctx>, block_trace: BlockTrace<'ctx>) -> Self {
+    Self {
+      stack: vec![StackFrame::entry(slice.entry)],
+      memory: Memory::new(),
+      block_trace_iter: BlockTraceIterator::from_block_trace(block_trace),
+      visited_branch: VisitedBranch::new(),
       trace: Vec::new(),
       target_node: None,
       prev_block: None,

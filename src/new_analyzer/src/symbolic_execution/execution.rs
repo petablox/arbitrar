@@ -56,14 +56,19 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn execute_block(
     &self,
     block: Block<'ctx>,
-    _: &mut State<'ctx>,
+    state: &mut State<'ctx>,
     _: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
-    // state.block_trace.push(block);
+    match state.prev_block {
+      Some(prev_block) => {
+        state.block_trace_iter.visit_block(prev_block, block);
+      }
+      _ => {}
+    }
     block.first_instruction()
   }
 
-  pub fn execute_instr_and_add_work(
+  pub fn execute_instr(
     &self,
     instr: Option<Instruction<'ctx>>,
     state: &mut State<'ctx>,
@@ -229,87 +234,125 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
+
+    // Set previous block
     let curr_blk = instr.parent_block(); // We assume instruction always has parent block
     state.prev_block = Some(curr_blk);
+
+    // Check condition
     let cond = self.eval_operand_value(state, instr.condition().into());
     let comparison = cond.as_comparison();
     let is_loop_blk = curr_blk.is_loop_entry_block();
-    let then_br = BranchDirection {
-      from: curr_blk,
-      to: instr.then_block(),
-    };
-    let else_br = BranchDirection {
-      from: curr_blk,
-      to: instr.else_block(),
-    };
-    let visited_then = state.visited_branch.contains(&then_br);
-    let visited_else = state.visited_branch.contains(&else_br);
-    if !visited_then {
-      // Check if we need to add a work for else branch
-      if !visited_else {
-        // First add else branch into work
-        let mut else_state = state.clone();
-        if let Some(comparison) = comparison.clone() {
-          if !is_loop_blk {
-            else_state.add_constraint(comparison, false);
-          }
-        }
-        else_state.visited_branch.insert(else_br);
-        else_state.trace.push(TraceNode {
-          instr: instr.as_instruction(),
-          result: None,
-          semantics: Semantics::CondBr {
-            cond: cond.clone(),
-            br: Branch::Else,
-            beg_loop: false,
-          },
-        });
-        let else_work = Work {
-          block: instr.else_block(),
-          state: else_state,
-        };
-        env.add_work(else_work);
-      }
 
-      // Then execute the then branch
-      if let Some(comparison) = comparison {
-        if !is_loop_blk {
-          state.add_constraint(comparison, true);
+    match state.block_trace_iter.cond_branch(instr) {
+      Some((br, block)) => {
+
+        println!("ACCEPTING GUIDANCE in {:?}: {:?}", state.stack.top().function.simp_name(), instr);
+        let br_dir = BranchDirection {
+          from: curr_blk,
+          to: block,
+        };
+        let visited = state.visited_branch.contains(&br_dir);
+        if !visited {
+          if let Some(comparison) = comparison {
+            if !is_loop_blk {
+              state.add_constraint(comparison, br.is_then());
+            }
+          }
+          state.visited_branch.insert(br_dir);
+          state.trace.push(TraceNode {
+            instr: instr.as_instruction(),
+            result: None,
+            semantics: Semantics::CondBr {
+              cond,
+              br,
+              beg_loop: is_loop_blk,
+            },
+          });
+          self.execute_block(block, state, env)
+        } else {
+          // If the guided block is visited, stop the execution with BranchExplored
+          state.finish_state = FinishState::BranchExplored;
+          None
         }
       }
-      state.visited_branch.insert(then_br);
-      state.trace.push(TraceNode {
-        instr: instr.as_instruction(),
-        result: None,
-        semantics: Semantics::CondBr {
-          cond,
-          br: Branch::Then,
-          beg_loop: is_loop_blk,
-        },
-      });
-      self.execute_block(instr.then_block(), state, env)
-    } else if !visited_else {
-      // Execute the else branch
-      if let Some(comparison) = comparison {
-        if !is_loop_blk {
-          state.add_constraint(comparison.clone(), false);
+      None => {
+        let then_br = BranchDirection {
+          from: curr_blk,
+          to: instr.then_block(),
+        };
+        let else_br = BranchDirection {
+          from: curr_blk,
+          to: instr.else_block(),
+        };
+        let visited_then = state.visited_branch.contains(&then_br);
+        let visited_else = state.visited_branch.contains(&else_br);
+        if !visited_then {
+          // Check if we need to add a work for else branch
+          if !visited_else {
+            // First add else branch into work
+            let mut else_state = state.clone();
+            if let Some(comparison) = comparison.clone() {
+              if !is_loop_blk {
+                else_state.add_constraint(comparison, false);
+              }
+            }
+            else_state.visited_branch.insert(else_br);
+            else_state.trace.push(TraceNode {
+              instr: instr.as_instruction(),
+              result: None,
+              semantics: Semantics::CondBr {
+                cond: cond.clone(),
+                br: Branch::Else,
+                beg_loop: false,
+              },
+            });
+            let else_work = Work::new(instr.else_block(), else_state);
+            println!("???? ADDING WORK ???? {:?}", instr);
+            env.add_work(else_work);
+          }
+
+          // Then execute the then branch
+          if let Some(comparison) = comparison {
+            if !is_loop_blk {
+              state.add_constraint(comparison, true);
+            }
+          }
+          state.visited_branch.insert(then_br);
+          state.trace.push(TraceNode {
+            instr: instr.as_instruction(),
+            result: None,
+            semantics: Semantics::CondBr {
+              cond,
+              br: Branch::Then,
+              beg_loop: is_loop_blk,
+            },
+          });
+          self.execute_block(instr.then_block(), state, env)
+        } else if !visited_else {
+          // Execute the else branch
+          if let Some(comparison) = comparison {
+            if !is_loop_blk {
+              state.add_constraint(comparison.clone(), false);
+            }
+          }
+          state.visited_branch.insert(else_br);
+          state.trace.push(TraceNode {
+            instr: instr.as_instruction(),
+            semantics: Semantics::CondBr {
+              cond,
+              br: Branch::Else,
+              beg_loop: false,
+            },
+            result: None,
+          });
+          self.execute_block(instr.else_block(), state, env)
+        } else {
+          // If both then and else are visited, stop the execution with BranchExplored
+          state.finish_state = FinishState::BranchExplored;
+          None
         }
       }
-      state.visited_branch.insert(else_br);
-      state.trace.push(TraceNode {
-        instr: instr.as_instruction(),
-        semantics: Semantics::CondBr {
-          cond,
-          br: Branch::Else,
-          beg_loop: false,
-        },
-        result: None,
-      });
-      self.execute_block(instr.else_block(), state, env)
-    } else {
-      // If both then and else are visited, stop the execution with BranchExplored
-      state.finish_state = FinishState::BranchExplored;
-      None
     }
   }
 
@@ -358,10 +401,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       if !state.visited_branch.contains(&bd) {
         let mut br_state = state.clone();
         br_state.visited_branch.insert(bd);
-        let br_work = Work {
-          block: bd.to,
-          state: br_state,
-        };
+        let br_work = Work::new(bd.to, br_state);
         env.add_work(br_work);
       }
     }
@@ -386,6 +426,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     if instr.is_intrinsic_call() {
       instr.next_instruction()
     } else {
+      // Visit call for block trace guidance
+      state.block_trace_iter.visit_call(instr);
+
       // Check if stepping in the function, and get the function Value and also
       // maybe function reference
       let (step_in, func_value, func) = match instr.callee_function() {
@@ -716,13 +759,33 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   pub fn execute_slice(&self, slice: &Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice);
+
+    // Add a work to the environment list
+    if self.options.no_prefilter_block_trace {
+      let first_work = Work::entry(&slice);
+      env.add_work(first_work);
+    } else {
+      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth as usize * 2);
+      for (i, block_trace) in block_traces.into_iter().enumerate() {
+        let mut work = Work::entry_with_block_trace(slice, block_trace);
+        work.marker = Some(format!("Work {}", i));
+        env.add_work(work);
+      }
+      println!("env.work_list.len() = {}", env.work_list.len());
+    }
+
+    // Iterate till no more work to be done or should end execution
     while env.has_work() && self.continue_execution(&metadata) {
+      println!("=========");
       let mut work = env.pop_work();
+
+      println!("{:?}", work.marker);
+      println!("{:?}", work.state.block_trace_iter.block_trace);
 
       // Start the execution by iterating through instructions
       let mut curr_instr = self.execute_block(work.block, &mut work.state, &mut env);
       while curr_instr.is_some() {
-        curr_instr = self.execute_instr_and_add_work(curr_instr, &mut work.state, &mut env);
+        curr_instr = self.execute_instr(curr_instr, &mut work.state, &mut env);
       }
 
       // Finish the instruction and settle down the states
