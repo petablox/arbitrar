@@ -32,7 +32,6 @@ pub struct Instr {
 
 #[derive(Deserialize)]
 pub struct Trace {
-  pub trace_id: usize,
   pub target: usize,
   pub instrs: Vec<Instr>,
 }
@@ -133,6 +132,20 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
       .collect::<Vec<_>>()
   }
 
+  pub fn load_trace(&self, path: &PathBuf) -> Trace {
+    let trace_file = File::open(path).expect("Could not open trace file");
+    serde_json::from_reader(trace_file).expect("Cannot parse trace file")
+  }
+
+  pub fn dump_features(&self, features: &serde_json::Value, target: &String, slice_id: usize, trace_id: usize) {
+    let features_str = serde_json::to_string(&features).expect("Cannot stringify features json");
+    let mut features_file = File::create(self.options.features_file_path(target.as_str(), slice_id, trace_id))
+      .expect("Cannot create features file");
+    features_file
+      .write_all(features_str.as_bytes())
+      .expect("Cannot write to features file");
+  }
+
   pub fn extract_features(&self) {
     fs::create_dir_all(self.options.features_dir_path()).expect("Cannot create features directory");
 
@@ -173,17 +186,11 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
           .enumerate()
           .for_each(|(trace_id, dir_entry)| {
             // Load trace json
-            let trace_file = File::open(dir_entry).expect("Could not open trace file");
-            let trace: Trace = serde_json::from_reader(trace_file).expect("Cannot parse trace file");
+            let trace = self.load_trace(dir_entry);
 
             // Extract and dump features
             let features = extractors.extract_features(slice, &trace);
-            let features_str = serde_json::to_string(&features).expect("Cannot stringify features json");
-            let mut features_file = File::create(self.options.features_file_path(target.as_str(), slice_id, trace_id))
-              .expect("Cannot create features file");
-            features_file
-              .write_all(features_str.as_bytes())
-              .expect("Cannot write to features file");
+            self.dump_features(&features, &target, slice_id, trace_id);
           })
       });
     });

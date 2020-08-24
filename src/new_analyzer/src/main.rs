@@ -55,8 +55,10 @@ fn main() -> Result<(), String> {
   logging_ctx.log_finished_execution(options.use_batch, global_metadata)?;
 
   // Extract features
+  logging_ctx.log_extracting_features()?;
   let feat_ext_ctx = FeatureExtractionContext::new(&llmod, target_num_slices_map, &options)?;
   feat_ext_ctx.extract_features();
+  logging_ctx.log_finished_extracting_features()?;
 
   Ok(())
 }

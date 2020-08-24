@@ -95,11 +95,11 @@ impl LoggingContext {
     }
   }
 
-  pub fn log_initializing_feature_extractors(&mut self) -> Result<(), String> {
-    self.log("Initializing feature extractors...")
-  }
-
   pub fn log_extracting_features(&mut self) -> Result<(), String> {
     self.log("Extracting features...")
+  }
+
+  pub fn log_finished_extracting_features(&mut self) -> Result<(), String> {
+    self.log("Feature extractor finished")
   }
 }
