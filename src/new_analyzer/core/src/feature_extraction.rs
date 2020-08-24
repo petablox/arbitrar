@@ -1,6 +1,6 @@
 use llir::{types::*, Module};
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -36,6 +36,12 @@ pub struct Trace {
   pub instrs: Vec<Instr>,
 }
 
+impl Trace {
+  pub fn target_result(&self) -> &Option<Value> {
+    &self.instrs[self.target].res
+  }
+}
+
 pub trait FeatureExtractor: Send + Sync {
   fn name(&self) -> String;
 
@@ -46,47 +52,44 @@ pub trait FeatureExtractor: Send + Sync {
   fn extract(&self, slice: &Slice, trace: &Trace) -> serde_json::Value;
 }
 
-pub type FeatureExtractors = Vec<Box<dyn FeatureExtractor>>;
-
-pub trait DefaultExtractorsTrait {
-  fn all_extractors() -> FeatureExtractors;
-
-  fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>) -> FeatureExtractors;
-
-  fn initialize(&mut self, slice: &Slice, trace: &Trace);
-
-  fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value;
+pub struct FeatureExtractors {
+  extractors: Vec<Box<dyn FeatureExtractor>>
 }
 
-impl DefaultExtractorsTrait for FeatureExtractors {
-  fn all_extractors() -> Self {
-    vec![
-      Box::new(ReturnValueFeatureExtractor::new()),
-      Box::new(ReturnValueCheckFeatureExtractor::new()),
-      Box::new(ArgumentValueFeatureExtractor::new(0)),
-      Box::new(ArgumentValueFeatureExtractor::new(1)),
-      Box::new(ArgumentValueFeatureExtractor::new(2)),
-      Box::new(ArgumentValueFeatureExtractor::new(3)),
-      Box::new(LoopFeaturesExtractor::new()),
-    ]
+impl FeatureExtractors {
+  fn all() -> Self {
+    Self {
+      extractors: vec![
+        Box::new(ReturnValueFeatureExtractor::new()),
+        Box::new(ReturnValueCheckFeatureExtractor::new()),
+        Box::new(ArgumentValueFeatureExtractor::new(0)),
+        Box::new(ArgumentValueFeatureExtractor::new(1)),
+        Box::new(ArgumentValueFeatureExtractor::new(2)),
+        Box::new(ArgumentValueFeatureExtractor::new(3)),
+        Box::new(LoopFeaturesExtractor::new()),
+      ]
+    }
   }
 
   fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>) -> Self {
-    Self::all_extractors()
-      .into_iter()
-      .filter(|extractor| extractor.filter(target, target_type))
-      .collect()
+    Self {
+      extractors: Self::all()
+        .extractors
+        .into_iter()
+        .filter(|extractor| extractor.filter(target, target_type))
+        .collect()
+    }
   }
 
   fn initialize(&mut self, slice: &Slice, trace: &Trace) {
-    for extractor in self {
+    for extractor in &mut self.extractors {
       extractor.init(slice, trace);
     }
   }
 
   fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
     let mut map = serde_json::Map::new();
-    for extractor in self {
+    for extractor in &self.extractors {
       map.insert(extractor.name(), extractor.extract(&slice, &trace));
     }
     serde_json::Value::Object(map)

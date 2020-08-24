@@ -4,33 +4,38 @@ use serde::{Deserialize, Serialize};
 use crate::feature_extraction::*;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ReturnValueFeatures {
+pub struct ReturnValueCheckFeatures {
   pub used_as_location: bool,
 }
 
-pub struct ReturnValueFeatureExtractor;
+pub struct ReturnValueCheckFeatureExtractor;
 
-impl ReturnValueFeatureExtractor {
+impl ReturnValueCheckFeatureExtractor {
   pub fn new() -> Self {
     Self
   }
 }
 
-impl ReturnValueFeatureExtractor {
-  fn extract_features(&self, _: &Slice, _: &Trace) -> ReturnValueFeatures {
-    ReturnValueFeatures {
+impl ReturnValueCheckFeatureExtractor {
+  fn extract_features(&self, _: &Slice, _: &Trace) -> ReturnValueCheckFeatures {
+    ReturnValueCheckFeatures {
       used_as_location: false,
     }
   }
 }
 
-impl FeatureExtractor for ReturnValueFeatureExtractor {
+impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
   fn name(&self) -> String {
-    "retval".to_string()
+    "retval_check".to_string()
   }
 
+  /// Return value check feature should only present when the return type
+  /// is a pointer type
   fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {
-    target_type.has_return_type()
+    match target_type.return_type() {
+      Type::Pointer(_) => true,
+      _ => false,
+    }
   }
 
   fn init(&mut self, _: &Slice, _: &Trace) {}

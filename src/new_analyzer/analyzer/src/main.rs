@@ -1,6 +1,6 @@
 use clap::App;
 
-use analyzer::*;
+use analyzer_core::*;
 use call_graph::*;
 use feature_extraction::*;
 use options::*;

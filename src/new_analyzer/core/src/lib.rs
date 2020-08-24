@@ -1,3 +1,5 @@
+pub extern crate llir;
+
 pub mod call_graph;
 pub mod feature_extraction;
 pub mod feature_extractors;

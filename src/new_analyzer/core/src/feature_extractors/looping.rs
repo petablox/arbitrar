@@ -1,14 +1,8 @@
 use llir::types::*;
-use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::semantics::boxed::*;
 use crate::feature_extraction::*;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoopFeatures {
-  pub has_loop: bool,
-  pub target_in_a_loop: bool,
-}
 
 pub struct LoopFeaturesExtractor;
 
@@ -18,8 +12,18 @@ impl LoopFeaturesExtractor {
   }
 }
 
-impl LoopFeaturesExtractor {
-  fn extract_features(&self, _: &Slice, trace: &Trace) -> LoopFeatures {
+impl FeatureExtractor for LoopFeaturesExtractor {
+  fn name(&self) -> String {
+    "loop".to_string()
+  }
+
+  fn filter<'ctx>(&self, _: &String, _: FunctionType<'ctx>) -> bool {
+    true
+  }
+
+  fn init(&mut self, _: &Slice, _: &Trace) {}
+
+  fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut loop_stack = 0;
     let mut has_loop = false;
     let mut target_in_a_loop = false;
@@ -44,22 +48,9 @@ impl LoopFeaturesExtractor {
         _ => {}
       }
     }
-    LoopFeatures { has_loop, target_in_a_loop }
-  }
-}
-
-impl FeatureExtractor for LoopFeaturesExtractor {
-  fn name(&self) -> String {
-    "loop".to_string()
-  }
-
-  fn filter<'ctx>(&self, _: &String, _: FunctionType<'ctx>) -> bool {
-    true
-  }
-
-  fn init(&mut self, _: &Slice, _: &Trace) {}
-
-  fn extract(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
-    serde_json::to_value(self.extract_features(slice, trace)).unwrap()
+    json!({
+      "has_loop": has_loop,
+      "target_in_a_loop": target_in_a_loop
+    })
   }
 }

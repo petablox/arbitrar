@@ -1,4 +1,4 @@
-use analyzer::utils::*;
+use analyzer_core::utils::*;
 
 #[test]
 fn test_cartesian_1() {
