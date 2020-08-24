@@ -15,6 +15,7 @@ use crate::utils;
 ///   block that contains the target call
 /// - call: The final Call Instruction that leads us to the next function
 ///   or the target function call
+#[derive(Debug)]
 pub struct CompositeFunctionBlockTraces<'ctx> {
   function: Function<'ctx>,
   block_traces: Vec<Vec<Block<'ctx>>>,
@@ -48,14 +49,15 @@ impl<'ctx> GenerateBlockTraceTrait<'ctx> for CompositeBlockTrace<'ctx> {
     let num_block_traces = func_num_block_traces.iter().product();
     let mut block_traces = Vec::with_capacity(num_block_traces);
     for indices in utils::cartesian(&func_num_block_traces) {
-      println!("{:?}", indices);
       let block_trace = indices
         .iter()
         .enumerate()
-        .map(|(i, j)| FunctionBlockTrace {
-          function: self[i].function,
-          block_trace: self[i].block_traces[*j].clone(),
-          call_instr: self[i].call_instr,
+        .map(|(i, j)| {
+          FunctionBlockTrace {
+            function: self[i].function,
+            block_trace: self[i].block_traces[*j].clone(),
+            call_instr: self[i].call_instr,
+          }
         })
         .collect();
       block_traces.push(block_trace);

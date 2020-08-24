@@ -2,7 +2,7 @@ pub fn cartesian(v: &Vec<usize>) -> Vec<Vec<usize>> {
   if v.len() == 0 {
     vec![]
   } else if v.len() == 1 {
-    singleton(v)
+    (0..v.len()).map(|i| vec![i]).collect()
   } else if v.len() == 2 {
     let mut r = Vec::with_capacity(v[0] * v[1]);
     for i in 0..v[0] {

@@ -246,8 +246,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
     match state.block_trace_iter.cond_branch(instr) {
       Some((br, block)) => {
-
-        println!("ACCEPTING GUIDANCE in {:?}: {:?}", state.stack.top().function.simp_name(), instr);
         let br_dir = BranchDirection {
           from: curr_blk,
           to: block,
@@ -308,7 +306,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               },
             });
             let else_work = Work::new(instr.else_block(), else_state);
-            println!("???? ADDING WORK ???? {:?}", instr);
             env.add_work(else_work);
           }
 
@@ -766,21 +763,15 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       env.add_work(first_work);
     } else {
       let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth as usize * 2);
-      for (i, block_trace) in block_traces.into_iter().enumerate() {
-        let mut work = Work::entry_with_block_trace(slice, block_trace);
-        work.marker = Some(format!("Work {}", i));
+      for block_trace in block_traces {
+        let work = Work::entry_with_block_trace(slice, block_trace);
         env.add_work(work);
       }
-      println!("env.work_list.len() = {}", env.work_list.len());
     }
 
     // Iterate till no more work to be done or should end execution
     while env.has_work() && self.continue_execution(&metadata) {
-      println!("=========");
       let mut work = env.pop_work();
-
-      println!("{:?}", work.marker);
-      println!("{:?}", work.state.block_trace_iter.block_trace);
 
       // Start the execution by iterating through instructions
       let mut curr_instr = self.execute_block(work.block, &mut work.state, &mut env);
