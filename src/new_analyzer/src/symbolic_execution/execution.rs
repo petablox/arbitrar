@@ -716,37 +716,19 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               state.dump_json(path).unwrap();
               metadata.incr_proper();
             } else {
-              if cfg!(debug_assertions) {
-                for cons in state.constraints {
-                  println!("{:?}", cons);
-                }
-                println!("Path unsat");
-              }
               metadata.incr_path_unsat()
             }
           } else {
-            if cfg!(debug_assertions) {
-              println!("Duplicated");
-            }
             metadata.incr_duplicated()
           }
         }
         FinishState::BranchExplored => {
-          if cfg!(debug_assertions) {
-            println!("Branch explored");
-          }
           metadata.incr_branch_explored()
         }
         FinishState::ExceedingMaxTraceLength => {
-          if cfg!(debug_assertions) {
-            println!("Exceeding Length");
-          }
           metadata.incr_exceeding_length()
         }
         FinishState::Unreachable => {
-          if cfg!(debug_assertions) {
-            println!("Unreachable");
-          }
           metadata.incr_unreachable()
         }
       },
