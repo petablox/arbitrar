@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 
 use crate::feature_extractors::*;
 use crate::options::*;
@@ -36,7 +37,7 @@ pub struct Trace {
   pub instrs: Vec<Instr>,
 }
 
-pub trait FeatureExtractor : Send + Sync {
+pub trait FeatureExtractor: Send + Sync {
   fn name(&self) -> String;
 
   fn filter<'ctx>(&self, target: &String, target_type: FunctionType<'ctx>) -> bool;
@@ -113,6 +114,25 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
     })
   }
 
+  pub fn load_slices(&self, target: &String, num_slices: usize) -> Vec<Slice> {
+    (0..num_slices)
+      .collect::<Vec<_>>()
+      .par_iter()
+      .map(|slice_id| {
+        let path = self.options.slice_file_path(target.as_str(), *slice_id);
+        let file = File::open(path).expect("Could not open slice file");
+        serde_json::from_reader(file).expect("Cannot parse slice file")
+      })
+      .collect::<Vec<_>>()
+  }
+
+  pub fn load_trace_file_paths(&self, target: &String, slice_id: usize) -> Vec<PathBuf> {
+    fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
+      .expect("Cannot read traces folder")
+      .map(|path| path.expect("Cannot read traces folder path").path())
+      .collect::<Vec<_>>()
+  }
+
   pub fn extract_features(&self) {
     fs::create_dir_all(self.options.features_dir_path()).expect("Cannot create features directory");
 
@@ -122,27 +142,16 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
       let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type);
 
       // Load slices
-      let slices: Vec<Slice> = (0..num_slices)
-        .collect::<Vec<_>>()
-        .par_iter()
-        .map(|slice_id| {
-          let path = self.options.slice_file_path(target.as_str(), *slice_id);
-          let file = File::open(path).expect("Could not open slice file");
-          serde_json::from_reader(file).expect("Cannot parse slice file")
-        })
-        .collect::<Vec<_>>();
+      let slices = self.load_slices(&target, num_slices);
 
       // Initialize while loading traces
       (0..num_slices).for_each(|slice_id| {
         let slice = &slices[slice_id];
-        let trace_file_paths = fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
-          .expect("Cannot read traces folder")
-          .map(|path| path.expect("Cannot read traces folder path"))
-          .collect::<Vec<_>>();
-        let traces: Vec<Trace> = trace_file_paths
+        let traces = self
+          .load_trace_file_paths(&target, slice_id)
           .par_iter()
-          .map(|dir_entry| {
-            let file = File::open(dir_entry.path()).expect("Could not open trace file");
+          .map(|dir_entry| -> Trace {
+            let file = File::open(dir_entry).expect("Could not open trace file");
             serde_json::from_reader(file).expect("Cannot parse trace file")
           })
           .collect::<Vec<_>>();
@@ -152,30 +161,29 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
       });
 
       // Extract features
-      (0..num_slices).for_each(|slice_id| {
-
+      slices.par_iter().enumerate().for_each(|(slice_id, slice)| {
         // First create directory
-        fs::create_dir_all(self.options.features_target_slice_dir_path(target.as_str(), slice_id)).expect("Cannot create features target slice directory");
+        fs::create_dir_all(self.options.features_target_slice_dir_path(target.as_str(), slice_id))
+          .expect("Cannot create features target slice directory");
 
         // Then load trace file directories
-        let slice = &slices[slice_id];
-        let trace_file_paths = fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
-          .expect("Cannot read traces folder")
-          .map(|path| path.expect("Cannot read traces folder path"))
-          .collect::<Vec<_>>();
-          trace_file_paths
+        self
+          .load_trace_file_paths(&target, slice_id)
           .par_iter()
           .enumerate()
           .for_each(|(trace_id, dir_entry)| {
             // Load trace json
-            let trace_file = File::open(dir_entry.path()).expect("Could not open trace file");
-            let trace : Trace = serde_json::from_reader(trace_file).expect("Cannot parse trace file");
+            let trace_file = File::open(dir_entry).expect("Could not open trace file");
+            let trace: Trace = serde_json::from_reader(trace_file).expect("Cannot parse trace file");
 
             // Extract and dump features
             let features = extractors.extract_features(slice, &trace);
             let features_str = serde_json::to_string(&features).expect("Cannot stringify features json");
-            let mut features_file = File::create(self.options.features_file_path(target.as_str(), slice_id, trace_id)).expect("Cannot create features file");
-            features_file.write_all(features_str.as_bytes()).expect("Cannot write to features file");
+            let mut features_file = File::create(self.options.features_file_path(target.as_str(), slice_id, trace_id))
+              .expect("Cannot create features file");
+            features_file
+              .write_all(features_str.as_bytes())
+              .expect("Cannot write to features file");
           })
       });
     });

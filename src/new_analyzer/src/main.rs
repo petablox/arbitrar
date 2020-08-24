@@ -39,7 +39,7 @@ fn main() -> Result<(), String> {
 
   // Dump slices
   logging_ctx.log_generated_slices(target_slices_map.num_elements())?;
-  target_slices_map.dump(&options)?;
+  target_slices_map.dump(&options);
 
   // Divide target slices into batches
   logging_ctx.log_dividing_batches(options.use_batch)?;

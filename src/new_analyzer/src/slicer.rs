@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 
 use crate::call_graph::*;
 use crate::options::*;
@@ -28,19 +27,14 @@ impl<'ctx> Slice<'ctx> {
     self.functions.contains(&f)
   }
 
-  pub fn dump_json(&self, path: PathBuf) -> Result<(), String> {
-    let js = json!({
+  pub fn to_json(&self) -> serde_json::Value {
+    json!({
       "entry": self.entry.simp_name(),
       "caller": self.caller.simp_name(),
       "callee": self.callee.simp_name(),
       "instr": self.instr.debug_loc_string(),
       "functions": self.functions.iter().map(|f| f.simp_name()).collect::<Vec<_>>(),
-    });
-    let json_str = serde_json::to_string(&js).map_err(|_| "Cannot turn json into string".to_string())?;
-    let mut file = File::create(path).map_err(|_| "Cannot create slice file".to_string())?;
-    file
-      .write_all(json_str.as_bytes())
-      .map_err(|_| "Cannot write to slice file".to_string())
+    })
   }
 
   pub fn target_function_name(&self) -> String {
@@ -124,7 +118,7 @@ pub type TargetSlicesMap<'ctx> = HashMap<String, Vec<Slice<'ctx>>>;
 pub trait TargetSlicesMapTrait<'ctx>: Sized {
   fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &Options) -> Self;
 
-  fn dump(&self, options: &Options) -> Result<(), String>;
+  fn dump(&self, options: &Options);
 }
 
 impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
@@ -137,16 +131,17 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
     result
   }
 
-  fn dump(&self, options: &Options) -> Result<(), String> {
+  fn dump(&self, options: &Options) {
     for (target, slices) in self {
-      fs::create_dir_all(options.slice_target_dir_path(target.as_str()))
-        .map_err(|_| "Cannot create slice folder".to_string())?;
+      fs::create_dir_all(options.slice_target_dir_path(target.as_str())).expect("Cannot create slice folder");
       slices.par_iter().enumerate().for_each(|(i, slice)| {
         let path = options.slice_file_path(target.as_str(), i);
-        slice.dump_json(path).unwrap();
+        let slice_json = slice.to_json();
+        let json_str = serde_json::to_string(&slice_json).expect("Cannot turn json into string");
+        let mut file = File::create(path).expect("Cannot create slice file");
+        file.write_all(json_str.as_bytes()).expect("Cannot write to slice file")
       });
     }
-    Ok(())
   }
 }
 
