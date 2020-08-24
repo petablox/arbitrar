@@ -13,11 +13,16 @@ pub type BatchableMap<A, B> = HashMap<A, Vec<B>>;
 
 pub type OffsetBatchableMap<A, B> = HashMap<A, (usize, Vec<B>)>;
 
-pub trait SizedBatchableMap {
+pub trait SizedBatchableMap<A> {
   fn num_elements(&self) -> usize;
+
+  fn keyed_num_elements(&self) -> HashMap<A, usize>;
 }
 
-impl<A, B> SizedBatchableMap for BatchableMap<A, B> {
+impl<A, B> SizedBatchableMap<A> for BatchableMap<A, B>
+where
+  A: Clone + Hash + Eq,
+{
   fn num_elements(&self) -> usize {
     let mut sum = 0;
     for value in self.values() {
@@ -25,15 +30,34 @@ impl<A, B> SizedBatchableMap for BatchableMap<A, B> {
     }
     sum
   }
+
+  fn keyed_num_elements(&self) -> HashMap<A, usize> {
+    let mut result = HashMap::new();
+    for (key, value) in self {
+      result.insert(key.clone(), value.len());
+    }
+    result
+  }
 }
 
-impl<A, B> SizedBatchableMap for OffsetBatchableMap<A, B> {
+impl<A, B> SizedBatchableMap<A> for OffsetBatchableMap<A, B>
+where
+  A: Clone + Hash + Eq,
+{
   fn num_elements(&self) -> usize {
     let mut sum = 0;
     for (_, value) in self.values() {
       sum += value.len();
     }
     sum
+  }
+
+  fn keyed_num_elements(&self) -> HashMap<A, usize> {
+    let mut result = HashMap::new();
+    for (key, (_, value)) in self {
+      result.insert(key.clone(), value.len());
+    }
+    result
   }
 }
 

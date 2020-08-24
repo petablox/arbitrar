@@ -1,3 +1,4 @@
+use llir::types::*;
 use serde::{Deserialize, Serialize};
 
 use crate::feature_extraction::*;
@@ -17,6 +18,7 @@ impl ArgumentValueFeatureExtractor {
   }
 
   fn extract_features(&self, _: &Slice, _: &Trace) -> ArgumentValueFeatures {
+    // TODO
     ArgumentValueFeatures {
       used_as_location_after: false,
     }
@@ -28,8 +30,8 @@ impl FeatureExtractor for ArgumentValueFeatureExtractor {
     "retval".to_string()
   }
 
-  fn filter(&self, _: &Slice) -> bool {
-    true
+  fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {
+    self.index < target_type.num_argument_types()
   }
 
   fn init(&mut self, _: &Slice, _: &Trace) {}

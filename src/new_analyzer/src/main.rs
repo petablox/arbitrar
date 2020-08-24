@@ -2,7 +2,7 @@ use clap::App;
 
 use analyzer::*;
 use call_graph::*;
-// use feature_extraction::*;
+use feature_extraction::*;
 use options::*;
 use slicer::*;
 use symbolic_execution::*;
@@ -35,20 +35,28 @@ fn main() -> Result<(), String> {
   // Generate slices
   logging_ctx.log_generated_call_edges(target_edges_map.num_elements())?;
   let target_slices_map = TargetSlicesMap::from_target_edges_map(&target_edges_map, &call_graph, &options);
+  let target_num_slices_map = target_slices_map.keyed_num_elements();
 
   // Dump slices
   logging_ctx.log_generated_slices(target_slices_map.num_elements())?;
   target_slices_map.dump(&options)?;
 
   // Divide target slices into batches
-  logging_ctx.log_dividing_batches()?;
+  logging_ctx.log_dividing_batches(options.use_batch)?;
+  let mut global_metadata = MetaData::new();
   for (i, target_slices_map) in target_slices_map.batches(options.use_batch, options.batch_size) {
     // Generate slices from the edges
     logging_ctx.log_executing_batch(i, options.use_batch, target_slices_map.num_elements())?;
     let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options)?;
     let metadata = sym_exec_ctx.execute_target_slices_map(target_slices_map);
-    logging_ctx.log_metadata(metadata)?;
+    global_metadata = global_metadata.combine(metadata.clone());
+    logging_ctx.log_finished_execution_batch(i, options.use_batch, metadata)?;
   }
+  logging_ctx.log_finished_execution(options.use_batch, global_metadata)?;
+
+  // Extract features
+  let feat_ext_ctx = FeatureExtractionContext::new(&llmod, target_num_slices_map, &options)?;
+  feat_ext_ctx.extract_features();
 
   Ok(())
 }

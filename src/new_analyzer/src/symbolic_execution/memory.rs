@@ -2,7 +2,7 @@ use llir::values::*;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::semantics::*;
+use crate::semantics::rced::*;
 
 pub type LocalMemory<'ctx> = HashMap<Instruction<'ctx>, Rc<Value>>;
 

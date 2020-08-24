@@ -3,12 +3,11 @@ use llir::{values::*, Module};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::call_graph::*;
 use crate::options::*;
-use crate::semantics::*;
+use crate::semantics::{rced::*, *};
 use crate::slicer::*;
 use crate::utils::*;
 
@@ -234,7 +233,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
-
     // Set previous block
     let curr_blk = instr.parent_block(); // We assume instruction always has parent block
     state.prev_block = Some(curr_blk);
@@ -704,7 +702,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
             if state.path_satisfactory() {
               let trace_id = metadata.proper_trace_count;
-              let path = self.trace_file_path(env.slice.target_function_name(), slice_id, trace_id);
+              let path = self
+                .options
+                .trace_file_path(env.slice.target_function_name().as_str(), slice_id, trace_id);
 
               // If printing trace
               if self.options.print_trace && self.options.use_serial {
@@ -786,23 +786,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     metadata
   }
 
-  pub fn trace_file_path(&self, func_name: String, slice_id: usize, trace_id: usize) -> PathBuf {
-    self
-      .options
-      .output_path()
-      .join("traces")
-      .join(func_name.as_str())
-      .join(slice_id.to_string())
-      .join(format!("{}.json", trace_id))
-  }
-
   fn initialize_traces_function_slice_folder(&self, func_name: &String, slice_id: usize) -> Result<(), String> {
-    let path = self
-      .options
-      .output_path()
-      .join("traces")
-      .join(func_name.as_str())
-      .join(slice_id.to_string());
+    let path = self.options.trace_target_slice_dir_path(func_name.as_str(), slice_id);
     fs::create_dir_all(path).map_err(|_| "Cannot create trace function slice folder".to_string())
   }
 

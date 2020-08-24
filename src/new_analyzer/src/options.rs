@@ -180,4 +180,46 @@ impl Options {
   pub fn output_path(&self) -> PathBuf {
     PathBuf::from(self.output.as_str())
   }
+
+  pub fn slice_dir_path(&self) -> PathBuf {
+    self.output_path().join("slices")
+  }
+
+  pub fn slice_target_dir_path(&self, target: &str) -> PathBuf {
+    self.slice_dir_path().join(target)
+  }
+
+  pub fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf {
+    self
+      .slice_target_dir_path(target)
+      .join(format!("{}.json", slice_id).to_string())
+  }
+
+  pub fn trace_dir_path(&self) -> PathBuf {
+    self.output_path().join("traces")
+  }
+
+  pub fn trace_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
+    self.trace_dir_path().join(target).join(slice_id.to_string())
+  }
+
+  pub fn trace_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {
+    self
+      .trace_target_slice_dir_path(target, slice_id)
+      .join(format!("{}.json", trace_id).as_str())
+  }
+
+  pub fn features_dir_path(&self) -> PathBuf {
+    self.output_path().join("features")
+  }
+
+  pub fn features_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
+    self.features_dir_path().join(target).join(slice_id.to_string())
+  }
+
+  pub fn features_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {
+    self
+      .features_target_slice_dir_path(target, slice_id)
+      .join(format!("{}.json", trace_id).as_str())
+  }
 }

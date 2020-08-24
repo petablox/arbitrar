@@ -1,19 +1,22 @@
+use llir::{types::*, Module};
+use rayon::prelude::*;
 use serde::Deserialize;
-// use std::fs;
-// use std::fs::File;
-// use std::io::Write;
-// use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::fs;
+use std::fs::File;
+use std::io::Write;
 
 use crate::feature_extractors::*;
-use crate::semantics::*;
+use crate::options::*;
+use crate::semantics::boxed::*;
+use crate::utils::*;
 
 #[derive(Deserialize)]
 pub struct Slice {
-  pub slice_id: usize,
-  pub loc: String,
-  pub target: String,
-  pub target_type: (),
+  pub instr: String,
   pub entry: String,
+  pub caller: String,
+  pub callee: String,
   pub functions: Vec<String>,
 }
 
@@ -33,24 +36,30 @@ pub struct Trace {
   pub instrs: Vec<Instr>,
 }
 
-pub trait FeatureExtractor {
+pub trait FeatureExtractor : Send + Sync {
   fn name(&self) -> String;
 
-  fn filter(&self, slice: &Slice) -> bool;
+  fn filter<'ctx>(&self, target: &String, target_type: FunctionType<'ctx>) -> bool;
 
   fn init(&mut self, slice: &Slice, trace: &Trace);
 
   fn extract(&self, slice: &Slice, trace: &Trace) -> serde_json::Value;
 }
 
-pub type Extractors = Vec<Box<dyn FeatureExtractor>>;
+pub type FeatureExtractors = Vec<Box<dyn FeatureExtractor>>;
 
 pub trait DefaultExtractorsTrait {
-  fn default_extractors() -> Extractors;
+  fn all_extractors() -> FeatureExtractors;
+
+  fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>) -> FeatureExtractors;
+
+  fn initialize(&mut self, slice: &Slice, trace: &Trace);
+
+  fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value;
 }
 
-impl DefaultExtractorsTrait for Extractors {
-  fn default_extractors() -> Self {
+impl DefaultExtractorsTrait for FeatureExtractors {
+  fn all_extractors() -> Self {
     vec![
       Box::new(ReturnValueFeatureExtractor::new()),
       Box::new(ArgumentValueFeatureExtractor::new(0)),
@@ -59,84 +68,116 @@ impl DefaultExtractorsTrait for Extractors {
       Box::new(ArgumentValueFeatureExtractor::new(3)),
     ]
   }
+
+  fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>) -> Self {
+    Self::all_extractors()
+      .into_iter()
+      .filter(|extractor| extractor.filter(target, target_type))
+      .collect()
+  }
+
+  fn initialize(&mut self, slice: &Slice, trace: &Trace) {
+    for extractor in self {
+      extractor.init(slice, trace);
+    }
+  }
+
+  fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    for extractor in self {
+      map.insert(extractor.name(), extractor.extract(&slice, &trace));
+    }
+    serde_json::Value::Object(map)
+  }
 }
 
-// pub struct FeatureExtractionContext<'a, 'ctx> {
-//   pub ctx: &'a AnalyzerContext<'ctx>,
-//   pub options: Options,
-// }
+pub struct FeatureExtractionContext<'a, 'ctx> {
+  pub module: &'a Module<'ctx>,
+  pub options: &'a Options,
+  pub target_num_slices_map: HashMap<String, usize>,
+  pub func_types: HashMap<String, FunctionType<'ctx>>,
+}
 
-// impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
-//   pub fn new(ctx: &'a AnalyzerContext<'ctx>) -> Result<Self, String> {
-//     Ok(Self {
-//       ctx,
-//       options: FeatureExtractionOptions::from_matches(&ctx.args)?,
-//     })
-//   }
+impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
+  pub fn new(
+    module: &'a Module<'ctx>,
+    target_num_slices_map: HashMap<String, usize>,
+    options: &'a Options,
+  ) -> Result<Self, String> {
+    let func_types = module.function_types();
+    Ok(Self {
+      module,
+      options,
+      target_num_slices_map,
+      func_types,
+    })
+  }
 
-//   pub fn load_mut<F>(&self, _: F)
-//   where
-//     F: FnMut(Slice, Trace),
-//   {
-//   }
+  pub fn extract_features(&self) {
+    fs::create_dir_all(self.options.features_dir_path()).expect("Cannot create features directory");
 
-//   pub fn load<F>(&self, _: F)
-//   where
-//     F: Fn(Slice, Trace),
-//   {
-//   }
+    self.target_num_slices_map.par_iter().for_each(|(target, &num_slices)| {
+      // Initialize extractors
+      let func_type = self.func_types[target];
+      let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type);
 
-//   pub fn init(&self) -> Extractors {
-//     // Construct extractors
-//     let mut extractors: Extractors = vec![
-//       Box::new(ReturnValueFeatureExtractor::new()),
-//       Box::new(ArgumentValueFeatureExtractor::new(0)),
-//       Box::new(ArgumentValueFeatureExtractor::new(1)),
-//       Box::new(ArgumentValueFeatureExtractor::new(2)),
-//       Box::new(ArgumentValueFeatureExtractor::new(3)),
-//     ];
+      // Load slices
+      let slices: Vec<Slice> = (0..num_slices)
+        .collect::<Vec<_>>()
+        .par_iter()
+        .map(|slice_id| {
+          let path = self.options.slice_file_path(target.as_str(), *slice_id);
+          let file = File::open(path).expect("Could not open slice file");
+          serde_json::from_reader(file).expect("Cannot parse slice file")
+        })
+        .collect::<Vec<_>>();
 
-//     // Initialize all extractors
-//     self.load_mut(|slice, trace| {
-//       for extractor in &mut extractors {
-//         if extractor.filter(&slice) {
-//           extractor.init(&slice, &trace);
-//         }
-//       }
-//     });
+      // Initialize while loading traces
+      (0..num_slices).for_each(|slice_id| {
+        let slice = &slices[slice_id];
+        let trace_file_paths = fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
+          .expect("Cannot read traces folder")
+          .map(|path| path.expect("Cannot read traces folder path"))
+          .collect::<Vec<_>>();
+        let traces: Vec<Trace> = trace_file_paths
+          .par_iter()
+          .map(|dir_entry| {
+            let file = File::open(dir_entry.path()).expect("Could not open trace file");
+            serde_json::from_reader(file).expect("Cannot parse trace file")
+          })
+          .collect::<Vec<_>>();
+        for trace in traces {
+          extractors.initialize(slice, &trace);
+        }
+      });
 
-//     // Return the extractor
-//     extractors
-//   }
+      // Extract features
+      (0..num_slices).for_each(|slice_id| {
 
-//   pub fn extract(&self, extractors: Extractors) {
-//     self.load(|slice, trace| {
-//       let mut map = serde_json::Map::new();
-//       for extractor in &extractors {
-//         if extractor.filter(&slice) {
-//           map.insert(extractor.name(), extractor.extract(&slice, &trace));
-//         }
-//       }
-//       let json = serde_json::Value::Object(map);
-//       let path = self.feature_file_path(slice, trace);
-//       self.dump_json(json, path).unwrap()
-//     });
-//   }
+        // First create directory
+        fs::create_dir_all(self.options.features_target_slice_dir_path(target.as_str(), slice_id)).expect("Cannot create features target slice directory");
 
-//   pub fn feature_file_path(&self, slice: Slice, trace: Trace) -> PathBuf {
-//     Path::new(self.ctx.options.output_path.as_str())
-//       .join("features")
-//       .join(slice.target.as_str())
-//       .join(slice.slice_id.to_string())
-//       .join(format!("{}.json", trace.trace_id))
-//   }
+        // Then load trace file directories
+        let slice = &slices[slice_id];
+        let trace_file_paths = fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
+          .expect("Cannot read traces folder")
+          .map(|path| path.expect("Cannot read traces folder path"))
+          .collect::<Vec<_>>();
+          trace_file_paths
+          .par_iter()
+          .enumerate()
+          .for_each(|(trace_id, dir_entry)| {
+            // Load trace json
+            let trace_file = File::open(dir_entry.path()).expect("Could not open trace file");
+            let trace : Trace = serde_json::from_reader(trace_file).expect("Cannot parse trace file");
 
-//   pub fn dump_json(&self, json: serde_json::Value, path: PathBuf) -> Result<(), String> {
-//     let json_str = serde_json::to_string(&json).map_err(|_| "Cannot write features into json string".to_string())?;
-//     let mut file = File::create(path).map_err(|_| "Cannot create feature file".to_string())?;
-//     file
-//       .write_all(json_str.as_bytes())
-//       .map_err(|_| "Cannot write to feature file".to_string())?;
-//     Ok(())
-//   }
-// }
+            // Extract and dump features
+            let features = extractors.extract_features(slice, &trace);
+            let features_str = serde_json::to_string(&features).expect("Cannot stringify features json");
+            let mut features_file = File::create(self.options.features_file_path(target.as_str(), slice_id, trace_id)).expect("Cannot create features file");
+            features_file.write_all(features_str.as_bytes()).expect("Cannot write to features file");
+          })
+      });
+    });
+  }
+}

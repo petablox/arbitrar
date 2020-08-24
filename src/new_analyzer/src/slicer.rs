@@ -139,14 +139,10 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
 
   fn dump(&self, options: &Options) -> Result<(), String> {
     for (target, slices) in self {
-      fs::create_dir_all(options.output_path().join("slices").join(target.as_str()))
+      fs::create_dir_all(options.slice_target_dir_path(target.as_str()))
         .map_err(|_| "Cannot create slice folder".to_string())?;
       slices.par_iter().enumerate().for_each(|(i, slice)| {
-        let path = options
-          .output_path()
-          .join("slices")
-          .join(target.as_str())
-          .join(format!("{}.json", i).to_string());
+        let path = options.slice_file_path(target.as_str(), i);
         slice.dump_json(path).unwrap();
       });
     }

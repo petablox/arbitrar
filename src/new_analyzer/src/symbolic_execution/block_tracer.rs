@@ -52,12 +52,10 @@ impl<'ctx> GenerateBlockTraceTrait<'ctx> for CompositeBlockTrace<'ctx> {
       let block_trace = indices
         .iter()
         .enumerate()
-        .map(|(i, j)| {
-          FunctionBlockTrace {
-            function: self[i].function,
-            block_trace: self[i].block_traces[*j].clone(),
-            call_instr: self[i].call_instr,
-          }
+        .map(|(i, j)| FunctionBlockTrace {
+          function: self[i].function,
+          block_trace: self[i].block_traces[*j].clone(),
+          call_instr: self[i].call_instr,
         })
         .collect();
       block_traces.push(block_trace);

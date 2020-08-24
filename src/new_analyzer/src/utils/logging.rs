@@ -52,8 +52,12 @@ impl LoggingContext {
     self.log(format!("{} slices generated, dumping slices to json...", num_slices).as_str())
   }
 
-  pub fn log_dividing_batches(&mut self) -> Result<(), String> {
-    self.log("Slices dumped, dividing slices into batches")
+  pub fn log_dividing_batches(&mut self, use_batch: bool) -> Result<(), String> {
+    if use_batch {
+      self.log("Slices dumped, dividing slices into batches")
+    } else {
+      Ok(())
+    }
   }
 
   pub fn log_executing_batch(&mut self, batch_index: usize, use_batch: bool, num_slices: usize) -> Result<(), String> {
@@ -70,7 +74,32 @@ impl LoggingContext {
     }
   }
 
-  pub fn log_metadata(&mut self, metadata: MetaData) -> Result<(), String> {
-    self.log(format!("Finished symbolic execution; {:?}", metadata).as_str())
+  pub fn log_finished_execution_batch(
+    &mut self,
+    batch_index: usize,
+    use_batch: bool,
+    metadata: MetaData,
+  ) -> Result<(), String> {
+    if use_batch {
+      self.log(format!("Finished symbolic execution for batch {}; {:?}", batch_index, metadata).as_str())
+    } else {
+      self.log(format!("Finished symbolic execution; {:?}", metadata).as_str())
+    }
+  }
+
+  pub fn log_finished_execution(&mut self, use_batch: bool, metadata: MetaData) -> Result<(), String> {
+    if use_batch {
+      self.log(format!("Finished symbolic execution for all; {:?}", metadata).as_str())
+    } else {
+      Ok(())
+    }
+  }
+
+  pub fn log_initializing_feature_extractors(&mut self) -> Result<(), String> {
+    self.log("Initializing feature extractors...")
+  }
+
+  pub fn log_extracting_features(&mut self) -> Result<(), String> {
+    self.log("Extracting features...")
   }
 }

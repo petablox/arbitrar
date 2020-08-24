@@ -9,7 +9,7 @@ use serde_json::json;
 use super::block_tracer::*;
 use super::memory::*;
 use super::trace::*;
-use crate::semantics::*;
+use crate::semantics::rced::*;
 use crate::slicer::*;
 
 #[derive(Clone)]

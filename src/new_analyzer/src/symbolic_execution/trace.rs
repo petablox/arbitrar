@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use llir::values::*;
 
-use crate::semantics::*;
+use crate::semantics::rced::*;
 
 #[derive(Clone)]
 pub struct TraceNode<'ctx> {

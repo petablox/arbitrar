@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetaData {
   pub proper_trace_count: usize,
   pub path_unsat_trace_count: usize,

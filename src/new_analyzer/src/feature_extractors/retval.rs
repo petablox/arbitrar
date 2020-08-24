@@ -1,3 +1,4 @@
+use llir::types::*;
 use serde::{Deserialize, Serialize};
 
 use crate::feature_extraction::*;
@@ -28,8 +29,8 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     "retval".to_string()
   }
 
-  fn filter(&self, _: &Slice) -> bool {
-    true
+  fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {
+    target_type.has_return_type()
   }
 
   fn init(&mut self, _: &Slice, _: &Trace) {}
