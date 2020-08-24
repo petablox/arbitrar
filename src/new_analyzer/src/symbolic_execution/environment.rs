@@ -39,8 +39,8 @@ impl<'ctx> Environment<'ctx> {
     result
   }
 
-  pub fn add_block_trace(&mut self, block_trace: &Vec<Block<'ctx>>) {
-    self.block_traces.push(block_trace.clone())
+  pub fn add_block_trace(&mut self, block_trace: Vec<Block<'ctx>>) {
+    self.block_traces.push(block_trace)
   }
 
   pub fn has_duplicate(&self, block_trace: &Vec<Block<'ctx>>) -> bool {

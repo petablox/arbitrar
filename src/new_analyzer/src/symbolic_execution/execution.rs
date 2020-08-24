@@ -697,38 +697,39 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           // if !self.options.no_trace_reduction {
           //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
           // }
-          // if !env.has_duplicate(&state.block_trace) {
-          //   // Add block trace into environment
-          //   env.add_block_trace(&state.block_trace);
+          let block_trace = state.trace.block_trace();
+          if !env.has_duplicate(&block_trace) {
+            // Add block trace into environment
+            env.add_block_trace(block_trace);
 
-          if state.path_satisfactory() {
-            let trace_id = metadata.proper_trace_count;
-            let path = self.trace_file_path(env.slice.target_function_name(), slice_id, trace_id);
+            if state.path_satisfactory() {
+              let trace_id = metadata.proper_trace_count;
+              let path = self.trace_file_path(env.slice.target_function_name(), slice_id, trace_id);
 
-            // If printing trace
-            if self.options.print_trace && self.options.use_serial {
-              println!("\nSlice {} Trace {} Log", slice_id, trace_id);
-              state.trace.print();
+              // If printing trace
+              if self.options.print_trace && self.options.use_serial {
+                println!("\nSlice {} Trace {} Log", slice_id, trace_id);
+                state.trace.print();
+              }
+
+              // Dump the json
+              state.dump_json(path).unwrap();
+              metadata.incr_proper();
+            } else {
+              if cfg!(debug_assertions) {
+                for cons in state.constraints {
+                  println!("{:?}", cons);
+                }
+                println!("Path unsat");
+              }
+              metadata.incr_path_unsat()
             }
-
-            // Dump the json
-            state.dump_json(path).unwrap();
-            metadata.incr_proper();
           } else {
             if cfg!(debug_assertions) {
-              for cons in state.constraints {
-                println!("{:?}", cons);
-              }
-              println!("Path unsat");
+              println!("Duplicated");
             }
-            metadata.incr_path_unsat()
+            metadata.incr_duplicated()
           }
-          // } else {
-          //   if cfg!(debug_assertions) {
-          //     println!("Duplicated");
-          //   }
-          //   metadata.incr_duplicated()
-          // }
         }
         FinishState::BranchExplored => {
           if cfg!(debug_assertions) {
