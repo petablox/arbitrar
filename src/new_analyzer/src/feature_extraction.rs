@@ -62,10 +62,12 @@ impl DefaultExtractorsTrait for FeatureExtractors {
   fn all_extractors() -> Self {
     vec![
       Box::new(ReturnValueFeatureExtractor::new()),
+      Box::new(ReturnValueCheckFeatureExtractor::new()),
       Box::new(ArgumentValueFeatureExtractor::new(0)),
       Box::new(ArgumentValueFeatureExtractor::new(1)),
       Box::new(ArgumentValueFeatureExtractor::new(2)),
       Box::new(ArgumentValueFeatureExtractor::new(3)),
+      Box::new(LoopFeaturesExtractor::new()),
     ]
   }
 
