@@ -23,6 +23,8 @@ impl FeatureExtractor for LoopFeaturesExtractor {
 
   fn init(&mut self, _: &Slice, _: &Trace) {}
 
+  fn finalize(&mut self) {}
+
   fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut loop_stack = 0;
     let mut has_loop = false;

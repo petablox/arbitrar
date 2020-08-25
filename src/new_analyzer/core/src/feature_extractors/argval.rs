@@ -24,7 +24,11 @@ impl FeatureExtractor for ArgumentValueFeatureExtractor {
 
   fn init(&mut self, _: &Slice, _: &Trace) {}
 
+  fn finalize(&mut self) {}
+
   fn extract(&self, _: &Slice, _: &Trace) -> serde_json::Value {
-    json!({})
+    json!({
+      "checked_before": false,
+    })
   }
 }

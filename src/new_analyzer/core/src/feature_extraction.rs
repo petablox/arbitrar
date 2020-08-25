@@ -49,6 +49,8 @@ pub trait FeatureExtractor: Send + Sync {
 
   fn init(&mut self, slice: &Slice, trace: &Trace);
 
+  fn finalize(&mut self);
+
   fn extract(&self, slice: &Slice, trace: &Trace) -> serde_json::Value;
 }
 
@@ -84,6 +86,12 @@ impl FeatureExtractors {
   fn initialize(&mut self, slice: &Slice, trace: &Trace) {
     for extractor in &mut self.extractors {
       extractor.init(slice, trace);
+    }
+  }
+
+  fn finalize(&mut self) {
+    for extractor in &mut self.extractors {
+      extractor.finalize();
     }
   }
 
@@ -177,6 +185,9 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
           extractors.initialize(slice, &trace);
         }
       });
+
+      // Finalize feature extractor initialization
+      extractors.finalize();
 
       // Extract features
       slices.par_iter().enumerate().for_each(|(slice_id, slice)| {

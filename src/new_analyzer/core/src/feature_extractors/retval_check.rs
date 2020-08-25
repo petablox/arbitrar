@@ -29,6 +29,8 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
 
   fn init(&mut self, _: &Slice, _: &Trace) {}
 
+  fn finalize(&mut self) {}
+
   fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut checked = false;
     let mut br_eq_zero = false;
