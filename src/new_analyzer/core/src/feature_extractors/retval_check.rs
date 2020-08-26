@@ -27,7 +27,7 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
     }
   }
 
-  fn init(&mut self, _: &Slice, _: &Trace) {}
+  fn init(&mut self, _: &Slice, _: usize, _: &Trace) {}
 
   fn finalize(&mut self) {}
 

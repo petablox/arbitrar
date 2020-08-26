@@ -22,7 +22,7 @@ impl FeatureExtractor for ArgumentValueFeatureExtractor {
     self.index < target_type.num_argument_types()
   }
 
-  fn init(&mut self, _: &Slice, _: &Trace) {}
+  fn init(&mut self, _: &Slice, _: usize, _: &Trace) {}
 
   fn finalize(&mut self) {}
 

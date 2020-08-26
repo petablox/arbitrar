@@ -47,7 +47,7 @@ pub trait FeatureExtractor: Send + Sync {
 
   fn filter<'ctx>(&self, target: &String, target_type: FunctionType<'ctx>) -> bool;
 
-  fn init(&mut self, slice: &Slice, trace: &Trace);
+  fn init(&mut self, slice: &Slice, num_traces: usize, trace: &Trace);
 
   fn finalize(&mut self);
 
@@ -83,9 +83,9 @@ impl FeatureExtractors {
     }
   }
 
-  fn initialize(&mut self, slice: &Slice, trace: &Trace) {
+  fn initialize(&mut self, slice: &Slice, num_traces: usize, trace: &Trace) {
     for extractor in &mut self.extractors {
-      extractor.init(slice, trace);
+      extractor.init(slice, num_traces, trace);
     }
   }
 
@@ -181,8 +181,9 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
             serde_json::from_reader(file).expect("Cannot parse trace file")
           })
           .collect::<Vec<_>>();
+        let num_traces = traces.len();
         for trace in traces {
-          extractors.initialize(slice, &trace);
+          extractors.initialize(slice, num_traces, &trace);
         }
       });
 
