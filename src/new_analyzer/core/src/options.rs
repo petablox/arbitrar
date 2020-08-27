@@ -6,6 +6,7 @@ pub struct Options {
   // General Options
   pub input: String,
   pub output: String,
+  pub subfolder: Option<String>,
   pub use_serial: bool,
 
   // Call Graph Options
@@ -38,6 +39,7 @@ impl Default for Options {
     Self {
       input: "".to_string(),
       output: "".to_string(),
+      subfolder: None,
       use_serial: false,
 
       no_remove_llvm_funcs: false,
@@ -70,6 +72,10 @@ impl Options {
       // General options
       Arg::new("input").value_name("INPUT").index(1).required(true),
       Arg::new("output").value_name("OUTPUT").index(2).required(true),
+      Arg::new("subfolder")
+        .value_name("SUBFOLDER")
+        .long("subfolder")
+        .takes_value(true),
       Arg::new("serial")
         .short('s')
         .long("serial")
@@ -151,6 +157,11 @@ impl Options {
       // General options
       input: String::from(matches.value_of("input").unwrap()),
       output: String::from(matches.value_of("output").unwrap()),
+      subfolder: if matches.is_present("subfolder") {
+        Some(String::from(matches.value_of("subfolder").unwrap()))
+      } else {
+        None
+      },
       use_serial: matches.is_present("serial"),
 
       // Call graph options
@@ -193,12 +204,19 @@ impl Options {
     PathBuf::from(self.output.as_str())
   }
 
+  pub fn with_subfolder(&self, path: PathBuf) -> PathBuf {
+    match &self.subfolder {
+      Some(s) => path.join(s.as_str()),
+      None => path
+    }
+  }
+
   pub fn slice_dir_path(&self) -> PathBuf {
     self.output_path().join("slices")
   }
 
   pub fn slice_target_dir_path(&self, target: &str) -> PathBuf {
-    self.slice_dir_path().join(target)
+    self.with_subfolder(self.slice_dir_path().join(target))
   }
 
   pub fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf {
@@ -212,7 +230,7 @@ impl Options {
   }
 
   pub fn trace_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
-    self.trace_dir_path().join(target).join(slice_id.to_string())
+    self.with_subfolder(self.trace_dir_path().join(target)).join(slice_id.to_string())
   }
 
   pub fn trace_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {
@@ -226,7 +244,7 @@ impl Options {
   }
 
   pub fn features_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
-    self.features_dir_path().join(target).join(slice_id.to_string())
+    self.with_subfolder(self.features_dir_path().join(target)).join(slice_id.to_string())
   }
 
   pub fn features_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {

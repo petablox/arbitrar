@@ -48,7 +48,7 @@ impl FeatureExtractor for CausalityFeatureExtractor {
     let causalities = find_function_causality(trace, self.forward, &self.most_occurred);
     let mut map = serde_json::Map::new();
     for (func, causality_features) in self.most_occurred.iter().zip(causalities) {
-      map[func] = serde_json::to_value(causality_features).expect("Cannot turn causality features into json");
+      map.insert(func.clone(), serde_json::to_value(causality_features).expect("Cannot turn causality features into json"));
     }
     serde_json::Value::Object(map)
   }
