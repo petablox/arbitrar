@@ -28,7 +28,9 @@ pub struct Options {
   pub no_trace_reduction: bool,
   pub print_trace: bool,
   pub no_prefilter_block_trace: bool,
+
   // Feature Extraction Options
+  pub causality_dictionary_size: usize,
 }
 
 impl Default for Options {
@@ -56,6 +58,8 @@ impl Default for Options {
       no_trace_reduction: false,
       print_trace: false,
       no_prefilter_block_trace: false,
+
+      causality_dictionary_size: 10,
     }
   }
 }
@@ -134,6 +138,11 @@ impl Options {
       Arg::new("no_prefilter_block_trace")
         .long("no-prefilter-block-trace")
         .about("No prefilter of block trace"),
+      Arg::new("causality_dictionary_size")
+        .long("causality-dictionary-size")
+        .takes_value(true)
+        .value_name("CAUSALITY_DICTIONARY_SIZE")
+        .default_value("10"),
     ])
   }
 
@@ -168,6 +177,9 @@ impl Options {
       no_trace_reduction: matches.is_present("no_reduce_trace"),
       print_trace: matches.is_present("print_trace"),
       no_prefilter_block_trace: matches.is_present("no_prefilter_block_trace"),
+
+      // Feature extraction options
+      causality_dictionary_size: matches.value_of_t::<usize>("causality_dictionary_size").unwrap(),
     })
   }
 

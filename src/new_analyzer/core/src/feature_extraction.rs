@@ -59,23 +59,29 @@ pub struct FeatureExtractors {
 }
 
 impl FeatureExtractors {
-  fn all() -> Self {
+  fn all(options: &Options) -> Self {
     Self {
       extractors: vec![
         Box::new(ReturnValueFeatureExtractor::new()),
         Box::new(ReturnValueCheckFeatureExtractor::new()),
-        Box::new(ArgumentValueFeatureExtractor::new(0)),
-        Box::new(ArgumentValueFeatureExtractor::new(1)),
-        Box::new(ArgumentValueFeatureExtractor::new(2)),
-        Box::new(ArgumentValueFeatureExtractor::new(3)),
+        Box::new(ArgumentPreconditionFeatureExtractor::new(0)),
+        Box::new(ArgumentPreconditionFeatureExtractor::new(1)),
+        Box::new(ArgumentPreconditionFeatureExtractor::new(2)),
+        Box::new(ArgumentPreconditionFeatureExtractor::new(3)),
+        Box::new(ArgumentPostconditionFeatureExtractor::new(0)),
+        Box::new(ArgumentPostconditionFeatureExtractor::new(1)),
+        Box::new(ArgumentPostconditionFeatureExtractor::new(2)),
+        Box::new(ArgumentPostconditionFeatureExtractor::new(3)),
+        Box::new(CausalityFeatureExtractor::pre(options.causality_dictionary_size)),
+        Box::new(CausalityFeatureExtractor::post(options.causality_dictionary_size)),
         Box::new(LoopFeaturesExtractor::new()),
       ]
     }
   }
 
-  fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>) -> Self {
+  fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>, options: &Options) -> Self {
     Self {
-      extractors: Self::all()
+      extractors: Self::all(options)
         .extractors
         .into_iter()
         .filter(|extractor| extractor.filter(target, target_type))
@@ -165,7 +171,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
     self.target_num_slices_map.par_iter().for_each(|(target, &num_slices)| {
       // Initialize extractors
       let func_type = self.func_types[target];
-      let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type);
+      let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type, self.options);
 
       // Load slices
       let slices = self.load_slices(&target, num_slices);

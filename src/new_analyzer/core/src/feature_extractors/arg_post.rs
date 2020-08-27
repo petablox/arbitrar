@@ -3,17 +3,17 @@ use serde_json::json;
 
 use crate::feature_extraction::*;
 
-pub struct ArgumentValueFeatureExtractor {
+pub struct ArgumentPostconditionFeatureExtractor {
   pub index: usize,
 }
 
-impl ArgumentValueFeatureExtractor {
+impl ArgumentPostconditionFeatureExtractor {
   pub fn new(index: usize) -> Self {
     Self { index }
   }
 }
 
-impl FeatureExtractor for ArgumentValueFeatureExtractor {
+impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
   fn name(&self) -> String {
     format!("argval.{}", self.index)
   }
