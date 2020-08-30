@@ -1,12 +1,12 @@
 use std::collections::{HashMap, BinaryHeap};
 use llir::types::*;
 use serde::Serialize;
-use crate::semantics::boxed::*;
 
+use crate::semantics::boxed::*;
 use crate::feature_extraction::*;
 
 pub struct CausalityFeatureExtractor {
-  pub forward: bool,
+  pub direction: TraceIterDirection,
   pub dictionary_size: usize,
   pub dictionary: HashMap<String, f32>,
   pub most_occurred: Vec<String>,
@@ -14,17 +14,27 @@ pub struct CausalityFeatureExtractor {
 
 impl CausalityFeatureExtractor {
   pub fn post(size: usize) -> Self {
-    Self { forward: true, dictionary_size: size, dictionary: HashMap::new(), most_occurred: vec![] }
+    Self {
+      direction: TraceIterDirection::Forward,
+      dictionary_size: size,
+      dictionary: HashMap::new(),
+      most_occurred: vec![]
+    }
   }
 
   pub fn pre(size: usize) -> Self {
-    Self { forward: false, dictionary_size: size, dictionary: HashMap::new(), most_occurred: vec![] }
+    Self {
+      direction: TraceIterDirection::Backward,
+      dictionary_size: size,
+      dictionary: HashMap::new(),
+      most_occurred: vec![]
+    }
   }
 }
 
 impl FeatureExtractor for CausalityFeatureExtractor {
   fn name(&self) -> String {
-    if self.forward {
+    if self.direction.is_forward() {
       format!("after")
     } else {
       format!("before")
@@ -34,7 +44,7 @@ impl FeatureExtractor for CausalityFeatureExtractor {
   fn filter<'ctx>(&self, _: &String, _: FunctionType<'ctx>) -> bool { true }
 
   fn init(&mut self, _: &Slice, num_traces: usize, trace: &Trace) {
-    let funcs = find_caused_functions(trace, self.forward);
+    let funcs = find_caused_functions(trace, self.direction);
     for (func, count) in funcs {
       *self.dictionary.entry(func).or_insert(0.0) += count as f32 / num_traces as f32;
     }
@@ -45,7 +55,7 @@ impl FeatureExtractor for CausalityFeatureExtractor {
   }
 
   fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
-    let causalities = find_function_causality(trace, self.forward, &self.most_occurred);
+    let causalities = find_function_causality(trace, self.direction, &self.most_occurred);
     let mut map = serde_json::Map::new();
     for (func, causality_features) in self.most_occurred.iter().zip(causalities) {
       map.insert(func.clone(), serde_json::to_value(causality_features).expect("Cannot turn causality features into json"));
@@ -84,17 +94,9 @@ fn find_mostly_used_functions(map: &HashMap<String, f32>, k: usize) -> Vec<Strin
   heap.iter().take(k).map(|si| si.0.clone()).collect()
 }
 
-fn iter_instrs(trace: &Trace, forward: bool) -> Vec<&Instr> {
-  if forward {
-    trace.instrs.iter().skip(trace.target + 1).collect::<Vec<_>>()
-  } else {
-    trace.instrs.iter().skip(trace.instrs.len() - trace.target).rev().collect::<Vec<_>>()
-  }
-}
-
-fn find_caused_functions(trace: &Trace, forward: bool) -> HashMap<String, usize> {
+fn find_caused_functions(trace: &Trace, dir: TraceIterDirection) -> HashMap<String, usize> {
   let mut result = HashMap::new();
-  for instr in iter_instrs(trace, forward) {
+  for instr in trace.iter_instrs(dir) {
     match &instr.sem {
       Semantics::Call { func, .. } => {
         match &**func {
@@ -157,10 +159,10 @@ impl Default for  FunctionCausalityFeatures {
   }
 }
 
-fn find_function_causality(trace: &Trace, forward: bool, funcs: &Vec<String>) -> Vec<FunctionCausalityFeatures> {
+fn find_function_causality(trace: &Trace, dir: TraceIterDirection, funcs: &Vec<String>) -> Vec<FunctionCausalityFeatures> {
   let mut result = vec![FunctionCausalityFeatures::default(); funcs.len()];
   let target_instr = &trace.instrs[trace.target];
-  for instr in iter_instrs(trace, forward) {
+  for instr in trace.iter_instrs(dir) {
     match &instr.sem {
       Semantics::Call { func, .. } => {
         match &**func {
@@ -176,7 +178,7 @@ fn find_function_causality(trace: &Trace, forward: bool, funcs: &Vec<String>) ->
 
                 // Check if sharing return value
                 if !features.share_return_value {
-                  let retval = if forward {
+                  let retval = if dir.is_forward() {
                     (target_instr.res.clone(), instr.sem.call_args())
                   } else {
                     (instr.res.clone(), target_instr.sem.call_args())

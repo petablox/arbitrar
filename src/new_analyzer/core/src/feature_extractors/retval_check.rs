@@ -41,7 +41,7 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
     let mut icmp = None;
 
     // Start iterating from the target onward
-    for (_, instr) in trace.instrs.iter().enumerate().skip(trace.target) {
+    for instr in trace.iter_instrs(TraceIterDirection::Forward) {
       match &instr.sem {
         Semantics::ICmp { op0, op1, .. } => {
           let retval_is_op0 = **op0 == retval;

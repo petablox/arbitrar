@@ -36,6 +36,18 @@ pub struct Trace {
   pub instrs: Vec<Instr>,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum TraceIterDirection {
+  Forward,
+  Backward,
+}
+
+impl TraceIterDirection {
+  pub fn is_forward(&self) -> bool {
+    self == &Self::Forward
+  }
+}
+
 impl Trace {
   pub fn target_result(&self) -> &Option<Value> {
     &self.target_instr().res
@@ -47,6 +59,18 @@ impl Trace {
 
   pub fn target_args(&self) -> Vec<&Value> {
     self.target_instr().sem.call_args()
+  }
+
+  pub fn iter_instrs(&self, dir: TraceIterDirection) -> Vec<&Instr> {
+    self.iter_instrs_from(dir, self.target)
+  }
+
+  pub fn iter_instrs_from(&self, dir: TraceIterDirection, from: usize) -> Vec<&Instr> {
+    if dir.is_forward() {
+      self.instrs.iter().skip(from + 1).collect::<Vec<_>>()
+    } else {
+      self.instrs.iter().skip(self.instrs.len() - from).rev().collect::<Vec<_>>()
+    }
   }
 }
 

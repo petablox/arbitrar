@@ -1,6 +1,7 @@
 use llir::types::*;
 use serde_json::json;
 
+use crate::semantics::{*, boxed::*};
 use crate::feature_extraction::*;
 
 pub struct ArgumentPreconditionFeatureExtractor {
@@ -15,7 +16,7 @@ impl ArgumentPreconditionFeatureExtractor {
 
 impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
   fn name(&self) -> String {
-    format!("argval.{}", self.index)
+    format!("arg.{}.precond", self.index)
   }
 
   fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {
@@ -26,9 +27,70 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 
   fn finalize(&mut self) {}
 
-  fn extract(&self, _: &Slice, _: &Trace) -> serde_json::Value {
+  fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
+    let mut checked = false;
+    let mut compared_with_zero = false;
+    let mut arg_check_not_zero = false;
+    let mut arg_check_is_zero = false;
+    let mut is_constant = false;
+    let mut is_global = false;
+
+    let args = trace.target_args();
+    let arg = args[self.index];
+
+    // Setup kind of argument
+    match arg {
+      Value::Glob(_) => { is_global = true; },
+      Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => { is_constant = true; },
+      _ => {}
+    }
+
+    // Checks
+    for (i, instr) in trace.iter_instrs(TraceIterDirection::Backward).iter().enumerate() {
+      match &instr.sem {
+        Semantics::ICmp { pred, op0, op1 } => {
+          let arg_is_op0 = &**op0 == arg;
+          let arg_is_op1 = &**op1 == arg;
+          if arg_is_op0 || arg_is_op1 {
+            checked = true;
+
+            let other_op = if arg_is_op0 { &**op1 } else { &**op0 };
+            match other_op {
+              Value::Int(0) | Value::Null => {
+                compared_with_zero = true;
+
+                // Search for a branch instruction after the icmp
+                // Only go 5 steps forward
+                for maybe_br in trace.iter_instrs_from(TraceIterDirection::Forward, i).iter().take(5) {
+                  match &maybe_br.sem {
+                    Semantics::CondBr { cond, br, .. } => {
+                      if &**cond == &instr.res.clone().unwrap() {
+                        match (pred, br) {
+                          (Predicate::EQ, Branch::Then) | (Predicate::NE, Branch::Else) => { arg_check_is_zero = true; }
+                          (Predicate::EQ, Branch::Else) | (Predicate::NE, Branch::Then) => { arg_check_not_zero = true; }
+                          _ => {}
+                        }
+                      }
+                    }
+                    _ => {}
+                  }
+                }
+              }
+              _ => {}
+            }
+          }
+        }
+        _ => {}
+      }
+    }
+
     json!({
-      "checked_before": false,
+      "checked": checked,
+      "compared_with_zero": compared_with_zero,
+      "arg_check_is_zero": arg_check_is_zero,
+      "arg_check_not_zero": arg_check_not_zero,
+      "is_constant": is_constant,
+      "is_global": is_global,
     })
   }
 }

@@ -35,7 +35,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     let retval = trace.target_result().clone().unwrap();
 
     // Start iterating from the target node
-    for (i, instr) in trace.instrs.iter().enumerate().skip(trace.target) {
+    for (i, instr) in trace.iter_instrs(TraceIterDirection::Forward).iter().enumerate() {
       match &instr.sem {
         Semantics::Load { loc } => {
           if **loc == retval {
