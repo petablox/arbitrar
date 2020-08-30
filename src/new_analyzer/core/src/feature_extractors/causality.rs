@@ -25,9 +25,9 @@ impl CausalityFeatureExtractor {
 impl FeatureExtractor for CausalityFeatureExtractor {
   fn name(&self) -> String {
     if self.forward {
-      format!("post")
+      format!("after")
     } else {
-      format!("pre")
+      format!("before")
     }
   }
 
@@ -85,7 +85,9 @@ fn find_mostly_used_functions(map: &HashMap<String, f32>, k: usize) -> Vec<Strin
 }
 
 fn iter_instrs(trace: &Trace, forward: bool) -> Vec<&Instr> {
-  if forward { trace.instrs.iter().skip(trace.target).collect::<Vec<_>>() } else {
+  if forward {
+    trace.instrs.iter().skip(trace.target + 1).collect::<Vec<_>>()
+  } else {
     trace.instrs.iter().skip(trace.instrs.len() - trace.target).rev().collect::<Vec<_>>()
   }
 }
@@ -111,19 +113,53 @@ fn find_caused_functions(trace: &Trace, forward: bool) -> HashMap<String, usize>
 #[derive(Clone, Serialize)]
 struct FunctionCausalityFeatures {
   pub invoked: bool,
+
+  /// Function is invoked more than once before/after the target
+  ///
+  /// ```
+  /// target(...);
+  /// f(...);
+  /// f(...);
+  /// ```
+  pub invoked_more_than_once: bool,
+
+  /// Share return value
+  ///
+  /// Example 1:
+  ///
+  /// If `f` is a function called before target,
+  ///
+  /// ```
+  /// a = f(...);
+  /// target(..., a, ...);
+  /// ```
+  ///
+  /// Example 2:
+  ///
+  /// ```
+  /// r = target(...);
+  /// f(r, ...);
+  /// ```
+  pub share_return_value: bool,
+
+  /// Share argument value
+  pub share_argument_value: bool,
 }
 
 impl Default for  FunctionCausalityFeatures {
   fn default() -> Self {
     Self {
       invoked: false,
+      invoked_more_than_once: false,
+      share_return_value: false,
+      share_argument_value: false,
     }
   }
 }
 
 fn find_function_causality(trace: &Trace, forward: bool, funcs: &Vec<String>) -> Vec<FunctionCausalityFeatures> {
   let mut result = vec![FunctionCausalityFeatures::default(); funcs.len()];
-  // let target_instr = &trace.instrs[trace.target];
+  let target_instr = &trace.instrs[trace.target];
   for instr in iter_instrs(trace, forward) {
     match &instr.sem {
       Semantics::Call { func, .. } => {
@@ -132,6 +168,36 @@ fn find_function_causality(trace: &Trace, forward: bool, funcs: &Vec<String>) ->
             match funcs.iter().position(|f| f == func_name) {
               Some(id) => {
                 let features = &mut result[id];
+
+                // Update invoked more than once
+                if features.invoked {
+                  features.invoked_more_than_once = true;
+                }
+
+                // Check if sharing return value
+                if !features.share_return_value {
+                  let retval = if forward {
+                    (target_instr.res.clone(), instr.sem.call_args())
+                  } else {
+                    (instr.res.clone(), target_instr.sem.call_args())
+                  };
+                  if let (Some(retval), args) = retval {
+                    if args.iter().find(|a| ***a == retval).is_some() {
+                      features.share_return_value = true;
+                    }
+                  }
+                }
+
+                // Check if sharing argument value
+                if !features.share_argument_value {
+                  let args_1 = instr.sem.call_args();
+                  let args_2 = target_instr.sem.call_args();
+                  if args_1.iter().find(|a| args_2.iter().find(|b| a == b).is_some()).is_some() {
+                    features.share_argument_value = true;
+                  }
+                }
+
+                // Invoked
                 features.invoked = true;
               }
               _ => {}

@@ -37,13 +37,16 @@ pub struct Options {
 impl Default for Options {
   fn default() -> Self {
     Self {
+      // General options
       input: "".to_string(),
       output: "".to_string(),
       subfolder: None,
       use_serial: false,
 
+      // Call graph options
       no_remove_llvm_funcs: false,
 
+      // Slicer options
       slice_depth: 1,
       target_inclusion_filter: None,
       target_exclusion_filter: None,
@@ -51,9 +54,11 @@ impl Default for Options {
       use_regex_filter: false,
       reduce_slice: false,
 
+      // Batching options
       use_batch: false,
       batch_size: 0,
 
+      // Symbolic execution options
       max_trace_per_slice: 50,
       max_explored_trace_per_slice: 1000,
       max_node_per_trace: 5000,
@@ -61,6 +66,7 @@ impl Default for Options {
       print_trace: false,
       no_prefilter_block_trace: false,
 
+      // Feature extraction options
       causality_dictionary_size: 10,
     }
   }

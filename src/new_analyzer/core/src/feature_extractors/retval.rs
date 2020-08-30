@@ -85,7 +85,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     json!({
       "derefed": derefed,
       "returned": returned,
-      "used_in_ret_val": indir_returned,
+      "indirectly_returned": indir_returned,
     })
   }
 }

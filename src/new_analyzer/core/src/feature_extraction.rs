@@ -38,7 +38,15 @@ pub struct Trace {
 
 impl Trace {
   pub fn target_result(&self) -> &Option<Value> {
-    &self.instrs[self.target].res
+    &self.target_instr().res
+  }
+
+  pub fn target_instr(&self) -> &Instr {
+    &self.instrs[self.target]
+  }
+
+  pub fn target_args(&self) -> Vec<&Value> {
+    self.target_instr().sem.call_args()
   }
 }
 

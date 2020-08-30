@@ -259,6 +259,17 @@ macro_rules! decl_value_with_wrapper {
         op1: $wrapper<Value>,
       },
     }
+
+    impl Semantics {
+      pub fn call_args(&self) -> Vec<&Value> {
+        match self {
+          Semantics::Call { args, .. } => {
+            args.iter().map(|v| &**v).collect()
+          },
+          _ => panic!("Target is not a call")
+        }
+      }
+    }
   };
 }
 
