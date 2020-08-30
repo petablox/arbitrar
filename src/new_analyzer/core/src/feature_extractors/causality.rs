@@ -162,7 +162,7 @@ impl Default for  FunctionCausalityFeatures {
 fn find_function_causality(trace: &Trace, dir: TraceIterDirection, funcs: &Vec<String>) -> Vec<FunctionCausalityFeatures> {
   let mut result = vec![FunctionCausalityFeatures::default(); funcs.len()];
   let target_instr = &trace.instrs[trace.target];
-  for instr in trace.iter_instrs(dir) {
+  for instr in trace.iter_instrs_from_target(dir) {
     match &instr.sem {
       Semantics::Call { func, .. } => {
         match &**func {

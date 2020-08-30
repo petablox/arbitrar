@@ -35,12 +35,10 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     let retval = trace.target_result().clone().unwrap();
 
     // Start iterating from the target node
-    for (i, instr) in trace.iter_instrs(TraceIterDirection::Forward).iter().enumerate() {
+    for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Forward).iter().enumerate() {
       match &instr.sem {
         Semantics::Load { loc } => {
-          if **loc == retval {
-            derefed = true;
-          } else if child_ptrs.contains(&**loc) {
+          if **loc == retval || child_ptrs.contains(&**loc) {
             derefed = true;
           }
         }
@@ -85,7 +83,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     json!({
       "derefed": derefed,
       "returned": returned,
-      "indirectly_returned": indir_returned,
+      "indir_returned": indir_returned,
     })
   }
 }

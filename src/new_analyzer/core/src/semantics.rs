@@ -139,6 +139,19 @@ macro_rules! decl_value_with_wrapper {
         }
       }
 
+      pub fn contains(&self, value: &Value) -> bool {
+        match value {
+          Value::GEP { loc, .. } => {
+            if &**loc == self {
+              true
+            } else {
+              self.contains(loc)
+            }
+          }
+          _ => self == value
+        }
+      }
+
       pub fn into_z3_ast<'ctx>(
         &self,
         symbol_map: &mut HashMap<Value, z3::Symbol>,

@@ -35,8 +35,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     let mut is_constant = false;
     let mut is_global = false;
 
-    let args = trace.target_args();
-    let arg = args[self.index];
+    let arg = trace.target_arg(self.index);
 
     // Setup kind of argument
     match arg {
@@ -46,7 +45,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     }
 
     // Checks
-    for (i, instr) in trace.iter_instrs(TraceIterDirection::Backward).iter().enumerate() {
+    for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Backward).iter().enumerate() {
       match &instr.sem {
         Semantics::ICmp { pred, op0, op1 } => {
           let arg_is_op0 = &**op0 == arg;
