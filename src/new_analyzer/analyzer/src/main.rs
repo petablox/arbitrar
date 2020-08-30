@@ -27,6 +27,9 @@ fn main() -> Result<(), String> {
   // Generate call graph
   logging_ctx.log_generating_call_graph()?;
   let call_graph = CallGraph::from_module(&llmod, &options);
+  if options.print_call_graph {
+    call_graph.print();
+  }
 
   // Finding call edges
   logging_ctx.log_finding_call_edges()?;

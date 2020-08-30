@@ -1,9 +1,9 @@
 use llir::types::*;
 use serde_json::json;
 
-use crate::semantics::*;
-use crate::semantics::boxed::*;
 use crate::feature_extraction::*;
+use crate::semantics::boxed::*;
+use crate::semantics::*;
 
 pub struct ReturnValueCheckFeatureExtractor;
 
@@ -93,15 +93,13 @@ fn num_of_value(v: &Value) -> Option<i64> {
   match v {
     Value::Int(i) => Some(i.clone()),
     Value::Null => Some(0),
-    _ => None
+    _ => None,
   }
 }
 
 fn icmp_pred_op0_op1(v: &Value) -> Option<(Predicate, Value, Value)> {
   match v {
-    Value::ICmp { pred, op0, op1 } => {
-      Some((pred.clone(), *op0.clone(), *op1.clone()))
-    }
-    _ => None
+    Value::ICmp { pred, op0, op1 } => Some((pred.clone(), *op0.clone(), *op1.clone())),
+    _ => None,
   }
 }

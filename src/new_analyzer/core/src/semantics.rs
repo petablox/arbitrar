@@ -148,7 +148,7 @@ macro_rules! decl_value_with_wrapper {
               self.contains(loc)
             }
           }
-          _ => self == value
+          _ => self == value,
         }
       }
 
@@ -276,10 +276,8 @@ macro_rules! decl_value_with_wrapper {
     impl Semantics {
       pub fn call_args(&self) -> Vec<&Value> {
         match self {
-          Semantics::Call { args, .. } => {
-            args.iter().map(|v| &**v).collect()
-          },
-          _ => panic!("Target is not a call")
+          Semantics::Call { args, .. } => args.iter().map(|v| &**v).collect(),
+          _ => panic!("Target is not a call"),
         }
       }
     }

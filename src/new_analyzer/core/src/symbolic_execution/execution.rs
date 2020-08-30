@@ -722,15 +722,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             metadata.incr_duplicated()
           }
         }
-        FinishState::BranchExplored => {
-          metadata.incr_branch_explored()
-        }
-        FinishState::ExceedingMaxTraceLength => {
-          metadata.incr_exceeding_length()
-        }
-        FinishState::Unreachable => {
-          metadata.incr_unreachable()
-        }
+        FinishState::BranchExplored => metadata.incr_branch_explored(),
+        FinishState::ExceedingMaxTraceLength => metadata.incr_exceeding_length(),
+        FinishState::Unreachable => metadata.incr_unreachable(),
       },
       None => metadata.incr_no_target(),
     }
@@ -747,6 +741,9 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     } else {
       let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth as usize * 2);
       for block_trace in block_traces {
+        if self.options.print_block_trace {
+          println!("{:?}", block_trace);
+        }
         let work = Work::entry_with_block_trace(slice, block_trace);
         env.add_work(work);
       }

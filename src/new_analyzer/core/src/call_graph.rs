@@ -17,9 +17,10 @@ pub struct CallEdge<'ctx> {
 impl<'ctx> std::fmt::Display for CallEdge<'ctx> {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     f.write_fmt(format_args!(
-      "{} -> {}",
+      "{} -> {}: {}",
       self.caller.simp_name(),
-      self.callee.simp_name()
+      self.callee.simp_name(),
+      self.instr.debug_loc_string(),
     ))
   }
 }
@@ -34,7 +35,7 @@ pub trait CallGraphTrait<'ctx> {
 
   fn call_edge(&self, edge_id: EdgeIndex) -> Option<CallEdge>;
 
-  fn dump(&self);
+  fn print(&self);
 }
 
 impl<'ctx> CallGraphTrait<'ctx> for CallGraphRaw<'ctx> {
@@ -57,7 +58,7 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraphRaw<'ctx> {
     })
   }
 
-  fn dump(&self) {
+  fn print(&self) {
     for edge_id in self.edge_indices() {
       match self.call_edge(edge_id) {
         Some(ce) => println!("{}", ce.to_string()),
@@ -226,5 +227,9 @@ impl<'ctx> CallGraph<'ctx> {
       graph: cg,
       function_id_map: value_id_map,
     }
+  }
+
+  pub fn print(&self) {
+    self.graph.print()
   }
 }

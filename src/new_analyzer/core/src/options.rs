@@ -11,6 +11,7 @@ pub struct Options {
 
   // Call Graph Options
   pub no_remove_llvm_funcs: bool,
+  pub print_call_graph: bool,
 
   // Slicer Options
   pub slice_depth: u8,
@@ -21,12 +22,14 @@ pub struct Options {
   pub reduce_slice: bool,
   pub use_batch: bool,
   pub batch_size: usize,
+  pub print_slice: bool,
 
   // Symbolic Execution Options
   pub max_trace_per_slice: usize,
   pub max_explored_trace_per_slice: usize,
   pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
+  pub print_block_trace: bool,
   pub print_trace: bool,
   pub no_prefilter_block_trace: bool,
 
@@ -45,6 +48,7 @@ impl Default for Options {
 
       // Call graph options
       no_remove_llvm_funcs: false,
+      print_call_graph: false,
 
       // Slicer options
       slice_depth: 1,
@@ -53,6 +57,7 @@ impl Default for Options {
       entry_filter: None,
       use_regex_filter: false,
       reduce_slice: false,
+      print_slice: false,
 
       // Batching options
       use_batch: false,
@@ -63,6 +68,7 @@ impl Default for Options {
       max_explored_trace_per_slice: 1000,
       max_node_per_trace: 5000,
       no_trace_reduction: false,
+      print_block_trace: false,
       print_trace: false,
       no_prefilter_block_trace: false,
 
@@ -90,6 +96,9 @@ impl Options {
       Arg::new("no_remove_llvm_funcs")
         .long("--no-remove-llvm-funcs")
         .about("Do not remove llvm functions"),
+      Arg::new("print_call_graph")
+        .long("--print-call-graph")
+        .about("Print call graph"),
       // Slicer options
       Arg::new("slice_depth")
         .value_name("SLICE_DEPTH")
@@ -125,6 +134,7 @@ impl Options {
         .takes_value(true)
         .default_value("100")
         .long("batch-size"),
+      Arg::new("print_slice").long("print-slice").about("Print slice"),
       // Symbolic Execution Options
       Arg::new("max_trace_per_slice")
         .value_name("MAX_TRACE_PER_SLICE")
@@ -146,6 +156,9 @@ impl Options {
       Arg::new("no_reduce_trace")
         .long("no-reduce-trace")
         .about("No trace reduction"),
+      Arg::new("print_block_trace")
+        .long("print-block-trace")
+        .about("Print out block trace"),
       Arg::new("print_trace").long("print-trace").about("Print out trace"),
       Arg::new("no_prefilter_block_trace")
         .long("no-prefilter-block-trace")
@@ -172,6 +185,7 @@ impl Options {
 
       // Call graph options
       no_remove_llvm_funcs: matches.is_present("no_remove_llvm_funcs"),
+      print_call_graph: matches.is_present("print_call_graph"),
 
       // Slicer options
       slice_depth: matches
@@ -186,12 +200,14 @@ impl Options {
         .value_of_t::<usize>("batch_size")
         .map_err(|_| String::from("Cannot parse batch size"))?,
       use_regex_filter: matches.is_present("use_regex_filter"),
+      print_slice: matches.is_present("print_slice"),
 
       // Symbolic execution options
       max_trace_per_slice: matches.value_of_t::<usize>("max_trace_per_slice").unwrap(),
       max_explored_trace_per_slice: matches.value_of_t::<usize>("max_explored_trace_per_slice").unwrap(),
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
       no_trace_reduction: matches.is_present("no_reduce_trace"),
+      print_block_trace: matches.is_present("print_block_trace"),
       print_trace: matches.is_present("print_trace"),
       no_prefilter_block_trace: matches.is_present("no_prefilter_block_trace"),
 
@@ -213,7 +229,7 @@ impl Options {
   pub fn with_subfolder(&self, path: PathBuf) -> PathBuf {
     match &self.subfolder {
       Some(s) => path.join(s.as_str()),
-      None => path
+      None => path,
     }
   }
 
@@ -236,7 +252,9 @@ impl Options {
   }
 
   pub fn trace_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
-    self.with_subfolder(self.trace_dir_path().join(target)).join(slice_id.to_string())
+    self
+      .with_subfolder(self.trace_dir_path().join(target))
+      .join(slice_id.to_string())
   }
 
   pub fn trace_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {
@@ -250,7 +268,9 @@ impl Options {
   }
 
   pub fn features_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
-    self.with_subfolder(self.features_dir_path().join(target)).join(slice_id.to_string())
+    self
+      .with_subfolder(self.features_dir_path().join(target))
+      .join(slice_id.to_string())
   }
 
   pub fn features_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {

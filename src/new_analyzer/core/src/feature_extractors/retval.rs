@@ -1,9 +1,9 @@
-use std::collections::HashSet;
 use llir::types::*;
 use serde_json::json;
+use std::collections::HashSet;
 
-use crate::semantics::boxed::*;
 use crate::feature_extraction::*;
+use crate::semantics::boxed::*;
 
 pub struct ReturnValueFeatureExtractor;
 
@@ -30,12 +30,16 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     let mut derefed = false;
     let mut returned = false;
     let mut indir_returned = false;
-    let mut child_ptrs : HashSet<Value> = HashSet::new();
-    let mut tracked_values : HashSet<Value> = HashSet::new();
+    let mut child_ptrs: HashSet<Value> = HashSet::new();
+    let mut tracked_values: HashSet<Value> = HashSet::new();
     let retval = trace.target_result().clone().unwrap();
 
     // Start iterating from the target node
-    for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Forward).iter().enumerate() {
+    for (i, instr) in trace
+      .iter_instrs_from_target(TraceIterDirection::Forward)
+      .iter()
+      .enumerate()
+    {
       match &instr.sem {
         Semantics::Load { loc } => {
           if **loc == retval || child_ptrs.contains(&**loc) {

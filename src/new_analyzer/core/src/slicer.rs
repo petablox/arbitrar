@@ -275,6 +275,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
       functions,
     }
   }
+
   fn slices_of_call_edge(&self, edge_id: EdgeIndex, options: &Options) -> Vec<Slice<'ctx>> {
     let entry_ids = self.find_entries(edge_id, options);
     entry_ids

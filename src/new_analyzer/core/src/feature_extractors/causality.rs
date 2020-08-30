@@ -1,9 +1,9 @@
-use std::collections::{HashMap, BinaryHeap};
 use llir::types::*;
 use serde::Serialize;
+use std::collections::{BinaryHeap, HashMap};
 
-use crate::semantics::boxed::*;
 use crate::feature_extraction::*;
+use crate::semantics::boxed::*;
 
 pub struct CausalityFeatureExtractor {
   pub direction: TraceIterDirection,
@@ -18,7 +18,7 @@ impl CausalityFeatureExtractor {
       direction: TraceIterDirection::Forward,
       dictionary_size: size,
       dictionary: HashMap::new(),
-      most_occurred: vec![]
+      most_occurred: vec![],
     }
   }
 
@@ -27,7 +27,7 @@ impl CausalityFeatureExtractor {
       direction: TraceIterDirection::Backward,
       dictionary_size: size,
       dictionary: HashMap::new(),
-      most_occurred: vec![]
+      most_occurred: vec![],
     }
   }
 }
@@ -41,7 +41,9 @@ impl FeatureExtractor for CausalityFeatureExtractor {
     }
   }
 
-  fn filter<'ctx>(&self, _: &String, _: FunctionType<'ctx>) -> bool { true }
+  fn filter<'ctx>(&self, _: &String, _: FunctionType<'ctx>) -> bool {
+    true
+  }
 
   fn init(&mut self, _: &Slice, num_traces: usize, trace: &Trace) {
     let funcs = find_caused_functions(trace, self.direction);
@@ -58,7 +60,10 @@ impl FeatureExtractor for CausalityFeatureExtractor {
     let causalities = find_function_causality(trace, self.direction, &self.most_occurred);
     let mut map = serde_json::Map::new();
     for (func, causality_features) in self.most_occurred.iter().zip(causalities) {
-      map.insert(func.clone(), serde_json::to_value(causality_features).expect("Cannot turn causality features into json"));
+      map.insert(
+        func.clone(),
+        serde_json::to_value(causality_features).expect("Cannot turn causality features into json"),
+      );
     }
     serde_json::Value::Object(map)
   }
@@ -98,14 +103,12 @@ fn find_caused_functions(trace: &Trace, dir: TraceIterDirection) -> HashMap<Stri
   let mut result = HashMap::new();
   for instr in trace.iter_instrs(dir) {
     match &instr.sem {
-      Semantics::Call { func, .. } => {
-        match &**func {
-          Value::Func(f) => {
-            *result.entry(f.clone()).or_insert(0) += 1;
-          }
-          _ => {}
+      Semantics::Call { func, .. } => match &**func {
+        Value::Func(f) => {
+          *result.entry(f.clone()).or_insert(0) += 1;
         }
-      }
+        _ => {}
+      },
       _ => {}
     }
   }
@@ -148,7 +151,7 @@ struct FunctionCausalityFeatures {
   pub share_argument_value: bool,
 }
 
-impl Default for  FunctionCausalityFeatures {
+impl Default for FunctionCausalityFeatures {
   fn default() -> Self {
     Self {
       invoked: false,
@@ -159,7 +162,11 @@ impl Default for  FunctionCausalityFeatures {
   }
 }
 
-fn find_function_causality(trace: &Trace, dir: TraceIterDirection, funcs: &Vec<String>) -> Vec<FunctionCausalityFeatures> {
+fn find_function_causality(
+  trace: &Trace,
+  dir: TraceIterDirection,
+  funcs: &Vec<String>,
+) -> Vec<FunctionCausalityFeatures> {
   let mut result = vec![FunctionCausalityFeatures::default(); funcs.len()];
   let target_instr = &trace.instrs[trace.target];
   for instr in trace.iter_instrs_from_target(dir) {
@@ -194,7 +201,11 @@ fn find_function_causality(trace: &Trace, dir: TraceIterDirection, funcs: &Vec<S
                 if !features.share_argument_value {
                   let args_1 = instr.sem.call_args();
                   let args_2 = target_instr.sem.call_args();
-                  if args_1.iter().find(|a| args_2.iter().find(|b| a == b).is_some()).is_some() {
+                  if args_1
+                    .iter()
+                    .find(|a| args_2.iter().find(|b| a == b).is_some())
+                    .is_some()
+                  {
                     features.share_argument_value = true;
                   }
                 }

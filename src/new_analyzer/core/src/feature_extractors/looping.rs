@@ -1,8 +1,8 @@
 use llir::types::*;
 use serde_json::json;
 
-use crate::semantics::boxed::*;
 use crate::feature_extraction::*;
+use crate::semantics::boxed::*;
 
 pub struct LoopFeaturesExtractor;
 
@@ -36,12 +36,12 @@ impl FeatureExtractor for LoopFeaturesExtractor {
             has_loop = true;
             loop_stack += 1;
           }
-        },
+        }
         Semantics::UncondBr { end_loop } => {
           if end_loop {
             loop_stack -= 1;
           }
-        },
+        }
         Semantics::Call { .. } => {
           if i == trace.target && loop_stack > 0 {
             target_in_a_loop = true;

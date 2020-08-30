@@ -1,6 +1,6 @@
 use llir::{types::*, Module};
 use rayon::prelude::*;
-use serde::{Deserialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -81,7 +81,12 @@ impl Trace {
     if dir.is_forward() {
       self.instrs.iter().skip(from + 1).collect::<Vec<_>>()
     } else {
-      self.instrs.iter().skip(self.instrs.len() - from).rev().collect::<Vec<_>>()
+      self
+        .instrs
+        .iter()
+        .skip(self.instrs.len() - from)
+        .rev()
+        .collect::<Vec<_>>()
     }
   }
 }
@@ -99,7 +104,7 @@ pub trait FeatureExtractor: Send + Sync {
 }
 
 pub struct FeatureExtractors {
-  extractors: Vec<Box<dyn FeatureExtractor>>
+  extractors: Vec<Box<dyn FeatureExtractor>>,
 }
 
 impl FeatureExtractors {
@@ -119,7 +124,7 @@ impl FeatureExtractors {
         Box::new(CausalityFeatureExtractor::pre(options.causality_dictionary_size)),
         Box::new(CausalityFeatureExtractor::post(options.causality_dictionary_size)),
         Box::new(LoopFeaturesExtractor::new()),
-      ]
+      ],
     }
   }
 
@@ -129,7 +134,7 @@ impl FeatureExtractors {
         .extractors
         .into_iter()
         .filter(|extractor| extractor.filter(target, target_type))
-        .collect()
+        .collect(),
     }
   }
 

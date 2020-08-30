@@ -1,8 +1,8 @@
 use llir::types::*;
 use serde_json::json;
 
-use crate::semantics::{*, boxed::*};
 use crate::feature_extraction::*;
+use crate::semantics::{boxed::*, *};
 
 pub struct ArgumentPreconditionFeatureExtractor {
   pub index: usize,
@@ -39,13 +39,21 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 
     // Setup kind of argument
     match arg {
-      Value::Glob(_) => { is_global = true; },
-      Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => { is_constant = true; },
+      Value::Glob(_) => {
+        is_global = true;
+      }
+      Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
+        is_constant = true;
+      }
       _ => {}
     }
 
     // Checks
-    for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Backward).iter().enumerate() {
+    for (i, instr) in trace
+      .iter_instrs_from_target(TraceIterDirection::Backward)
+      .iter()
+      .enumerate()
+    {
       match &instr.sem {
         Semantics::ICmp { pred, op0, op1 } => {
           let arg_is_op0 = &**op0 == arg;
@@ -65,8 +73,12 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
                     Semantics::CondBr { cond, br, .. } => {
                       if &**cond == &instr.res.clone().unwrap() {
                         match (pred, br) {
-                          (Predicate::EQ, Branch::Then) | (Predicate::NE, Branch::Else) => { arg_check_is_zero = true; }
-                          (Predicate::EQ, Branch::Else) | (Predicate::NE, Branch::Then) => { arg_check_not_zero = true; }
+                          (Predicate::EQ, Branch::Then) | (Predicate::NE, Branch::Else) => {
+                            arg_check_is_zero = true;
+                          }
+                          (Predicate::EQ, Branch::Else) | (Predicate::NE, Branch::Then) => {
+                            arg_check_not_zero = true;
+                          }
                           _ => {}
                         }
                       }
