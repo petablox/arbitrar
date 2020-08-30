@@ -94,15 +94,16 @@ macro_rules! decl_value_with_wrapper {
   ($wrapper:ident) => {
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub enum Value {
-      Arg(usize),   // Argument ID
-      Sym(usize),   // Symbol ID
-      Glob(String), // Global Value Name
-      Func(String), // Function Name
+      Arg(usize),      // Argument ID
+      ConstSym(usize), // Constant Symbol ID
+      Sym(usize),      // Temporary Symbol ID
+      Glob(String),    // Global Value Name
+      Func(String),    // Function Name
       FuncPtr,
       Asm,
       Int(i64),
       Null,
-      Alloca(usize),
+      Alloc(usize),    // Local alloca ID
       GEP {
         loc: $wrapper<Value>,
         indices: Vec<$wrapper<Value>>,

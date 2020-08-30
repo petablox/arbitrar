@@ -52,7 +52,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
           } else if **val == retval {
             let loc = *loc.clone();
             match &loc {
-              Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloca(_) => {
+              Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloc(_) => {
                 tracked_values.insert(loc);
               }
               Value::GEP { loc, .. } => {

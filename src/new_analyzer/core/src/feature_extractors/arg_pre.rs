@@ -42,7 +42,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       Value::Glob(_) => {
         is_global = true;
       }
-      Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
+      Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
         is_constant = true;
       }
       _ => {}

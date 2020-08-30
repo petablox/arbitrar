@@ -107,7 +107,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       Constant::Int(i) => Rc::new(Value::Int(i.sext_value())),
       Constant::Null(_) => Rc::new(Value::Null),
       Constant::Float(_) | Constant::Struct(_) | Constant::Array(_) | Constant::Vector(_) => {
-        Rc::new(Value::Sym(state.new_symbol_id()))
+        Rc::new(Value::ConstSym(state.new_symbol_id()))
       }
       Constant::Global(glob) => Rc::new(Value::Glob(glob.name())),
       Constant::Function(func) => Rc::new(Value::Func(func.simp_name())),
@@ -143,7 +143,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           match instr {
             Instruction::Alloca(_) => {
               let alloca_id = state.new_alloca_id();
-              let value = Rc::new(Value::Alloca(alloca_id));
+              let value = Rc::new(Value::Alloc(alloca_id));
               state.stack.top_mut().memory.insert(instr, value.clone());
               value
             }

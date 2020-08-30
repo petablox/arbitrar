@@ -82,7 +82,7 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
           } else if &**val == arg {
             let loc = *loc.clone();
             match &loc {
-              Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloca(_) => {
+              Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloc(_) => {
                 tracked_values.insert(loc);
               }
               Value::GEP { loc, .. } => {
