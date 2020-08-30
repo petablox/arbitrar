@@ -1,5 +1,5 @@
 use llir::values::*;
-use petgraph::{graph::*, Direction};
+use petgraph::{graph::*, visit::*, Direction};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::json;
@@ -99,12 +99,11 @@ impl TargetEdgesMapTrait for TargetEdgesMap {
         !exclusion_filter.matches(func_name.as_str())
       };
       if include {
-        for caller_id in call_graph.graph.neighbors_directed(callee_id, Direction::Incoming) {
-          let edge = call_graph.graph.find_edge(caller_id, callee_id).unwrap();
+        for edge in call_graph.graph.edges_directed(callee_id, Direction::Incoming) {
           target_edges_map
             .entry(func_name.clone())
             .or_insert(Vec::new())
-            .push(edge);
+            .push(edge.id());
         }
       }
     }
