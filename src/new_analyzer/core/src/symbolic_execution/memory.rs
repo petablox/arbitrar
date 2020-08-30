@@ -61,9 +61,3 @@ pub struct BranchDirection<'ctx> {
 }
 
 pub type VisitedBranch<'ctx> = HashSet<BranchDirection<'ctx>>;
-
-#[derive(Debug, Clone)]
-pub struct Constraint {
-  pub cond: Comparison,
-  pub branch: bool,
-}

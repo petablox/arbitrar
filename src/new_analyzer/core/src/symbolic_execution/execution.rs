@@ -690,17 +690,27 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     env: &mut Environment<'ctx>,
   ) {
     match state.target_node {
-      Some(_target_id) => match state.finish_state {
+      Some(target_id) => match state.finish_state {
         FinishState::ProperlyReturned => {
-          // if !self.options.no_trace_reduction {
-          //   work.state.trace_graph = work.state.trace_graph.reduce(target_id);
-          // }
-          let block_trace = state.trace.block_trace();
+
+          // Generate the trace for output
+          let raw_trace = TraceWithTarget::new(state.trace, target_id);
+          let trace = if !self.options.no_trace_reduction {
+            raw_trace.reduce()
+          } else {
+            raw_trace
+          };
+
+          // Check block trace duplication
+          let block_trace = trace.block_trace();
           if !env.has_duplicate(&block_trace) {
             // Add block trace into environment
             env.add_block_trace(block_trace);
 
-            if state.path_satisfactory() {
+            // Check path satisfaction
+            if state.constraints.sat() {
+
+              // Need store
               let trace_id = metadata.proper_trace_count;
               let path = self
                 .options
@@ -709,11 +719,13 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               // If printing trace
               if self.options.print_trace && self.options.use_serial {
                 println!("\nSlice {} Trace {} Log", slice_id, trace_id);
-                state.trace.print();
+                trace.print();
               }
 
               // Dump the json
-              state.dump_json(path).unwrap();
+              trace.dump_json(path).unwrap();
+
+              // Increase the count in metadata
               metadata.incr_proper();
             } else {
               metadata.incr_path_unsat()

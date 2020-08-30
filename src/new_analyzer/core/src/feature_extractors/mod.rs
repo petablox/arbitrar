@@ -4,8 +4,6 @@ mod arg_post;
 pub use arg_post::*;
 mod causality;
 pub use causality::*;
-mod context;
-pub use context::*;
 mod looping;
 pub use looping::*;
 mod retval;
