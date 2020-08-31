@@ -15,7 +15,7 @@ impl ReturnValueFeatureExtractor {
 
 impl FeatureExtractor for ReturnValueFeatureExtractor {
   fn name(&self) -> String {
-    "retval".to_string()
+    "ret".to_string()
   }
 
   fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {

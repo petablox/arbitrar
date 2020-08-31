@@ -148,7 +148,7 @@ pub struct BlockGraph<'ctx> {
 pub trait FunctionBlockGraphTrait<'ctx> {
   fn block_graph(&self) -> BlockGraph<'ctx>;
 
-  fn block_traces_to_instr(&self, instr: Instruction<'ctx>) -> Vec<Vec<Block<'ctx>>>;
+  fn block_traces_to_instr(&self, instr: Instruction<'ctx>, max_traces: usize) -> Vec<Vec<Block<'ctx>>>;
 }
 
 impl<'ctx> FunctionBlockGraphTrait<'ctx> for Function<'ctx> {
@@ -173,7 +173,7 @@ impl<'ctx> FunctionBlockGraphTrait<'ctx> for Function<'ctx> {
     BlockGraph { graph, block_id_map }
   }
 
-  fn block_traces_to_instr(&self, instr: Instruction<'ctx>) -> Vec<Vec<Block<'ctx>>> {
+  fn block_traces_to_instr(&self, instr: Instruction<'ctx>, max_traces: usize) -> Vec<Vec<Block<'ctx>>> {
     let entry_block = self.first_block().unwrap();
     if entry_block == instr.parent_block() {
       vec![vec![entry_block]]
@@ -186,6 +186,7 @@ impl<'ctx> FunctionBlockGraphTrait<'ctx> for Function<'ctx> {
         0,
         None,
       )
+      .take(max_traces)
       .map(|path: Vec<_>| path.into_iter().map(|ni| block_graph.graph[ni]).collect())
       .collect()
     }
@@ -193,15 +194,15 @@ impl<'ctx> FunctionBlockGraphTrait<'ctx> for Function<'ctx> {
 }
 
 pub trait BlockTracesFromCallGraphPath<'ctx> {
-  fn block_traces(&self) -> Vec<BlockTrace<'ctx>>;
+  fn block_traces(&self, max_traces_per_function: usize) -> Vec<BlockTrace<'ctx>>;
 }
 
 impl<'ctx> BlockTracesFromCallGraphPath<'ctx> for CallGraphPath<'ctx> {
-  fn block_traces(&self) -> Vec<BlockTrace<'ctx>> {
+  fn block_traces(&self, max_traces_per_function: usize) -> Vec<BlockTrace<'ctx>> {
     let mut curr_func = self.begin;
     let mut comp_trace = vec![];
     for (call_instr, next_func) in &self.succ {
-      let block_traces = curr_func.block_traces_to_instr(call_instr.as_instruction());
+      let block_traces = curr_func.block_traces_to_instr(call_instr.as_instruction(), max_traces_per_function);
       comp_trace.push(CompositeFunctionBlockTraces {
         function: curr_func,
         block_traces,
@@ -216,7 +217,7 @@ impl<'ctx> BlockTracesFromCallGraphPath<'ctx> for CallGraphPath<'ctx> {
 pub trait BlockTracesFromSlice<'ctx> {
   fn function_traces(&self, cg: &CallGraph<'ctx>, d: usize) -> Vec<CallGraphPath<'ctx>>;
 
-  fn block_traces(&self, cg: &CallGraph<'ctx>, d: usize) -> Vec<BlockTrace<'ctx>>;
+  fn block_traces(&self, cg: &CallGraph<'ctx>, d: usize, max_traces: usize) -> Vec<BlockTrace<'ctx>>;
 }
 
 impl<'ctx> BlockTracesFromSlice<'ctx> for Slice<'ctx> {
@@ -242,10 +243,10 @@ impl<'ctx> BlockTracesFromSlice<'ctx> for Slice<'ctx> {
     }
   }
 
-  fn block_traces(&self, call_graph: &CallGraph<'ctx>, max_func_depth: usize) -> Vec<BlockTrace<'ctx>> {
+  fn block_traces(&self, call_graph: &CallGraph<'ctx>, max_func_depth: usize, max_traces: usize) -> Vec<BlockTrace<'ctx>> {
     let mut traces = vec![];
     for func_trace in self.function_traces(call_graph, max_func_depth) {
-      traces.extend(func_trace.block_traces());
+      traces.extend(func_trace.block_traces(max_traces));
     }
     traces
   }

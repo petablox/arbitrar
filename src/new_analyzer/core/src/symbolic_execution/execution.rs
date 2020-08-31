@@ -285,14 +285,19 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         let visited_else = state.visited_branch.contains(&else_br);
         if !visited_then {
           // Check if we need to add a work for else branch
-          if !visited_else {
+          if !visited_else && env.can_add_work() {
+
             // First add else branch into work
             let mut else_state = state.clone();
+
+            // Add constraint
             if let Some(comparison) = comparison.clone() {
               if !is_loop_blk {
                 else_state.add_constraint(comparison, false);
               }
             }
+
+            // Update state
             else_state.visited_branch.insert(else_br);
             else_state.trace.push(TraceNode {
               instr: instr.as_instruction(),
@@ -303,6 +308,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                 beg_loop: false,
               },
             });
+
+            // Generate work
             let else_work = Work::new(instr.else_block(), else_state);
             env.add_work(else_work);
           }
@@ -393,7 +400,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
     // Insert branches as work if not visited
     for bd in branches {
-      if !state.visited_branch.contains(&bd) {
+      if !state.visited_branch.contains(&bd) && env.can_add_work() {
         let mut br_state = state.clone();
         br_state.visited_branch.insert(bd);
         let br_work = Work::new(bd.to, br_state);
@@ -743,15 +750,16 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn execute_slice(&self, slice: &Slice<'ctx>, slice_id: usize) -> MetaData {
+    println!("Slice ID {}", slice_id);
     let mut metadata = MetaData::new();
-    let mut env = Environment::new(slice);
+    let mut env = Environment::new(slice, self.options.max_work);
 
     // Add a work to the environment list
     if self.options.no_prefilter_block_trace {
       let first_work = Work::entry(&slice);
       env.add_work(first_work);
     } else {
-      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth as usize * 2);
+      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth as usize * 2, self.options.max_work);
       for block_trace in block_traces {
         if self.options.print_block_trace {
           println!("{:?}", block_trace);

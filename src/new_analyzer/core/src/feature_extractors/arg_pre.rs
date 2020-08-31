@@ -16,7 +16,7 @@ impl ArgumentPreconditionFeatureExtractor {
 
 impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
   fn name(&self) -> String {
-    format!("arg.{}.precond", self.index)
+    format!("arg.{}.pre", self.index)
   }
 
   fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {

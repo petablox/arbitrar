@@ -10,16 +10,18 @@ pub struct Environment<'ctx> {
   pub work_list: Vec<Work<'ctx>>,
   pub block_traces: Vec<Vec<Block<'ctx>>>,
   pub call_id: usize,
+  pub max_work: usize,
   pub rng: ThreadRng,
 }
 
 impl<'ctx> Environment<'ctx> {
-  pub fn new(slice: &Slice<'ctx>) -> Self {
+  pub fn new(slice: &Slice<'ctx>, max_work: usize) -> Self {
     Self {
       slice: slice.clone(),
       work_list: vec![],
       block_traces: vec![],
       call_id: 0,
+      max_work: max_work,
       rng: rand::thread_rng(),
     }
   }
@@ -41,8 +43,18 @@ impl<'ctx> Environment<'ctx> {
     self.work_list.pop().unwrap()
   }
 
-  pub fn add_work(&mut self, work: Work<'ctx>) {
-    self.work_list.push(work);
+  pub fn can_add_work(&self) -> bool {
+    self.work_list.len() < self.max_work
+  }
+
+  pub fn add_work(&mut self, work: Work<'ctx>) -> bool {
+    println!("Work list length {}", self.work_list.len());
+    if self.work_list.len() >= self.max_work {
+      false
+    } else {
+      self.work_list.push(work);
+      true
+    }
   }
 
   pub fn new_call_id(&mut self) -> usize {

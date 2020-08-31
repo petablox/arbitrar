@@ -17,7 +17,7 @@ impl ArgumentPostconditionFeatureExtractor {
 
 impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
   fn name(&self) -> String {
-    format!("arg.{}.postcond", self.index)
+    format!("arg.{}.post", self.index)
   }
 
   fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {

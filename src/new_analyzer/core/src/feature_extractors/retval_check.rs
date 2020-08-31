@@ -15,7 +15,7 @@ impl ReturnValueCheckFeatureExtractor {
 
 impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
   fn name(&self) -> String {
-    "retval_check".to_string()
+    "ret.check".to_string()
   }
 
   /// Return value check feature should only present when the return type

@@ -25,6 +25,7 @@ pub struct Options {
   pub print_slice: bool,
 
   // Symbolic Execution Options
+  pub max_work: usize,
   pub max_trace_per_slice: usize,
   pub max_explored_trace_per_slice: usize,
   pub max_node_per_trace: usize,
@@ -65,6 +66,7 @@ impl Default for Options {
       batch_size: 0,
 
       // Symbolic execution options
+      max_work: 100,
       max_trace_per_slice: 50,
       max_explored_trace_per_slice: 1000,
       max_node_per_trace: 5000,
@@ -138,6 +140,12 @@ impl Options {
         .long("batch-size"),
       Arg::new("print_slice").long("print-slice").about("Print slice"),
       // Symbolic Execution Options
+      Arg::new("max_work")
+        .long("max-work")
+        .value_name("MAX_WORK")
+        .takes_value(true)
+        .default_value("100")
+        .about("Max number of work in work list"),
       Arg::new("max_trace_per_slice")
         .value_name("MAX_TRACE_PER_SLICE")
         .takes_value(true)
@@ -208,6 +216,7 @@ impl Options {
       print_slice: matches.is_present("print_slice"),
 
       // Symbolic execution options
+      max_work: matches.value_of_t::<usize>("max_work").unwrap(),
       max_trace_per_slice: matches.value_of_t::<usize>("max_trace_per_slice").unwrap(),
       max_explored_trace_per_slice: matches.value_of_t::<usize>("max_explored_trace_per_slice").unwrap(),
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
