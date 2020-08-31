@@ -189,7 +189,7 @@ def extract_bc(db: Database, pkg: Pkg, libs=None):
 
   if libs is None:
     libs = find_libs(src_dir)
-    libs = map(lambda x: ("lib", x), libs)
+    libs = list(map(lambda x: ("lib", x), libs))
 
   if len(libs) == 0:
     pkg.build.result = BuildResult.nolibs

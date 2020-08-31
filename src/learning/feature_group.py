@@ -132,7 +132,7 @@ class FeatureGroups:
         for function_name in sample_feature_json[invoked_type.value]:
           caus_group = CausalityFeatureGroup(False, invoked_type, function_name)
           # TEMPORARY: Will stablize when the data is re-run
-          if "share_argument_type" in sample_feature_json[invoked_type.value][function_name]:
+          if not "share_argument_type" in sample_feature_json[invoked_type.value][function_name]:
             caus_group.fields.remove("share_argument_type")
           if FeatureGroups.should_be_fixed(caus_group, fix_groups):
             caus_group.fixed = True

@@ -51,6 +51,8 @@ short int ext_depth(struct inode *inode);
 
 void *kzalloc(int size, int gfp);
 
+void kfree(void *);
+
 struct ext4_ext_path *
 ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 		 struct ext4_ext_path **orig_path, int flags)

@@ -4,12 +4,14 @@ import os
 from . import collector
 from . import database
 from . import analyzer
+from . import new_analyzer
 from . import learning
 
 modules = {
     'init': database.init,
     'collect': collector,
-    'analyze': analyzer,
+    'analyze': new_analyzer,
+    'analyze-old': analyzer,
     'query': database.query,
     'action': database.action,
     'learn': learning
