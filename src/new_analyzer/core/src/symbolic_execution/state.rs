@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use llir::values::*;
 
 use super::block_tracer::*;
+use super::constraints::*;
 use super::memory::*;
 use super::trace::*;
-use super::constraints::*;
 use crate::semantics::rced::*;
 use crate::slicer::*;
 

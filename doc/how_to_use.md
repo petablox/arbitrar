@@ -333,7 +333,7 @@ A features file looks like this
     "indir_returned": false,
   },
   ...
-	"loop": {
+  "loop": {
     "has_loop": true,
     "target_in_a_loop": false
   }

@@ -1,5 +1,5 @@
-use rand::{rngs::ThreadRng, Rng};
 use llir::values::*;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::slicer::*;
 use crate::symbolic_execution::*;
@@ -11,18 +11,18 @@ pub struct Environment<'ctx> {
   pub block_traces: Vec<Vec<Block<'ctx>>>,
   pub call_id: usize,
   pub max_work: usize,
-  pub rng: ThreadRng,
+  pub rng: StdRng,
 }
 
 impl<'ctx> Environment<'ctx> {
-  pub fn new(slice: &Slice<'ctx>, max_work: usize) -> Self {
+  pub fn new(slice: &Slice<'ctx>, max_work: usize, seed: u8) -> Self {
     Self {
       slice: slice.clone(),
       work_list: vec![],
       block_traces: vec![],
       call_id: 0,
       max_work: max_work,
-      rng: rand::thread_rng(),
+      rng: StdRng::from_seed([seed; 32]),
     }
   }
 

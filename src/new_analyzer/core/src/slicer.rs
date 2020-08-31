@@ -156,27 +156,29 @@ pub trait Slicer<'ctx> {
 }
 
 impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
-  fn reduce_slice(
-    &self,
-    target_id: NodeIndex,
-    functions: HashSet<NodeIndex>,
-    depth: usize,
-  ) -> HashSet<NodeIndex> {
+  fn reduce_slice(&self, target_id: NodeIndex, functions: HashSet<NodeIndex>, depth: usize) -> HashSet<NodeIndex> {
     let target = self.graph[target_id];
-    let all_presented_funcs : HashSet<_> = functions.iter().map(|f_id| -> Vec<NodeIndex> {
-      self.graph.neighbors(*f_id).collect()
-    }).flatten().collect();
-    let related_funcs : HashSet<_> = all_presented_funcs.iter().filter(|f_id| {
-      directly_related(&self.graph[**f_id], &target)
-    }).collect();
-    functions.iter().filter(|f_id| {
-      for rf_id in related_funcs.iter() {
-        for _ in petgraph::algo::all_simple_paths::<Vec<_>, _>(&self.graph, **f_id, **rf_id, 0, Some(depth * 2)) {
-          return true;
+    let all_presented_funcs: HashSet<_> = functions
+      .iter()
+      .map(|f_id| -> Vec<NodeIndex> { self.graph.neighbors(*f_id).collect() })
+      .flatten()
+      .collect();
+    let related_funcs: HashSet<_> = all_presented_funcs
+      .iter()
+      .filter(|f_id| directly_related(&self.graph[**f_id], &target))
+      .collect();
+    functions
+      .iter()
+      .filter(|f_id| {
+        for rf_id in related_funcs.iter() {
+          for _ in petgraph::algo::all_simple_paths::<Vec<_>, _>(&self.graph, **f_id, **rf_id, 0, Some(depth * 2)) {
+            return true;
+          }
         }
-      }
-      return false;
-    }).cloned().collect()
+        return false;
+      })
+      .cloned()
+      .collect()
   }
 
   fn find_entries(&self, edge_id: EdgeIndex, options: &Options) -> Vec<NodeIndex> {

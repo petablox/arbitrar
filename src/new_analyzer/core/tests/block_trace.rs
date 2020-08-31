@@ -1,11 +1,11 @@
 use llir::{values::*, *};
 use std::path::Path;
 
-use analyzer_core::utils::*;
 use analyzer_core::call_graph::*;
 use analyzer_core::options::*;
 use analyzer_core::slicer::*;
 use analyzer_core::symbolic_execution::*;
+use analyzer_core::utils::*;
 
 fn process_slice<F>(path: &Path, entry: &str, caller: &str, target: &str, f: F) -> Result<(), String>
 where

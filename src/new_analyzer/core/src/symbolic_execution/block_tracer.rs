@@ -243,7 +243,12 @@ impl<'ctx> BlockTracesFromSlice<'ctx> for Slice<'ctx> {
     }
   }
 
-  fn block_traces(&self, call_graph: &CallGraph<'ctx>, max_func_depth: usize, max_traces: usize) -> Vec<BlockTrace<'ctx>> {
+  fn block_traces(
+    &self,
+    call_graph: &CallGraph<'ctx>,
+    max_func_depth: usize,
+    max_traces: usize,
+  ) -> Vec<BlockTrace<'ctx>> {
     let mut traces = vec![];
     for func_trace in self.function_traces(call_graph, max_func_depth) {
       traces.extend(func_trace.block_traces(max_traces));

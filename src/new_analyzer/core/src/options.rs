@@ -8,6 +8,7 @@ pub struct Options {
   pub output: String,
   pub subfolder: Option<String>,
   pub use_serial: bool,
+  pub seed: u8,
 
   // Call Graph Options
   pub no_remove_llvm_funcs: bool,
@@ -47,6 +48,7 @@ impl Default for Options {
       output: "".to_string(),
       subfolder: None,
       use_serial: false,
+      seed: 123,
 
       // Call graph options
       no_remove_llvm_funcs: false,
@@ -96,6 +98,11 @@ impl Options {
         .short('s')
         .long("serial")
         .about("Serialize execution rather than parallel"),
+      Arg::new("seed")
+        .long("seed")
+        .takes_value(true)
+        .default_value("123")
+        .about("Random seed"),
       // Call graph options
       Arg::new("no_remove_llvm_funcs")
         .long("--no-remove-llvm-funcs")
@@ -195,6 +202,7 @@ impl Options {
         None
       },
       use_serial: matches.is_present("serial"),
+      seed: matches.value_of_t::<u8>("seed").unwrap(),
 
       // Call graph options
       no_remove_llvm_funcs: matches.is_present("no_remove_llvm_funcs"),

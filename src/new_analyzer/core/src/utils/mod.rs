@@ -1,10 +1,10 @@
 mod batching;
 mod cartesian;
+mod json;
 mod llvm;
 mod logging;
-mod json;
 pub use batching::*;
 pub use cartesian::*;
+pub use json::*;
 pub use llvm::*;
 pub use logging::*;
-pub use json::*;

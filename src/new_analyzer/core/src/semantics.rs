@@ -103,7 +103,7 @@ macro_rules! decl_value_with_wrapper {
       Asm,
       Int(i64),
       Null,
-      Alloc(usize),    // Local alloca ID
+      Alloc(usize), // Local alloca ID
       GEP {
         loc: $wrapper<Value>,
         indices: Vec<$wrapper<Value>>,

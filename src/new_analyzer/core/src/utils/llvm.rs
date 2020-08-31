@@ -43,19 +43,19 @@ impl<'ctx> FunctionUtil<'ctx> for Function<'ctx> {
           for t in ft.used_types() {
             types.push(t);
           }
-        },
+        }
         Type::Struct(StructType::NamedStruct(ns)) => {
           struct_names.insert(ns.name());
-        },
+        }
         Type::Array(a) => {
           types.push(a.element_type());
-        },
+        }
         Type::Pointer(p) => {
           types.push(p.element_type());
-        },
+        }
         Type::Vector(v) => {
           types.push(v.element_type());
-        },
+        }
         _ => {}
       }
     }

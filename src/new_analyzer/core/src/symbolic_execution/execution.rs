@@ -286,7 +286,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         if !visited_then {
           // Check if we need to add a work for else branch
           if !visited_else && env.can_add_work() {
-
             // First add else branch into work
             let mut else_state = state.clone();
 
@@ -699,7 +698,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     match state.target_node {
       Some(target_id) => match state.finish_state {
         FinishState::ProperlyReturned => {
-
           // Generate the trace for output
           let raw_trace = TraceWithTarget::new(state.trace, target_id);
           let trace = if !self.options.no_trace_reduction {
@@ -716,7 +714,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
             // Check path satisfaction
             if state.constraints.sat() {
-
               // Need store
               let trace_id = metadata.proper_trace_count;
               let path = self
@@ -751,14 +748,18 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn execute_slice(&self, slice: &Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
-    let mut env = Environment::new(slice, self.options.max_work);
+    let mut env = Environment::new(slice, self.options.max_work, self.options.seed);
 
     // Add a work to the environment list
     if self.options.no_prefilter_block_trace {
       let first_work = Work::entry(&slice);
       env.add_work(first_work);
     } else {
-      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth as usize * 2, self.options.max_work);
+      let block_traces = slice.block_traces(
+        self.call_graph,
+        self.options.slice_depth as usize * 2,
+        self.options.max_work,
+      );
       for block_trace in block_traces {
         if self.options.print_block_trace {
           println!("{:?}", block_trace);
