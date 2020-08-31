@@ -9,6 +9,7 @@ llir = { git = "https://github.com/liby99/llir" }
 petgraph = "0.5"
 clap = "3.0.0-beta.1"
 lazy_static = "1.4"
+rand = "0.7"
 regex = "1"
 rayon = "1.1"
 chrono = "0.4"

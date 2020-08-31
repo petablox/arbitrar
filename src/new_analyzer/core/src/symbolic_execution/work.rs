@@ -3,6 +3,7 @@ use llir::values::*;
 use super::*;
 use crate::slicer::*;
 
+#[derive(Clone)]
 pub struct Work<'ctx> {
   pub block: Block<'ctx>,
   pub state: State<'ctx>,

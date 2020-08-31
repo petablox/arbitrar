@@ -763,7 +763,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
     // Iterate till no more work to be done or should end execution
     while env.has_work() && self.continue_execution(&metadata) {
-      let mut work = env.pop_work();
+      let mut work = env.pop_work(!self.options.no_random_work);
 
       // Start the execution by iterating through instructions
       let mut curr_instr = self.execute_block(work.block, &mut work.state, &mut env);

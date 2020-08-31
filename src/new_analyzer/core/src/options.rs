@@ -29,6 +29,7 @@ pub struct Options {
   pub max_explored_trace_per_slice: usize,
   pub max_node_per_trace: usize,
   pub no_trace_reduction: bool,
+  pub no_random_work: bool,
   pub print_block_trace: bool,
   pub print_trace: bool,
   pub no_prefilter_block_trace: bool,
@@ -68,6 +69,7 @@ impl Default for Options {
       max_explored_trace_per_slice: 1000,
       max_node_per_trace: 5000,
       no_trace_reduction: false,
+      no_random_work: false,
       print_block_trace: false,
       print_trace: false,
       no_prefilter_block_trace: false,
@@ -153,6 +155,9 @@ impl Options {
         .takes_value(true)
         .long("max-node-per-trace")
         .default_value("5000"),
+      Arg::new("no_random_work")
+        .long("no-random-work")
+        .about("Don't use randomized work popping when executing traces"),
       Arg::new("no_reduce_trace")
         .long("no-reduce-trace")
         .about("No trace reduction"),
@@ -206,6 +211,7 @@ impl Options {
       max_trace_per_slice: matches.value_of_t::<usize>("max_trace_per_slice").unwrap(),
       max_explored_trace_per_slice: matches.value_of_t::<usize>("max_explored_trace_per_slice").unwrap(),
       max_node_per_trace: matches.value_of_t::<usize>("max_node_per_trace").unwrap(),
+      no_random_work: matches.is_present("no_random_work"),
       no_trace_reduction: matches.is_present("no_reduce_trace"),
       print_block_trace: matches.is_present("print_block_trace"),
       print_trace: matches.is_present("print_trace"),

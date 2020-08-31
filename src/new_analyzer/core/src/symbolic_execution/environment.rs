@@ -1,3 +1,4 @@
+use rand::{rngs::ThreadRng, Rng};
 use llir::values::*;
 
 use crate::slicer::*;
@@ -9,6 +10,7 @@ pub struct Environment<'ctx> {
   pub work_list: Vec<Work<'ctx>>,
   pub block_traces: Vec<Vec<Block<'ctx>>>,
   pub call_id: usize,
+  pub rng: ThreadRng,
 }
 
 impl<'ctx> Environment<'ctx> {
@@ -18,14 +20,24 @@ impl<'ctx> Environment<'ctx> {
       work_list: vec![],
       block_traces: vec![],
       call_id: 0,
+      rng: rand::thread_rng(),
     }
+  }
+
+  pub fn num_works(&self) -> usize {
+    self.work_list.len()
   }
 
   pub fn has_work(&self) -> bool {
     !self.work_list.is_empty()
   }
 
-  pub fn pop_work(&mut self) -> Work<'ctx> {
+  pub fn pop_work(&mut self, random: bool) -> Work<'ctx> {
+    if random {
+      let idx = self.rng.gen_range(0, self.work_list.len());
+      let last_idx = self.work_list.len() - 1;
+      self.work_list.swap(idx, last_idx);
+    }
     self.work_list.pop().unwrap()
   }
 
