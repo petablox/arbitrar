@@ -35,6 +35,7 @@ def setup_parser(parser):
   parser.add_argument('--num-outliers', type=int)
   parser.add_argument('--num-alarms', type=int, default=100)
   parser.add_argument('--mark-similar', action='store_true')
+  parser.add_argument('--padding', type=int, default=20)
 
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
@@ -97,8 +98,8 @@ def main(args):
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
     j = {
-        'invoked_before': list(sample_feature_json['invoked_before'].keys()),
-        'invoked_after': list(sample_feature_json['invoked_after'].keys())
+        'before': list(sample_feature_json['before'].keys()),
+        'after': list(sample_feature_json['after'].keys())
     }
     json.dump(j, f)
 

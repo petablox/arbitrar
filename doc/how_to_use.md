@@ -150,7 +150,7 @@ $ misapi analyze --include-fn malloc --slice-depth X
 
 This argument has a default value of `1`, so from the call site, it will by default go one level up. As an example, consider the following program
 
-```
+``` C++
 void a() { b(); }
 void b() { c(); }
 void c() { target(); }
@@ -230,50 +230,198 @@ Pretty literally, slices are stored in the `slices` folder, traces are stored in
 
 A slice json has form
 
-```
-{ caller, callee, entry, functions, instr }
+``` json
+{
+  "caller": "CALLER_NAME",
+  "callee": "CALLEE_NAME",
+  "entry": "ENTRY_NAME",
+  "functions": [
+    "FUNCTION_NAME_1",
+    "FUNCTION_NAME_2",
+    ...
+  ],
+  "instr": "/PATH/TO/INSTRUCTION/LOCATION.c:LINE:COLUMN"
+}
 ```
 
 Each slice will get a unique `slice_id` among its function and package bc file dataset. So the folder arranges like this:
 
 ```
-/DATABASE_ROOT/analysis/slices/<function_name>/<package_bc_file>/X.json
+/DATABASE_ROOT/analysis/slices/<function_name>/<package_bc_file>/<SLICE_ID>.json
 ```
 
 This way, even when a same function is used in different packages, they will be grouped together under the `<function_name>` folder. The slice_id will start from 0 for each target function + package bc file, so in each of this kind of folder, you should see slice_id starting from 0 going all the way through. Roughly speaking, the number of slices corresponding to how often people use this API function inside their package.
 
 #### 2.1.2. Traces
 
-A traces has form
+A trace json has form
 
-```
-{ instrs: [{
-		log: "INSTRUCTION_LOCATION",
-		sem: Instruction semantics,
-		res: Potentially some result for that instruction
-	}],
-  target_node: X }
+``` json
+{
+  "instrs": [
+    {
+      "log": "INSTRUCTION_LOCATION",
+      "sem": <Instruction semantics...>,
+      "res": <Potentially some result for that instruction>
+    }
+    // ... OTHER INSTRUCTIONS
+  ],
+  "target_node": <TARGET_NODE_INDEX_IN_INSTRS>
+}
 ```
 
 The trace represents a sequence of instructions. In our case, we also add target node index into the trace so that people can identify the target call instruction.
 
-Note that
+Note that multiple trace will be generated from a single slice, so the directory towards a trace looks like this
+
+```
+/DATABASE_ROOT/analysis/traces/<function_name>/<package_bc_file>/<SLICE_ID>/<TRACE_ID>.json
+```
+
+We have a default of maximum 50 traces per slice, so you will probably see many folders have a maximum trace id of 49.
 
 #### 2.1.3. Features
 
 A features file looks like this
 
-```
-{"after":{
-	"IS_ERR":{"invoked":false,
-						"invoked_more_than_once":false,
-						"share_argument":false,
-						"share_return":false },
-					...}
-	"loop": {"has_loop":true,"target_in_a_loop":false}}
+``` json
+{
+  "after":{
+    "IS_ERR":{
+      "invoked":false,
+      "invoked_more_than_once":false,
+      "share_argument":false,
+      "share_return":false
+    },
+    ...
+  },
+  "before": {
+    "kzalloc": {
+      "invoked":false,
+      "invoked_more_than_once":false,
+      "share_argument":false,
+      "share_return":false
+    },
+    ...
+  },
+  "ret": {
+    "derefed": false,
+    "returned": true,
+    "indir_returned": false,
+  },
+  "ret.check": {
+    "checked": true,
+    "br_eq_zero": true,
+    "br_neq_zero": false,
+    "compared_with_zero": true,
+    "compared_with_non_const": false,
+  },
+  "arg.0.pre": {
+    "checked": true,
+    "compared_with_zero": true,
+    "arg_check_is_zero": false,
+    "arg_check_not_zero": true,
+    "is_constant": false,
+    "is_global": true,
+  },
+  "arg.0.post": {
+    "used": true,
+    "used_in_call": false,
+    "used_in_check": false,
+    "derefed": true,
+    "returned": false,
+    "indir_returned": false,
+  },
+  ...
+	"loop": {
+    "has_loop": true,
+    "target_in_a_loop": false
+  }
+}
 ```
 
 Most of the features are true and false. So you can use this file to check if there's any hold inside the analyzer.
+
+Each **trace** will correspond to exactly one **features json**, so they share similar file path
+
+```
+/DATABASE_ROOT/analysis/features/<function_name>/<package_bc_file>/<SLICE_ID>/<TRACE_ID>.json
+```
+
+In the following sections we will describe feature groups and the features inside each one of them
+
+##### 2.1.3.1. Causality feature groups
+
+There are two causality feature groups:
+
+1. the functions called before target function
+2. the functions called after target function
+
+For each of these feature groups, we will run the extractor for two passes. The first pass will go over all the functions being called in relation to the target function, and construct a occurrence map: `Map<function_name, #occurrence>`. After that we will pick up the most `N` occurred functions to be inside our feature group. Then for the second pass we will generate actual features for those most occurred functions.
+
+- `invoked`: The caused function is called (invoked) or not
+- `invoked_more_than_once`: The caused function is called multiple times or not
+- `share_argument`: Check if there's an instance of the caused function sharing argument with the target function. e.g.
+  ``` C++
+  mutex_lock(&lock); // <-- target
+  mutex_unlock(&lock); // sharing the argument `&lock`
+  ```
+- `share_return`: Check if there's an instance of the caused function using the result of the target function call. e.g.
+  ``` C++
+  ptr = malloc(size); // <-- target
+  free(ptr); // share the return value `ptr`
+  ```
+
+The above features will present for each of the function inside causality dictionary.
+
+##### 2.1.3.2. Return value feature group
+
+This feature group will be enabled when the return value is not `void`. It will contain the following features
+
+- `derefed`: If the return value is dereferenced (i.e. used in store/load/getelementptr) later on
+- `returned`: If the return value is directly returned at the end of the trace
+- `indir_returned`: If the return value is indirectly returned. e.g. its being stored inside a larger array or struct, and that struct is returned
+
+##### 2.1.3.3. Return value check feature group
+
+This feature group is dedicated to the return value checks. It will be enabled when the return value is not `void`. It will contain the following features
+
+- `checked`: if the return value is checked (i.e. used in icmp)
+- `br_eq_zero`: if the branch being taken in this trace means the return value is equal to zero
+- `br_neq_zero`: if the branch being taken in this trace means the return value is not equal to zero
+- `compared_with_zero`: if the return value is compared with zero
+- `compared_with_non_const`: if the return value is compared with non constant (other variable)
+
+> Note: if the value is not compared with zero, then `br_eq_zero` and `br_neq_zero` will be both `false`
+
+##### 2.1.3.4. Argument value pre-condition group
+
+There will be one such group for every argument. It contains features for the argument pre-condition:
+
+- `checked`: If the argument is checked prior to being passed to target function call
+- `compared_with_zero`: If that check is compared with zero
+- `arg_check_is_zero`: If that check branch assumes the argument is zero
+- `arg_check_not_zero`: If that check branch assumes the argument is not a zero
+- `is_constant`: Check if argument is a constant
+- `is_global`: Check if argument is a global value
+
+##### 2.1.3.5. Argument value post-condition group
+
+There will be one such group for every argument. It contains features for the argument post-condition:
+
+- `used`: If the argument is used later on
+- `used_in_call`: If the argument is used inside a call
+- `used_in_check`: If the argument is used inside a check (i.e. icmp)
+- `derefed`: If the argument is being dereferenced (e.g. load/store/getelementptr)
+- `returned`: If the argument is being returned directly
+- `indir_returned`: If the argument is being returned indirectly, e.g. being stored inside some larger array or struct and that struct is returned.
+
+##### 2.1.3.6. Loop feature group
+
+This feature group will be enabled for every function, and it's related to loops inside the trace:
+
+- `has_loop`: There's at least one loop inside the trace
+- `target_in_a_loop`: The target function is called inside a loop body
 
 ## 3. Database operations
 
@@ -289,9 +437,7 @@ $ misapi learn active clk_prepare_lock
 
 This is invoking the learning module and using the "active learning" algorithm to learn the dataset for `clk_prepare_lock`. After this, you shall see a screen with left side being the code snippet around the target function call, as well as a feature json on the right hand side.
 
-### 4.1. User interface
-
-### 4.2. Feedback
+### 4.1. Feedback
 
 You should combine the information on both sides to give your final feedback -- is this API-call a "bug" or "not". The way you provide feedback should be
 
@@ -300,11 +446,37 @@ You should combine the information on both sides to give your final feedback -- 
 - pressing `Y` for "YES, THIS WHOLE SLICE IS BUGGY", or
 - pressing `N` for "NO, THIS ENTIRE SLICE IS JUST NORMAL".
 
+You don't have to walk all the way towards the end of the dataset, and you can stop at any time by pressing `q`. That will generate an experiment report (elaborated in $4.5).
+
+### 4.2. User interface
+
+![clk_prepare_lock](screenshot/clk_prepare_lock_screen_shot.png)
+
+In the above example, the trace is marked in green. You can clearly see that the trace goes inside of the if branch and returned directly. This is a sign of `clk_prepare_unlock` not being called. On the right hand side, you will also see that `"after"."clk_prepare_unlock"."invoked"` is `False`, this confirms with our observation on the left hand side. Therefore, the answer to this query should be `y`, yes this trace contains a bug.
+
+### 4.2.1. Code frame
+
+In case the code panel is not showing enough context, you can either call with an option `--padding` like this:
+
+```
+$ misapi learn active clk_prepare_lock --padding 40
+```
+
+This will show 40 lines above and below the target function call, so roughly 80 lines of code will be shown. But keep in mind that the screen size is limited, so you don't want to boost this option too much. In case you need more comprehand view of the code, you can refer to the file directory on the top of the screen, and go to the source code directly.
+
+### 4.2.2. Attempt number
+
+On the bottom left corner you will see the number of the current attempt. Ideally the earlier you encounter a bug the better. In this case, it is encountered at the third time (we count from 0).
+
+### 4.2.3. Slice ID and trace ID
+
+You can use slice id and trace id to refer back to the analysis result. You should do this when you think the analysis result is malformed (e.g. features does not represent the trace or trace path is unsatisfiable).
+
 ### 4.3. Feedback examples
 
 Consider the following scenario:
 
-```
+``` C++
 ptr = malloc(...); // <-- target function call
 
 // There's no check for ptr
@@ -316,10 +488,10 @@ In this example slice, **every** trace going through the target function call wi
 
 On the other hand, in the following scenario:
 
-```
+``` C++
 mutex_lock(&lock);    // A, <-- target function call
 if (some_criteria) {  // B
-	return;             // C
+  return;             // C
 }                     // D
 mutex_unlock(&lock);  // E
 // ...
@@ -327,11 +499,25 @@ mutex_unlock(&lock);  // E
 
 There are two traces going through target function call: `ABC` and `ABE...`. In this case, only the `ABC` trace is problematic -- it forgets to unlock the lock. So suppose you get a query about trace `ABC`, you should answer with `y`.
 
-### 4.4. Experiments
-
-As of the above example, we are dealing with 43 slices with no specifications. You should be able to find the real bug at round `3`, where the `clk_prepare_unlock` is not called after the target call to `clk_prepare_lock`.
-
 ### 4.5. Experiment Results
+
+Each learning call to misapi
+
+```
+$ misapi learn active clk_prepare_lock
+```
+
+will create an "experiment". This experiment will be stored in a folder that's named after function name and time stamp
+
+```
+DATABASE_ROOT/learning/<FUNCTION_NAME>-<TIME_STAMP>/
+```
 
 
 ### 4.6. Automatic Evaluations
+
+
+#### 4.6.1. Datapoint Labeling
+
+
+#### 4.6.1. Evaluate with automatic feedback

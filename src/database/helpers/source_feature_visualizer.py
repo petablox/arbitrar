@@ -146,6 +146,7 @@ class SourceFeatureVisualizer():
 
         # Quit using 'q'
         elif key == quit_key:
+          self.destroy()
           return quit_key
 
         # Any key, move foward

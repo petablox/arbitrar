@@ -62,7 +62,8 @@ class ActiveLearner:
           result = vis.ask(dp_i, ["y", "Y", "n", "N"],
                            prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|Y|n|N] > ",
                            scroll_down_key="]",
-                           scroll_up_key="[")
+                           scroll_up_key="[",
+                           padding=self.args.padding)
 
           # Get the user label
           if result != "q":
