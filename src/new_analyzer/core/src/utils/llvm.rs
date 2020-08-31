@@ -1,17 +1,65 @@
 use llir::{types::*, values::*, *};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-pub trait FunctionNameUtil {
-  fn simp_name(&self) -> String;
+pub trait FunctionTypeUtil<'ctx> {
+  fn used_types(&self) -> Vec<Type<'ctx>>;
 }
 
-impl<'ctx> FunctionNameUtil for Function<'ctx> {
+impl<'ctx> FunctionTypeUtil<'ctx> for FunctionType<'ctx> {
+  fn used_types(&self) -> Vec<Type<'ctx>> {
+    vec![vec![self.return_type()], self.argument_types()].concat()
+  }
+}
+
+pub trait FunctionUtil<'ctx> {
+  fn simp_name(&self) -> String;
+
+  fn used_types(&self) -> Vec<Type<'ctx>>;
+
+  fn used_struct_names(&self) -> HashSet<String>;
+}
+
+impl<'ctx> FunctionUtil<'ctx> for Function<'ctx> {
   fn simp_name(&self) -> String {
     let name = self.name();
     match name.find('.') {
       Some(i) => name[..i].to_string(),
       None => name,
     }
+  }
+
+  fn used_types(&self) -> Vec<Type<'ctx>> {
+    let func_type = self.get_function_type();
+    func_type.used_types()
+  }
+
+  fn used_struct_names(&self) -> HashSet<String> {
+    let mut types = self.used_types();
+    let mut struct_names = HashSet::new();
+    while !types.is_empty() {
+      let t = types.pop().unwrap();
+      match t {
+        Type::Function(ft) => {
+          for t in ft.used_types() {
+            types.push(t);
+          }
+        },
+        Type::Struct(StructType::NamedStruct(ns)) => {
+          struct_names.insert(ns.name());
+        },
+        Type::Array(a) => {
+          types.push(a.element_type());
+        },
+        Type::Pointer(p) => {
+          types.push(p.element_type());
+        },
+        Type::Vector(v) => {
+          types.push(v.element_type());
+        },
+        _ => {}
+      }
+    }
+    struct_names
   }
 }
 

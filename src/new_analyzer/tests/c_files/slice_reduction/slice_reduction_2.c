@@ -17,11 +17,19 @@ struct AnotherObject *y(char bool);
 
 void z(int);
 
-int main() {
-    struct Object obj;
-    obj.i = 0;
-    obj.str = "asdadf";
+void b(struct Object *obj) {
+    obj->i = 0;
+    obj->str = "asdadf";
     f(&obj);
+}
+
+void c(struct Object *obj) {
     g(3, &obj);
     struct Object *obj2 = h(5);
+}
+
+int a() {
+    struct Object obj;
+    b(&obj);
+    c(&obj);
 }

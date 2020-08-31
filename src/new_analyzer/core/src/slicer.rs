@@ -38,6 +38,10 @@ impl<'ctx> Slice<'ctx> {
   pub fn target_function_name(&self) -> String {
     self.callee.simp_name()
   }
+
+  pub fn size(&self) -> usize {
+    self.functions.len()
+  }
 }
 
 enum TargetFilter {
@@ -140,12 +144,7 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
 }
 
 pub trait Slicer<'ctx> {
-  fn reduce_slice(
-    &self,
-    entry_id: NodeIndex,
-    target_id: NodeIndex,
-    functions: HashSet<NodeIndex>,
-  ) -> HashSet<NodeIndex>;
+  fn reduce_slice(&self, target_id: NodeIndex, functions: HashSet<NodeIndex>) -> HashSet<NodeIndex>;
 
   fn find_entries(&self, edge_id: EdgeIndex, options: &Options) -> Vec<NodeIndex>;
 
@@ -159,17 +158,21 @@ pub trait Slicer<'ctx> {
 impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
   fn reduce_slice(
     &self,
-    _entry_id: NodeIndex,
-    _target_id: NodeIndex,
+    target_id: NodeIndex,
     functions: HashSet<NodeIndex>,
   ) -> HashSet<NodeIndex> {
-    // TODO
-    // let is_related_map = HashMap::new();
-    // let queue = vec![(entry_id, None)];
-    // while !queue.is_empty() {
-    //   let (func_id, maybe_instr) = queue.pop().unwrap();
-    // }
-    functions
+    let target = self.graph[target_id];
+    let related_funcs : HashSet<_> = functions.iter().filter(|f_id| {
+      directly_related(&self.graph[**f_id], &target)
+    }).collect();
+    functions.iter().filter(|f_id| {
+      for rf_id in related_funcs.iter() {
+        for _ in petgraph::algo::all_simple_paths::<Vec<_>, _>(&self.graph, **f_id, **rf_id, 0, None) {
+          return true;
+        }
+      }
+      return false;
+    }).cloned().collect()
   }
 
   fn find_entries(&self, edge_id: EdgeIndex, options: &Options) -> Vec<NodeIndex> {
@@ -253,10 +256,10 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     }
 
     // Reduced function boundary
-    let function_ids = if options.reduce_slice {
-      self.reduce_slice(entry_id, callee_id, function_ids)
-    } else {
+    let function_ids = if options.no_reduce_slice {
       function_ids
+    } else {
+      self.reduce_slice(callee_id, function_ids)
     };
 
     // Generate slice
@@ -285,5 +288,16 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     } else {
       edges.par_iter().map(f).flatten().collect()
     }
+  }
+}
+
+fn directly_related<'ctx>(f1: &Function<'ctx>, f2: &Function<'ctx>) -> bool {
+  // Has similar prefix
+  if f1.simp_name().chars().nth(0) == f2.simp_name().chars().nth(0) {
+    true
+  } else {
+    let structs_used_by_f1 = f1.used_struct_names();
+    let structs_used_by_f2 = f2.used_struct_names();
+    !structs_used_by_f1.is_disjoint(&structs_used_by_f2)
   }
 }

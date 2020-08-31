@@ -1,3 +1,4 @@
+// use std::collections::HashSet;
 use std::rc::Rc;
 use serde_json::json;
 use llir::values::*;
@@ -23,8 +24,26 @@ impl<'ctx> TraceWithTarget<'ctx> {
     Self { trace, target_index }
   }
 
-  pub fn reduce(&self) -> Self {
-    panic!("Not implemented")
+  pub fn target(&self) -> &TraceNode<'ctx> {
+    &self.trace[self.target_index]
+  }
+
+  pub fn reduce(self) -> Self {
+    self
+    // let mut tracking = HashSet::new();
+
+    // let target = self.target();
+    // match &target.semantics {
+    //   Semantics::Call { args, .. } => {
+    //     for arg in args { tracking.insert(arg.clone()); }
+    //   }
+    //   _ => {}
+    // }
+    // if let Some(target_ret) = &target.result {
+    //   tracking.insert(target_ret.clone());
+    // }
+
+    // panic!("Not implemented")
   }
 
   pub fn to_json(&self) -> serde_json::Value {

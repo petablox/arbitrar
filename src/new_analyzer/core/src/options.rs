@@ -19,7 +19,7 @@ pub struct Options {
   pub target_exclusion_filter: Option<String>,
   pub entry_filter: Option<String>,
   pub use_regex_filter: bool,
-  pub reduce_slice: bool,
+  pub no_reduce_slice: bool,
   pub use_batch: bool,
   pub batch_size: usize,
   pub print_slice: bool,
@@ -56,7 +56,7 @@ impl Default for Options {
       target_exclusion_filter: None,
       entry_filter: None,
       use_regex_filter: false,
-      reduce_slice: false,
+      no_reduce_slice: false,
       print_slice: false,
 
       // Batching options
@@ -125,9 +125,9 @@ impl Options {
         .takes_value(true)
         .long("entry-location")
         .about("Entry location filters. In the form of Regex"),
-      Arg::new("reduce_slice")
-        .long("reduce-slice")
-        .about("Reduce slice using relevancy test"),
+      Arg::new("no_reduce_slice")
+        .long("no-reduce-slice")
+        .about("No reduce slice using relevancy test"),
       Arg::new("use_batch").long("use-batch").about("Use batched execution"),
       Arg::new("batch_size")
         .value_name("BATCH_SIZE")
@@ -194,7 +194,7 @@ impl Options {
       target_inclusion_filter: matches.value_of("target_inclusion_filter").map(String::from),
       target_exclusion_filter: matches.value_of("target_exclusion_filter").map(String::from),
       entry_filter: matches.value_of("entry_filter").map(String::from),
-      reduce_slice: matches.is_present("reduce_slice"),
+      no_reduce_slice: matches.is_present("no_reduce_slice"),
       use_batch: matches.is_present("use_batch"),
       batch_size: matches
         .value_of_t::<usize>("batch_size")

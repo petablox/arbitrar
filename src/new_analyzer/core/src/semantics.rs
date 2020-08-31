@@ -286,12 +286,16 @@ macro_rules! decl_value_with_wrapper {
 }
 
 pub mod boxed {
+  //! The Value & Semantics with wrapper using Box
+
   use super::*;
 
   decl_value_with_wrapper!(Box);
 }
 
 pub mod rced {
+  //! The Value & Semantics with wrapper using Rc
+
   use super::*;
 
   decl_value_with_wrapper!(Rc);
