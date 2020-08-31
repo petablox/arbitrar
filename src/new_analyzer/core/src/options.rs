@@ -66,7 +66,7 @@ impl Default for Options {
       batch_size: 0,
 
       // Symbolic execution options
-      max_work: 100,
+      max_work: 50,
       max_trace_per_slice: 50,
       max_explored_trace_per_slice: 1000,
       max_node_per_trace: 5000,
@@ -144,7 +144,7 @@ impl Options {
         .long("max-work")
         .value_name("MAX_WORK")
         .takes_value(true)
-        .default_value("100")
+        .default_value("50")
         .about("Max number of work in work list"),
       Arg::new("max_trace_per_slice")
         .value_name("MAX_TRACE_PER_SLICE")

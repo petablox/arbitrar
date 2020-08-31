@@ -48,7 +48,6 @@ impl<'ctx> Environment<'ctx> {
   }
 
   pub fn add_work(&mut self, work: Work<'ctx>) -> bool {
-    println!("Work list length {}", self.work_list.len());
     if self.work_list.len() >= self.max_work {
       false
     } else {

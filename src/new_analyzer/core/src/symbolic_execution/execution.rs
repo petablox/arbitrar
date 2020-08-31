@@ -750,7 +750,6 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn execute_slice(&self, slice: &Slice<'ctx>, slice_id: usize) -> MetaData {
-    println!("Slice ID {}", slice_id);
     let mut metadata = MetaData::new();
     let mut env = Environment::new(slice, self.options.max_work);
 
@@ -808,6 +807,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         },
       )
     } else {
+      let num_slices = slices.len();
       slices
         .into_par_iter()
         .enumerate()
@@ -821,7 +821,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             meta.combine(self.execute_slice(slice, slice_id))
           },
         )
-        .progress()
+        .progress_count(num_slices as u64)
         .reduce(|| MetaData::new(), MetaData::combine)
     }
   }
