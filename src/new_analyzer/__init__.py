@@ -58,35 +58,27 @@ def get_analyzer_args(db, bc_file, args):
   ]
 
   if args.include_fn:
-    print(1)
     base_args += ['--include-target', args.include_fn]
 
   if args.entry_location:
-    print(2)
     base_args += ['--entry-location', args.entry_location]
 
   if args.regex:
-    print(3)
     base_args += ['--use-regex-filter']
 
   if args.serial:
-    print(5)
     base_args += ['--serial']
 
   if args.causality_dict_size != None:
-    print("Cause Dict", args.causality_dict_size)
     base_args += ['--causality-dictionary-size', str(args.causality_dict_size)]
 
   if args.no_reduce_slice:
-    print(8)
     base_args += ['--no-reduce-slice']
 
   if args.use_batch:
-    print(9)
     base_args += ['--use-batch']
 
   if args.batch_size:
-    print(10)
     base_args += ['--batch-size', str(args.batch_size)]
 
   return base_args

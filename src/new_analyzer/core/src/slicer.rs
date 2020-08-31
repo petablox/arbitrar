@@ -144,7 +144,7 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
 }
 
 pub trait Slicer<'ctx> {
-  fn reduce_slice(&self, target_id: NodeIndex, functions: HashSet<NodeIndex>) -> HashSet<NodeIndex>;
+  fn reduce_slice(&self, target_id: NodeIndex, functions: HashSet<NodeIndex>, depth: usize) -> HashSet<NodeIndex>;
 
   fn find_entries(&self, edge_id: EdgeIndex, options: &Options) -> Vec<NodeIndex>;
 
@@ -160,14 +160,18 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     &self,
     target_id: NodeIndex,
     functions: HashSet<NodeIndex>,
+    depth: usize,
   ) -> HashSet<NodeIndex> {
     let target = self.graph[target_id];
-    let related_funcs : HashSet<_> = functions.iter().filter(|f_id| {
+    let all_presented_funcs : HashSet<_> = functions.iter().map(|f_id| -> Vec<NodeIndex> {
+      self.graph.neighbors(*f_id).collect()
+    }).flatten().collect();
+    let related_funcs : HashSet<_> = all_presented_funcs.iter().filter(|f_id| {
       directly_related(&self.graph[**f_id], &target)
     }).collect();
     functions.iter().filter(|f_id| {
       for rf_id in related_funcs.iter() {
-        for _ in petgraph::algo::all_simple_paths::<Vec<_>, _>(&self.graph, **f_id, **rf_id, 0, None) {
+        for _ in petgraph::algo::all_simple_paths::<Vec<_>, _>(&self.graph, **f_id, **rf_id, 0, Some(depth * 2)) {
           return true;
         }
       }
@@ -259,7 +263,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     let function_ids = if options.no_reduce_slice {
       function_ids
     } else {
-      self.reduce_slice(callee_id, function_ids)
+      self.reduce_slice(callee_id, function_ids, options.slice_depth as usize)
     };
 
     // Generate slice
