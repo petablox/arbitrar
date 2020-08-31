@@ -39,7 +39,7 @@ class AlarmsQuery(Executor):
       lastslice = slice_id
 
       if not args.source:
-        pp.pprint(datapoint.dugraph())
+        pp.pprint(datapoint.trace())
       else:
         result = vis.show(datapoint, label=f"{i}/{nalarms}")
         if not result:

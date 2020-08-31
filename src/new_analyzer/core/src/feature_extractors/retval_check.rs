@@ -35,8 +35,8 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
     let mut checked = false;
     let mut br_eq_zero = false;
     let mut br_neq_zero = false;
-    let mut compare_with_zero = false;
-    let mut compare_with_non_const = false;
+    let mut compared_with_zero = false;
+    let mut compared_with_non_const = false;
     let retval = trace.target_result().clone().unwrap();
     let mut icmp = None;
 
@@ -59,7 +59,7 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
                 let op1_num = num_of_value(&op1);
                 if let Some(num) = op0_num.or(op1_num) {
                   if num == 0 {
-                    compare_with_zero = true;
+                    compared_with_zero = true;
                     if pred == Predicate::EQ {
                       br_eq_zero = *br == Branch::Then;
                       br_neq_zero = !br_eq_zero;
@@ -69,7 +69,7 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
                     }
                   }
                 } else {
-                  compare_with_non_const = true;
+                  compared_with_non_const = true;
                 }
               }
             }
@@ -83,8 +83,8 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
       "checked": checked,
       "br_eq_zero": br_eq_zero,
       "br_neq_zero": br_neq_zero,
-      "compare_with_zero": compare_with_zero,
-      "compare_with_non_const": compare_with_non_const,
+      "compared_with_zero": compared_with_zero,
+      "compared_with_non_const": compared_with_non_const,
     })
   }
 }

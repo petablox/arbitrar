@@ -38,32 +38,32 @@ class LabelAction(Executor):
     # For each trace_id we label
     for trace_id in trace_ids:
 
-      # Get the dugraph
-      dugraph = db.dugraph(fn, bc, slice_id, trace_id)
+      # Get the trace
+      trace = db.trace(fn, bc, slice_id, trace_id)
 
       # Check if erase
       if args.erase:
 
         # Erase a label if presented
-        if "labels" in dugraph and args.label in dugraph["labels"]:
-          labels = set(dugraph["labels"])
+        if "labels" in trace and args.label in trace["labels"]:
+          labels = set(trace["labels"])
           labels.discard(args.label)
-          dugraph["labels"] = list(labels)
+          trace["labels"] = list(labels)
 
       # Add new label
       else:
         # Get its labels
-        if "labels" in dugraph:
+        if "labels" in trace:
 
           # Check if it already contains the label
-          if not args.label in dugraph["labels"]:
+          if not args.label in trace["labels"]:
 
             # If not, add the label and save the file
-            dugraph["labels"].append(args.label)
+            trace["labels"].append(args.label)
 
         else:
-          dugraph["labels"] = [args.label]
+          trace["labels"] = [args.label]
 
       # Dump the updated file
-      with open(db.dugraph_dir(fn, bc, slice_id, trace_id), 'w') as f:
-        json.dump(dugraph, f)
+      with open(db.trace_dir(fn, bc, slice_id, trace_id), 'w') as f:
+        json.dump(trace, f)

@@ -9,7 +9,7 @@ query_executors = {
     'slice': SliceQuery,
     'slices': SlicesQuery,
     'num-traces': NumTracesQuery,
-    'dugraph': DUGraphQuery,
+    'trace': TraceQuery,
     'feature': FeatureQuery,
     'features': FeaturesQuery,
     'labels': LabelsQuery,

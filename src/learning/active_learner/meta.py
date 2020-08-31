@@ -30,11 +30,12 @@ class ActiveLearner:
     alarms_perc_graph = []
     pospoints = []
 
-    if self.args.source:
-      vis = SourceFeatureVisualizer(self.args.source)
-
-    if self.args.function_spec:
+    if self.args.ground_truth:
+      pass
+    elif self.args.function_spec:
       spec = FunctionSpec(self.args.function_spec)
+    else:
+      vis = SourceFeatureVisualizer()
 
     try:
       for attempt_count in range(self.amount):
@@ -50,13 +51,20 @@ class ActiveLearner:
           mark_whole_slice = False
           print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
 
-        elif self.args.source:
+        elif self.args.function_spec:
+          is_alarm = not spec.match(dp_i)
+          mark_whole_slice = False
+          print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
+
+        else:
           # If the ground truth is not provided
           # Ask the user to label. y: Is Outlier, n: Not Outlier, u: Unknown
           result = vis.ask(dp_i, ["y", "Y", "n", "N"],
                            prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|Y|n|N] > ",
                            scroll_down_key="]",
                            scroll_up_key="[")
+
+          # Get the user label
           if result != "q":
 
             # Check is alarm
@@ -73,15 +81,6 @@ class ActiveLearner:
 
           else:
             break
-
-        elif self.args.function_spec:
-          is_alarm = not spec.match(dp_i)
-          mark_whole_slice = False
-          print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
-
-        else:
-          print("Must provide --ground-truth, --source, or --function-spec. Aborting")
-          sys.exit()
 
         # Mark whole slice
         if mark_whole_slice:

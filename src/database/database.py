@@ -57,9 +57,7 @@ class Database:
   def setup_analysis_file_system(self):
     mkdir(self.analysis_dir())
     mkdir(self.slices_dir())
-    mkdir(self.dugraphs_dir())
-    mkdir(self.features_dir())
-    mkdir(self.occurrence_dir())
+    mkdir(self.traces_dir())
 
   def setup_temporary_file_system(self):
     mkdir(self.temp_dir())
@@ -101,23 +99,23 @@ class Database:
   def slice_dir(self, func: str, bc_name: str, slice_id: int) -> str:
     return f"{self.func_bc_slices_dir(func, bc_name)}/{slice_id}.json"
 
-  def dugraphs_dir(self) -> str:
-    return f"{self.analysis_dir()}/dugraphs"
+  def traces_dir(self) -> str:
+    return f"{self.analysis_dir()}/traces"
 
-  def func_dugraphs_dir(self, func: str, create=False) -> str:
-    d = f"{self.dugraphs_dir()}/{func}"
+  def func_traces_dir(self, func: str, create=False) -> str:
+    d = f"{self.traces_dir()}/{func}"
     return mkdir(d) if create else d
 
-  def func_bc_dugraphs_dir(self, func: str, bc_name: str, create=False) -> str:
-    d = f"{self.func_dugraphs_dir(func, create=create)}/{bc_name}"
+  def func_bc_traces_dir(self, func: str, bc_name: str, create=False) -> str:
+    d = f"{self.func_traces_dir(func, create=create)}/{bc_name}"
     return mkdir(d) if create else d
 
-  def func_bc_slice_dugraphs_dir(self, func: str, bc_name: str, slice_id: int, create=False) -> str:
-    d = f"{self.func_bc_dugraphs_dir(func, bc_name, create=create)}/{slice_id}"
+  def func_bc_slice_traces_dir(self, func: str, bc_name: str, slice_id: int, create=False) -> str:
+    d = f"{self.func_bc_traces_dir(func, bc_name, create=create)}/{slice_id}"
     return mkdir(d) if create else d
 
-  def dugraph_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int, create=False) -> str:
-    return f"{self.func_bc_slice_dugraphs_dir(func, bc_name, slice_id, create=create)}/{trace_id}.json"
+  def trace_dir(self, func: str, bc_name: str, slice_id: int, trace_id: int, create=False) -> str:
+    return f"{self.func_bc_slice_traces_dir(func, bc_name, slice_id, create=create)}/{trace_id}.json"
 
   def features_dir(self) -> str:
     return f"{self.analysis_dir()}/features"
@@ -285,18 +283,18 @@ class Database:
   def num_traces(self, func_name=None, bc=None):
     if func_name != None and bc != None:
       count = 0
-      for root, dirs, files in os.walk(self.func_bc_dugraphs_dir(func_name, bc)):
+      for root, dirs, files in os.walk(self.func_bc_traces_dir(func_name, bc)):
         count += len(files)
       return count
     elif func_name != None:
       count = 0
-      for root, dirs, files in os.walk(self.func_dugraphs_dir(func_name)):
+      for root, dirs, files in os.walk(self.func_traces_dir(func_name)):
         for f in files:
           count += 1
       return count
     elif bc != None:
       count = 0
-      for root, dirs, files in os.walk(self.dugraphs_dir()):
+      for root, dirs, files in os.walk(self.traces_dir()):
         if len(files) != 0:
           bc_name = ntpath.basename(root)
           if bc in bc_name:
@@ -304,18 +302,18 @@ class Database:
       return count
     else:
       count = 0
-      for root, _, files in os.walk(self.dugraphs_dir()):
+      for root, _, files in os.walk(self.traces_dir()):
         count += len(files)
       return count
 
   def num_traces_of_slice(self, func: str, bc: str, slice_id: int):
     count = 0
-    for _, _, files in os.walk(self.func_bc_slice_dugraphs_dir(func, bc, slice_id)):
+    for _, _, files in os.walk(self.func_bc_slice_traces_dir(func, bc, slice_id)):
       count += len(files)
     return count
 
-  def dugraph(self, func_name, bc, slice_id, trace_id):
-    with open(self.dugraph_dir(func_name, bc, slice_id, trace_id)) as f:
+  def trace(self, func_name, bc, slice_id, trace_id):
+    with open(self.trace_dir(func_name, bc, slice_id, trace_id)) as f:
       return json.load(f)
 
   def feature(self, func_name, bc, slice_id, trace_id):
@@ -349,7 +347,7 @@ class Database:
       for slice_name in os.listdir(bc_dir):
         slice_id = int(os.path.splitext(slice_name)[0])
         slice = self.slice(func_name, bc, slice_id)
-        trace_dir = self.func_bc_slice_dugraphs_dir(func_name, bc, slice_id)
+        trace_dir = self.func_bc_slice_traces_dir(func_name, bc, slice_id)
         for trace_name in os.listdir(trace_dir):
           trace_id = int(os.path.splitext(trace_name)[0])
           yield DataPoint(self, func_name, bc, slice_id, trace_id, slice=slice)

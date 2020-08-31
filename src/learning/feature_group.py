@@ -11,7 +11,7 @@ from . import utils
 class FeatureGroup:
   fields = []
 
-  def __init__(self, fixed: bool):
+  def __init__(self, fixed=False):
     self.fixed = fixed
 
   def field(self) -> str:
@@ -32,7 +32,7 @@ class FeatureGroup:
 
 
 class LoopFeatureGroup(FeatureGroup):
-  fields = ["contains_loop"]
+  fields = ["has_loop", "target_in_a_loop"]
 
   def field(self) -> str:
     return "loop"
@@ -41,54 +41,63 @@ class LoopFeatureGroup(FeatureGroup):
     return f"loop.{self.fields[i]}"
 
 
-class ContextFeatureGroup(FeatureGroup):
-  fields = ["no_context"]
+class ArgPreFeatureGroup(FeatureGroup):
+  fields = ["checked", "compared_with_zero", "arg_check_is_zero", "arg_check_not_zero", "is_constant", "is_global"]
 
-  def field(self) -> str:
-    return "context"
-
-  def meaning_of(self, i) -> str:
-    return f"context.{self.fields[i]}"
-
-
-class ArgvalFeatureGroup(FeatureGroup):
-  fields = ["has_argval_check", "check_branch_taken", "branch_is_zero", "branch_not_zero"]
-
-  def __init__(self, fixed, arg_i):
+  def __init__(self, arg_i, fixed=False):
     super().__init__(fixed)
     self.arg_i = arg_i
 
   def field(self) -> str:
-    return f"argval_{self.arg_i}_check"
+    return f"arg.{self.arg_i}.pre"
 
   def meaning_of(self, i) -> str:
-    return f"argval.{self.arg_i}.{self.fields[i]}"
+    return f"arg.{self.arg_i}.pre.{self.fields[i]}"
+
+
+class ArgPostFeatureGroup(FeatureGroup):
+  fields = ["used", "used_in_call", "used_in_check", "derefed", "returned", "indir_returned"]
+
+  def __init__(self, arg_i, fixed=False):
+    super().__init__(fixed)
+    self.arg_i = arg_i
+
+  def field(self) -> str:
+    return f"arg.{self.arg_i}.post"
+
+  def meaning_of(self, i) -> str:
+    return f"arg.{self.arg_i}.post.{self.fields[i]}"
 
 
 class RetvalFeatureGroup(FeatureGroup):
-  fields = ["has_retval_check", "check_branch_taken", "branch_is_zero", "branch_not_zero"]
+  fields = ["derefed", "returned", "indir_returned"]
 
-  def __init__(self, fixed):
+  def __init__(self, fixed=False):
     super().__init__(fixed)
 
   def field(self) -> str:
-    return "retval_check"
+    return "ret"
 
   def meaning_of(self, i) -> str:
-    return f"retval.{self.fields[i]}"
+    return f"ret.{self.fields[i]}"
+
+
+class RetvalCheckFeatureGroup(FeatureGroup):
+  fields = ["checked", "br_eq_zero", "br_neq_zero", "compare_with"]
+
+  def __init__(self, fixed=False):
+    super().__init__(fixed)
 
 
 class InvokedType(Enum):
-  BEFORE = "invoked_before"
-  AFTER = "invoked_after"
+  BEFORE = "before"
+  AFTER = "after"
 
 
 class CausalityFeatureGroup(FeatureGroup):
-  fields = [
-      "invoked", "invoked_more_than_once", "share_argument", "share_return_value", "same_context", "share_argument_type"
-  ]
+  fields = ["invoked", "invoked_more_than_once", "share_argument", "share_return"]
 
-  def __init__(self, fixed: bool, invoked_type: InvokedType, function_name: str):
+  def __init__(self, invoked_type: InvokedType, function_name: str, fixed=False):
     super().__init__(fixed)
     self.invoked_type = invoked_type
     self.function_name = function_name
@@ -116,42 +125,32 @@ class FeatureGroups:
     self.groups = []
 
     if enable_loop and "loop" in sample_feature_json:
-      loop_group = LoopFeatureGroup(False)
-      if FeatureGroups.should_be_fixed(loop_group, fix_groups):
-        loop_group.fixed = True
-      self.groups.append(loop_group)
-
-    if enable_no_context and "context" in sample_feature_json:
-      context_group = ContextFeatureGroup(False)
-      if FeatureGroups.should_be_fixed(context_group, fix_groups):
-        context_group.fixed = True
-      self.groups.append(context_group)
+      self.groups.append(LoopFeatureGroup())
 
     if enable_causality:
       for invoked_type in InvokedType:
         for function_name in sample_feature_json[invoked_type.value]:
-          caus_group = CausalityFeatureGroup(False, invoked_type, function_name)
-          # TEMPORARY: Will stablize when the data is re-run
-          if not "share_argument_type" in sample_feature_json[invoked_type.value][function_name]:
-            caus_group.fields.remove("share_argument_type")
-          if FeatureGroups.should_be_fixed(caus_group, fix_groups):
-            caus_group.fixed = True
-          self.groups.append(caus_group)
+          self.groups.append(CausalityFeatureGroup(invoked_type, function_name))
 
     if enable_retval:
-      retval_group = RetvalFeatureGroup(False)
+      retval_group = RetvalFeatureGroup()
+      retval_check_group = RetvalCheckFeatureGroup()
       if utils.has_dot_separated_field(sample_feature_json, retval_group.field()):
-        if FeatureGroups.should_be_fixed(retval_group, fix_groups):
-          retval_group.fixed = True
         self.groups.append(retval_group)
+        self.groups.append(retval_check_group)
 
     if enable_argval:
       for arg_i in [0, 1, 2, 3]:
-        ith_argval_group = ArgvalFeatureGroup(False, arg_i)
-        if utils.has_dot_separated_field(sample_feature_json, ith_argval_group.field()):
-          if FeatureGroups.should_be_fixed(ith_argval_group, fix_groups):
-            ith_argval_group.fixed = True
-          self.groups.append(ith_argval_group)
+        ith_arg_pre_group = ArgPreFeatureGroup(arg_i)
+        ith_arg_post_group = ArgPostFeatureGroup(arg_i)
+        if utils.has_dot_separated_field(sample_feature_json, ith_arg_pre_group.field()):
+          self.groups.append(ith_arg_pre_group)
+          self.groups.append(ith_arg_post_group)
+
+  @staticmethod
+  def try_fix(group: FeatureGroup, fix_groups: List[str]):
+    if should_be_fixed(group, fix_groups):
+      group.fixed = True
 
   @staticmethod
   def should_be_fixed(group: FeatureGroup, fix_groups: List[str]) -> bool:

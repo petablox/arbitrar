@@ -1,5 +1,5 @@
 from .bc_files import BCFilesQuery
-from .dugraph import DUGraphQuery
+from .trace import TraceQuery
 from .feature import FeatureQuery
 from .features import FeaturesQuery
 from .labels import LabelsQuery

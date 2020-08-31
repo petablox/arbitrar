@@ -9,7 +9,7 @@ from ..analysis import DataPoint
 
 
 class SourceFeatureVisualizer():
-  def __init__(self, source):
+  def __init__(self):
     self.stdscr = curses.initscr()
 
     curses.savetty()
@@ -30,7 +30,7 @@ class SourceFeatureVisualizer():
     self.left_window = curses.newwin(self.lines, self.half_width)
     self.right_window = curses.newwin(self.lines, self.half_width, 0, self.half_width + 2)
 
-    self.source = source
+    # self.source = source
 
   def display(self, datapoint: DataPoint, label="", padding=20):
     # Initialize datapoint data
@@ -39,22 +39,22 @@ class SourceFeatureVisualizer():
     slice_id = datapoint.slice_id
     trace_id = datapoint.trace_id
 
-    dugraph = datapoint.dugraph()
+    trace = datapoint.trace()
     used = set()
-    for v in dugraph['vertex']:
-      toks = v['location'].split(":")
-      if len(toks) < 4:
+    for v in trace['instrs']:
+      toks = v['loc'].split(":")
+      if len(toks) < 3:
         continue
-      line, _col = int(toks[2]), int(toks[3])
+      line, _col = int(toks[1]), int(toks[2])
       used.add(line)
 
     slice = datapoint.slice()
-    toks = slice['call_edge']['location'].split(":")
-    if (len(toks) < 4):
+    toks = slice['instr'].split(":")
+    if (len(toks) < 3):
       path = ""
       line = 0
     else:
-      path, _func, line, _col = toks[0], toks[1], int(toks[2]), toks[3]
+      path, line, _col = toks[0], int(toks[1]), toks[2]
 
     self.left_window.erase()
     self.right_window.erase()
@@ -63,8 +63,8 @@ class SourceFeatureVisualizer():
     self.right_window.addstr(f"[{path}:{line}] Slice-Id:{slice_id} Trace-Id:{trace_id} Features\n",
                              curses.color_pair(1))
 
-    #cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
-    path = os.path.join(self.source, path)
+    # cprint(f"Slice [{path}] {slice_id} Trace {trace_id} Alarm {i}/{nalarms}")
+    # path = os.path.join(self.source, path)
     if not os.path.exists(path):
       print(f"No file found at {path}")
     else:
@@ -95,7 +95,7 @@ class SourceFeatureVisualizer():
     self.left_window.refresh()
     self.right_window.refresh()
 
-  def show(self, datapoint, label="", padding=20):
+  def show(self, datapoint, label="", padding=30):
     self.display(datapoint, label=label, padding=padding)
 
     while True:
@@ -121,7 +121,7 @@ class SourceFeatureVisualizer():
           keys,
           prompt="> ",
           label="",
-          padding=20,
+          padding=30,
           scroll_down_key="n",
           scroll_up_key="p",
           quit_key="q"):

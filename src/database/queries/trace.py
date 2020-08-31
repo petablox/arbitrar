@@ -3,7 +3,7 @@ from ..meta import Executor, pp
 from termcolor import cprint
 
 
-class DUGraphQuery(Executor):
+class TraceQuery(Executor):
   @staticmethod
   def setup_parser(parser):
     parser.add_argument('bc-file', type=str, help="The bc-file that the trace belong to")
@@ -23,13 +23,13 @@ class DUGraphQuery(Executor):
     fn = args.function
     slice_id = var_args["slice-id"]
     trace_id = var_args["trace-id"]
-    dugraph = args.db.dugraph(fn, bc, slice_id, trace_id)
-    if dugraph:
+    trace = args.db.trace(fn, bc, slice_id, trace_id)
+    if trace:
       if not args.source:
-        pp.pprint(dugraph)
+        pp.pprint(trace)
       else:
         used = set()
-        for v in dugraph['vertex']:
+        for v in trace['vertex']:
           toks = v['location'].split(":")
           if len(toks) < 4:
             continue
@@ -57,4 +57,4 @@ class DUGraphQuery(Executor):
                   cprint(f"    {lcount}:{l}", colr, end="")
               lcount += 1
     else:
-      print("DUGraph does not exist")
+      print("Trace does not exist")

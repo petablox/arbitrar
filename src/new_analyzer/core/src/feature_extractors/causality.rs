@@ -145,10 +145,10 @@ struct FunctionCausalityFeatures {
   /// r = target(...);
   /// f(r, ...);
   /// ```
-  pub share_return_value: bool,
+  pub share_return: bool,
 
   /// Share argument value
-  pub share_argument_value: bool,
+  pub share_argument: bool,
 }
 
 impl Default for FunctionCausalityFeatures {
@@ -156,8 +156,8 @@ impl Default for FunctionCausalityFeatures {
     Self {
       invoked: false,
       invoked_more_than_once: false,
-      share_return_value: false,
-      share_argument_value: false,
+      share_return: false,
+      share_argument: false,
     }
   }
 }
@@ -184,7 +184,7 @@ fn find_function_causality(
                 }
 
                 // Check if sharing return value
-                if !features.share_return_value {
+                if !features.share_return {
                   let retval = if dir.is_forward() {
                     (target_instr.res.clone(), instr.sem.call_args())
                   } else {
@@ -192,13 +192,13 @@ fn find_function_causality(
                   };
                   if let (Some(retval), args) = retval {
                     if args.iter().find(|a| ***a == retval).is_some() {
-                      features.share_return_value = true;
+                      features.share_return = true;
                     }
                   }
                 }
 
                 // Check if sharing argument value
-                if !features.share_argument_value {
+                if !features.share_argument {
                   let args_1 = instr.sem.call_args();
                   let args_2 = target_instr.sem.call_args();
                   if args_1
@@ -206,7 +206,7 @@ fn find_function_causality(
                     .find(|a| args_2.iter().find(|b| a == b).is_some())
                     .is_some()
                   {
-                    features.share_argument_value = true;
+                    features.share_argument = true;
                   }
                 }
 

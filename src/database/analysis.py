@@ -3,7 +3,7 @@ import json
 
 
 class DataPoint:
-  def __init__(self, db, func_name, bc, slice_id, trace_id, slice=None, dugraph=None, feature=None):
+  def __init__(self, db, func_name, bc, slice_id, trace_id, slice=None, trace=None, feature=None):
     self.db = db
     self.func_name = func_name
     self.bc = bc
@@ -12,7 +12,7 @@ class DataPoint:
 
     # Private caches
     self._slice = slice
-    self._dugraph = dugraph
+    self._trace = trace
     self._feature = feature
 
   def slice(self):
@@ -20,10 +20,10 @@ class DataPoint:
       self._slice = self.db.slice(self.func_name, self.bc, self.slice_id)
     return self._slice
 
-  def dugraph(self):
-    if not self._dugraph:
-      self._dugraph = self.db.dugraph(self.func_name, self.bc, self.slice_id, self.trace_id)
-    return self._dugraph
+  def trace(self):
+    if not self._trace:
+      self._trace = self.db.trace(self.func_name, self.bc, self.slice_id, self.trace_id)
+    return self._trace
 
   def feature(self):
     if not self._feature:
@@ -31,8 +31,8 @@ class DataPoint:
     return self._feature
 
   def labels(self):
-    dugraph = self.dugraph()
-    return dugraph["labels"] if "labels" in dugraph and dugraph["labels"] else []
+    trace = self.trace()
+    return trace["labels"] if "labels" in trace and trace["labels"] else []
 
   def alarms(self):
     return [a for a in self.labels() if "alarm" in a]
