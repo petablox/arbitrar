@@ -834,6 +834,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
           meta.combine(self.execute_target_slices(&target_name, offset, &slices))
         })
     } else {
+      let num_targets = target_slices_map.len();
       target_slices_map
         .into_par_iter()
         .fold(
@@ -842,7 +843,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
             meta.combine(self.execute_target_slices(&target_name, offset, &slices))
           },
         )
-        .progress()
+        .progress_count(num_targets as u64)
         .reduce(|| MetaData::new(), MetaData::combine)
     }
   }
