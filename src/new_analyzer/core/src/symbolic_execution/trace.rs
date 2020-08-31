@@ -1,7 +1,4 @@
 use std::rc::Rc;
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
 use serde_json::json;
 use llir::values::*;
 
@@ -39,15 +36,6 @@ impl<'ctx> TraceWithTarget<'ctx> {
       })).collect::<Vec<_>>(),
       "target": self.target_index,
     })
-  }
-
-  pub fn dump_json(&self, path: PathBuf) -> Result<(), String> {
-    let trace_json = self.to_json();
-    let json_str = serde_json::to_string(&trace_json).map_err(|_| "Cannot turn trace into json".to_string())?;
-    let mut file = File::create(path).map_err(|_| "Cannot create trace file".to_string())?;
-    file
-      .write_all(json_str.as_bytes())
-      .map_err(|_| "Cannot write to trace file".to_string())
   }
 
   pub fn block_trace(&self) -> Vec<Block<'ctx>> {

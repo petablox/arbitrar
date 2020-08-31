@@ -723,7 +723,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
               }
 
               // Dump the json
-              trace.dump_json(path).unwrap();
+              dump_json(&trace.to_json(), path).expect("Cannot dump json");
 
               // Increase the count in metadata
               metadata.incr_proper();

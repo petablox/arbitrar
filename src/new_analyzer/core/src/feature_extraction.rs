@@ -4,7 +4,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 
 use crate::feature_extractors::*;
@@ -205,15 +204,6 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
     serde_json::from_reader(trace_file).expect("Cannot parse trace file")
   }
 
-  pub fn dump_features(&self, features: &serde_json::Value, target: &String, slice_id: usize, trace_id: usize) {
-    let features_str = serde_json::to_string(&features).expect("Cannot stringify features json");
-    let mut features_file = File::create(self.options.features_file_path(target.as_str(), slice_id, trace_id))
-      .expect("Cannot create features file");
-    features_file
-      .write_all(features_str.as_bytes())
-      .expect("Cannot write to features file");
-  }
-
   pub fn extract_features(&self) {
     fs::create_dir_all(self.options.features_dir_path()).expect("Cannot create features directory");
 
@@ -262,7 +252,8 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
 
             // Extract and dump features
             let features = extractors.extract_features(slice, &trace);
-            self.dump_features(&features, &target, slice_id, trace_id);
+            let path = self.options.features_file_path(target.as_str(), slice_id, trace_id);
+            dump_json(&features, path).expect("Cannot dump features json");
           })
       });
     });

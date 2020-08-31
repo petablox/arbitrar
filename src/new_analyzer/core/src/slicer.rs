@@ -6,8 +6,6 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-use std::fs::File;
-use std::io::Write;
 
 use crate::call_graph::*;
 use crate::options::*;
@@ -135,10 +133,7 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
       fs::create_dir_all(options.slice_target_dir_path(target.as_str())).expect("Cannot create slice folder");
       slices.par_iter().enumerate().for_each(|(i, slice)| {
         let path = options.slice_file_path(target.as_str(), i);
-        let slice_json = slice.to_json();
-        let json_str = serde_json::to_string(&slice_json).expect("Cannot turn json into string");
-        let mut file = File::create(path).expect("Cannot create slice file");
-        file.write_all(json_str.as_bytes()).expect("Cannot write to slice file")
+        dump_json(&slice.to_json(), path).expect("Cannot dump slice json");
       });
     }
   }
