@@ -49,7 +49,7 @@ class Database:
     self.setup_analysis_file_system()
 
     # Create temporary directory
-    self.setup_temporary_file_system()
+    # self.setup_temporary_file_system()
 
   def setup_packages_file_system(self):
     mkdir(self.packages_dir())

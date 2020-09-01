@@ -10,7 +10,8 @@ from . import learning
 modules = {
     'init': database.init,
     'collect': collector,
-    'analyze': new_analyzer,
+    'analyze': new_analyzer.analyzer,
+    'occurrence': new_analyzer.occurrence,
     'analyze-old': analyzer,
     'query': database.query,
     'action': database.action,

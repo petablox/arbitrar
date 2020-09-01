@@ -364,6 +364,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17b02fc0ff9a9e4b35b3342880f48e896ebf69f2967921fe8646bf5b7125956a"
 
 [[package]]
+name = "occurrence"
+version = "0.1.0"
+dependencies = [
+ "analyzer-core",
+ "clap",
+ "petgraph",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "os_str_bytes"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

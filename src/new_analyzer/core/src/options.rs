@@ -244,6 +244,11 @@ impl Options {
     PathBuf::from(self.input.as_str())
   }
 
+  /// Get input bc file name
+  pub fn input_bc_name(&self) -> String {
+    format!("{}", self.input_path().file_name().unwrap().to_str().unwrap())
+  }
+
   /// Generate output path
   pub fn output_path(&self) -> PathBuf {
     PathBuf::from(self.output.as_str())
@@ -254,6 +259,14 @@ impl Options {
       Some(s) => path.join(s.as_str()),
       None => path,
     }
+  }
+
+  pub fn occurrence_path(&self) -> PathBuf {
+    self.output_path().join("occurrences")
+  }
+
+  pub fn occurrence_file_path(&self) -> PathBuf {
+    self.occurrence_path().join(format!("{}.json", self.input_bc_name()))
   }
 
   pub fn slice_dir_path(&self) -> PathBuf {

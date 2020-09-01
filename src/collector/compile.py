@@ -43,14 +43,6 @@ class BuildEnv:
     self.env["DEB_BUILD_OPTIONS"] = "nocheck notest"
 
 
-def get_soname(path):
-  objdump = subprocess.Popen(['objdump', '-p', path], stdout=subprocess.PIPE)
-  out = subprocess.run(['grep', 'SONAME'], stdout=subprocess.PIPE, stdin=objdump.stdout)
-  if len(out.stdout) == 0:
-    return None
-  return out.stdout.strip().split()[-1].decode()
-
-
 def soname_lib(libpath):
   soname = get_soname(libpath)
   if soname is None:
@@ -177,11 +169,11 @@ def install_libs(db: Database, pkg: Pkg):
 
 
 def find_libs(path: str) -> List[str]:
-  out = subprocess.run(['find', path, '-name', 'lib*.so*'], stdout=subprocess.PIPE)
-  libs = []
-  for l in out.stdout.splitlines():
-    libs.append(l.decode('utf-8'))
-  return libs
+  if os.path.exists(path):
+    out = subprocess.run(['find', path, '-name', 'lib*.so*', '-o', '-name', 'lib*.a*'], stdout=subprocess.PIPE)
+    return [line.decode('utf-8') for line in out.stdout.splitlines() if not os.path.islink(line)]
+  else:
+    return []
 
 
 def extract_bc(db: Database, pkg: Pkg, libs=None):
@@ -197,11 +189,8 @@ def extract_bc(db: Database, pkg: Pkg, libs=None):
 
   extracts = set()
   for l in libs:
-    t, n = l
-    if t == "lib":
-      extracts.add(get_soname(n))
-    else:
-      extracts.add(n)
+    _, n = l
+    extracts.add(os.path.basename(n))
 
   if len(extracts) == 0:
     pkg.build.result = BuildResult.nolibs
@@ -209,11 +198,16 @@ def extract_bc(db: Database, pkg: Pkg, libs=None):
   pkg.build.libs = list(extracts)
 
   for l in pkg.build.libs:
-    if not os.path.exists(f"{src_dir}/{l}.bc"):
-      run = subprocess.run(["extract-bc", l], stderr=subprocess.STDOUT, cwd=src_dir)
-      if run.returncode != 0:
-        pkg.build.result = BuildResult.nobc
-        raise BuildException("nobc")
+    run = None
+    if l[-2:] == '.a':
+      if not os.path.exists(f"{src_dir}/{l}.bc"):
+        run = subprocess.run(["a2bc", l], stderr=subprocess.STDOUT, cwd=src_dir)
+    else:
+      if not os.path.exists(f"{src_dir}/{l}.bc"):
+        run = subprocess.run(["extract-bc", l], stderr=subprocess.STDOUT, cwd=src_dir)
+    if run and run.returncode != 0:
+      pkg.build.result = BuildResult.nobc
+      raise BuildException("No bc")
 
   pkg.build.result = BuildResult.success
 
