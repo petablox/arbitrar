@@ -1,1 +1,2 @@
-from .main import setup_parser, main
+from . import analyzer
+from . import occurrence
