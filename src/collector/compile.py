@@ -43,13 +43,6 @@ class BuildEnv:
     self.env["DEB_BUILD_OPTIONS"] = "nocheck notest"
 
 
-def soname_lib(libpath):
-  soname = get_soname(libpath)
-  if soname is None:
-    soname = libpath.split("/")[-1]
-  return soname
-
-
 def run_make(db: Database, pkg: Pkg):
   src_dir = db.package_source_dir(pkg)
 

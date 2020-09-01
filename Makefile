@@ -3,7 +3,8 @@
 all: build
 
 install:
-	ln -s $(HOME)/ll_analyzer/misapi $(HOME)/.local/bin/misapi
+	ln -s ./misapi $(HOME)/.local/bin/misapi
+	ln -s ./scripts/a2bc $(HOME)/.local/bin/a2bc
 
 setup:
 	pip3 install mypy yapf pytest python-magic termcolor
