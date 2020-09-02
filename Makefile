@@ -1,4 +1,4 @@
-.PHONY: all
+.PHONY: all install build format
 
 all: build
 
@@ -14,32 +14,24 @@ setup:
 	opam install ocamlgraph yojson ppx_compare ppx_deriving ppx_deriving_yojson
 	opam install llvm ctypes ctypes-foreign z3
 
-.PHONY: build
+build: build-rs
 
-build: build-ml build-rs
-
-build-ml:
-	make -C src/analyzer
+# build-ml:
+# 	make -C src/old_analyzer
 
 build-rs:
-	cd src/new_analyzer ; cargo build --release
+	cd src/analyzer ; cargo build --release
 
 clean:
 	make clean -C src/analyzer
 
-.PHONY: format
-
-format: format-py format-ml format-rs
-
-.PHONY: format-py
+format: format-py format-rs
 
 format-py:
 	yapf -i --recursive misapi src/
 
-.PHONY: format-ml
-
-format-ml:
-	make -C src/analyzer format
+# format-ml:
+# 	make -C src/old_analyzer format
 
 format-rs:
-	cd src/new_analyzer ; cargo fmt
+	cd src/analyzer ; cargo fmt

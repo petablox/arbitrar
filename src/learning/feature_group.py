@@ -88,6 +88,12 @@ class RetvalCheckFeatureGroup(FeatureGroup):
   def __init__(self, fixed=False):
     super().__init__(fixed)
 
+  def field(self) -> str:
+    return "ret.check"
+
+  def meaning_of(self, i) -> str:
+    return f"ret.check.{self.fields[i]}"
+
 
 class InvokedType(Enum):
   BEFORE = "before"
@@ -134,9 +140,11 @@ class FeatureGroups:
 
     if enable_retval:
       retval_group = RetvalFeatureGroup()
-      retval_check_group = RetvalCheckFeatureGroup()
       if utils.has_dot_separated_field(sample_feature_json, retval_group.field()):
         self.groups.append(retval_group)
+
+      retval_check_group = RetvalCheckFeatureGroup()
+      if utils.has_dot_separated_field(sample_feature_json, retval_check_group.field()):
         self.groups.append(retval_check_group)
 
     if enable_argval:

@@ -134,6 +134,16 @@ $ misapi analyze
 
 but again, this will probably take a ton of time.
 
+### 2.0. Get occurrences
+
+It's sometimes useful to analyze the occurrence of library function across the whole database. You can type the following command to compute function occurrence (for all the bc-files inside the database).
+
+```
+$ misapi occurrence
+```
+
+After this, you should be able to query the occurrences
+
 ### 2.1. Other Flags
 
 In this section we are going to talk about other useful flags when running the analyzer.

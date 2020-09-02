@@ -83,7 +83,7 @@ class Database:
     return f"{self.directory}/analysis"
 
   def occurrence_dir(self) -> str:
-    return f"{self.analysis_dir()}/occurrence"
+    return f"{self.analysis_dir()}/occurrences"
 
   def slices_dir(self) -> str:
     return f"{self.analysis_dir()}/slices"

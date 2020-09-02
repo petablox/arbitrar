@@ -35,6 +35,7 @@ fn main() -> Result<(), String> {
   logging_ctx.log_finding_call_edges()?;
   let target_edges_map = TargetEdgesMap::from_call_graph(&call_graph, &options)?;
 
+
   // Generate slices
   logging_ctx.log_generated_call_edges(target_edges_map.num_elements())?;
   let target_slices_map = TargetSlicesMap::from_target_edges_map(&target_edges_map, &call_graph, &options);

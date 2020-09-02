@@ -65,7 +65,7 @@ impl Default for Options {
 
       // Batching options
       use_batch: false,
-      batch_size: 0,
+      batch_size: 50,
 
       // Symbolic execution options
       max_work: 50,
@@ -143,7 +143,7 @@ impl Options {
       Arg::new("batch_size")
         .value_name("BATCH_SIZE")
         .takes_value(true)
-        .default_value("100")
+        .default_value("50")
         .long("batch-size"),
       Arg::new("print_slice").long("print-slice").about("Print slice"),
       // Symbolic Execution Options
