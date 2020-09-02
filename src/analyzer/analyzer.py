@@ -19,6 +19,7 @@ def setup_parser(parser):
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')
   parser.add_argument('--no-path-constraint', action='store_true')
   parser.add_argument('--no-reduce-slice', action='store_true')
+  parser.add_argument('--feature-only', action='store_true')
   parser.add_argument('--serial', action='store_true', help='Execute in serial mode')
   parser.add_argument('--regex', action='store_true')
   parser.add_argument('--causality-dict-size', type=int, default=5)
@@ -84,24 +85,15 @@ def get_analyzer_args(db, bc_file, args):
   if args.no_random_work:
     base_args += ['--no-random-work']
 
+  if args.feature_only:
+    base_args += ['--feature-only']
+
   return base_args
 
 
 def run_analyzer(db, bc_file, args):
+  print(f"Running analyzer on {os.path.basename(bc_file)}")
   analyzer = "target/release/analyzer"
   analyzer_args = get_analyzer_args(db, bc_file, args)
   cmd = [analyzer] + analyzer_args
-  run = subprocess.run(cmd, cwd=this_path)
-
-
-def get_occurrence_args(db, bc_file, args):
-  bc_name = ntpath.basename(bc_file)
-  base_args = [bc_file, db.analysis_dir()]
-  return base_args
-
-
-def run_occurrence(db, bc_file, args):
-  occurrence = "target/release/occurrence"
-  occurrence_args = get_occurrence_args(db, bc_file, args)
-  cmd = [occurrence] + occurrence_args
   run = subprocess.run(cmd, cwd=this_path)

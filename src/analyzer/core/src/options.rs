@@ -37,6 +37,7 @@ pub struct Options {
   pub no_prefilter_block_trace: bool,
 
   // Feature Extraction Options
+  pub feature_only: bool,
   pub causality_dictionary_size: usize,
 }
 
@@ -79,6 +80,7 @@ impl Default for Options {
       no_prefilter_block_trace: false,
 
       // Feature extraction options
+      feature_only: false,
       causality_dictionary_size: 10,
     }
   }
@@ -183,6 +185,11 @@ impl Options {
       Arg::new("no_prefilter_block_trace")
         .long("no-prefilter-block-trace")
         .about("No prefilter of block trace"),
+
+      // Feature extraction options
+      Arg::new("feature_only")
+        .long("feature-only")
+        .about("Only redo feature generation"),
       Arg::new("causality_dictionary_size")
         .long("causality-dictionary-size")
         .takes_value(true)
@@ -235,6 +242,7 @@ impl Options {
       no_prefilter_block_trace: matches.is_present("no_prefilter_block_trace"),
 
       // Feature extraction options
+      feature_only: matches.is_present("feature_only"),
       causality_dictionary_size: matches.value_of_t::<usize>("causality_dictionary_size").unwrap(),
     })
   }
@@ -275,6 +283,13 @@ impl Options {
 
   pub fn slice_target_dir_path(&self, target: &str) -> PathBuf {
     self.with_subfolder(self.slice_dir_path().join(target))
+  }
+
+  pub fn num_slices(&self, target: &str) -> usize {
+    match std::fs::read_dir(self.slice_target_dir_path(target)) {
+      Ok(dirs) => dirs.count(),
+      _ => 0
+    }
   }
 
   pub fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf {

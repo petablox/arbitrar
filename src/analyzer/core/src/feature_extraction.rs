@@ -83,7 +83,7 @@ impl Trace {
       self
         .instrs
         .iter()
-        .skip(self.instrs.len() - from)
+        .take(from)
         .rev()
         .collect::<Vec<_>>()
     }
@@ -192,10 +192,14 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
       .collect::<Vec<_>>()
   }
 
-  pub fn load_trace_file_paths(&self, target: &String, slice_id: usize) -> Vec<PathBuf> {
+  pub fn load_trace_file_paths(&self, target: &String, slice_id: usize) -> Vec<(usize, PathBuf)> {
     fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
       .expect("Cannot read traces folder")
-      .map(|path| path.expect("Cannot read traces folder path").path())
+      .map(|path| {
+        let path = path.expect("Cannot read traces folder path").path();
+        let trace_id = path.file_stem().unwrap().to_str().unwrap().parse::<usize>().unwrap();
+        (trace_id, path)
+      })
       .collect::<Vec<_>>()
   }
 
@@ -220,8 +224,8 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
         let slice = &slices[slice_id];
         let traces = self
           .load_trace_file_paths(&target, slice_id)
-          .par_iter()
-          .map(|dir_entry| -> Trace {
+          .into_par_iter()
+          .map(|(_, dir_entry)| -> Trace {
             let file = File::open(dir_entry).expect("Could not open trace file");
             serde_json::from_reader(file).expect("Cannot parse trace file")
           })
@@ -244,11 +248,10 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
         // Then load trace file directories
         self
           .load_trace_file_paths(&target, slice_id)
-          .par_iter()
-          .enumerate()
+          .into_par_iter()
           .for_each(|(trace_id, dir_entry)| {
             // Load trace json
-            let trace = self.load_trace(dir_entry);
+            let trace = self.load_trace(&dir_entry);
 
             // Extract and dump features
             let features = extractors.extract_features(slice, &trace);
