@@ -12,6 +12,7 @@ class OccurrenceQuery(Executor):
     parser.add_argument('-t', '--threshold', type=int, help="Occurred at least [threshold] times")
     parser.add_argument('-l', '--limit', type=int, help="Only output top [limit] results")
     parser.add_argument('--bc', type=str, help="LLVM Byte Code File")
+    parser.add_argument('--in-bc', nargs='+', help="BC Files")
 
   @staticmethod
   def execute(args):
@@ -36,19 +37,52 @@ class OccurrenceQuery(Executor):
       else:
         print(count)
     else:
-      counts = {}
-      for bc_file, occurrence in args.db.occurrences(package=args.package, bc_file=args.bc):
-        for func, count in occurrence.items():
-          if func in counts:
-            counts[func] += count
+      if args.in_bc:
+        sets = {}
+        occurrences = {}
+
+        def contains(bc_file):
+          for include_bc in args.in_bc:
+            if include_bc in bc_file:
+              return True
+          return False
+
+        for bc_file, occurrence in args.db.occurrences(package=args.package):
+          if contains(bc_file):
+            occurrences[bc_file] = occurrence
+            if not bc_file in sets:
+              sets[bc_file] = set()
+            for func, _ in occurrence.items():
+              sets[bc_file].add(func)
+
+        itsct = None
+        for (_, s) in sets.items():
+          if itsct is None:
+            itsct = s
           else:
-            counts[func] = count
-      counts_arr = []
-      for func, count in counts.items():
-        if not args.threshold or count >= args.threshold:
-          counts_arr.append((func, count))
-      counts_arr = sorted(counts_arr, key=lambda t: -t[1])
-      if args.limit:
-        print_counts(counts_arr[0:args.limit])
+            itsct = itsct.intersection(s)
+
+        for func in itsct:
+          print(f"{func} -- ", end="")
+          for bc_file, occs in occurrences.items():
+            if func in occs:
+              print(f"{bc_file}: {occs[func]}, ", end="")
+          print()
+
       else:
-        print_counts(counts_arr)
+        counts = {}
+        for bc_file, occurrence in args.db.occurrences(package=args.package, bc_file=args.bc):
+          for func, count in occurrence.items():
+            if func in counts:
+              counts[func] += count
+            else:
+              counts[func] = count
+        counts_arr = []
+        for func, count in counts.items():
+          if not args.threshold or count >= args.threshold:
+            counts_arr.append((func, count))
+        counts_arr = sorted(counts_arr, key=lambda t: -t[1])
+        if args.limit:
+          print_counts(counts_arr[0:args.limit])
+        else:
+          print_counts(counts_arr)
