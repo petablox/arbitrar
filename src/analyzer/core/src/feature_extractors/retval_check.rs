@@ -21,10 +21,7 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
   /// Return value check feature should only present when the return type
   /// is a pointer type
   fn filter<'ctx>(&self, _: &String, target_type: FunctionType<'ctx>) -> bool {
-    match target_type.return_type() {
-      Type::Pointer(_) => true,
-      _ => false,
-    }
+    target_type.has_return_type()
   }
 
   fn init(&mut self, _: &Slice, _: usize, _: &Trace) {}

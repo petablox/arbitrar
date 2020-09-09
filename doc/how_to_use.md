@@ -194,6 +194,14 @@ $ misapi analyze --include-fn malloc --causality-dict-size 10
 
 It's worth noting that this won't increase the runtime. It might increase the disk space occupied, but we generally don't care about this.
 
+#### 2.1.4. `--use-batch`
+
+There are sometimes a function that is used thousands of times (e.g. `kzalloc` is used 1800+ times in Linux Kernel). Directly running all of them might cause memory overflow. So we introduce the `--use-batch` flag. When specified, the 1800+ slices will be divided into smaller batches (50 each by default), and the analyzer will run them in sequence.
+
+```
+$ misapi analyze --include-fn kzalloc --use-batch
+```
+
 ### 2.2. Runtime
 
 As we have our new implementation in Rust, along with a few optimizations, our execution is now very fast. An example run on `devm_kzalloc` function inside Linux Kernel only takes less than 3 minutes, whereas the old OCaml version can take up to an hour. We have multi processing enabled by default. You can turn it off by specifying flag `--serial` but we don't see any reason other than for debugging purpose.

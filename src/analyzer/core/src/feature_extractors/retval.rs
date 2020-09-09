@@ -27,9 +27,14 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
   fn finalize(&mut self) {}
 
   fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
+    let mut used = false;
+    let mut used_in_call = false;
+    let mut used_in_bin = false;
     let mut derefed = false;
     let mut returned = false;
     let mut indir_returned = false;
+
+    // States
     let mut child_ptrs: HashSet<Value> = HashSet::new();
     let mut tracked_values: HashSet<Value> = HashSet::new();
     let retval = trace.target_result().clone().unwrap();
@@ -41,6 +46,12 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
       .enumerate()
     {
       match &instr.sem {
+        Semantics::Call { args, .. } => {
+          if args.iter().find(|a| &***a == &retval).is_some() {
+            used = true;
+            used_in_call = true;
+          }
+        }
         Semantics::Load { loc } => {
           if **loc == retval || child_ptrs.contains(&**loc) {
             derefed = true;
@@ -81,10 +92,22 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
             }
           }
         }
+        Semantics::Bin { op0, op1, .. } => {
+          let arg_is_op0 = &**op0 == &retval;
+          let arg_is_op1 = &**op1 == &retval;
+          if arg_is_op0 || arg_is_op1 {
+            used_in_bin = true;
+            used = true;
+          }
+        }
         _ => {}
       }
     }
+
     json!({
+      "used": used,
+      "used_in_call": used_in_call,
+      "used_in_bin": used_in_bin,
       "derefed": derefed,
       "returned": returned,
       "indir_returned": indir_returned,

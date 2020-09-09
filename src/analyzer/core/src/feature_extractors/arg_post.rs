@@ -31,6 +31,7 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
   fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut used = false;
     let mut used_in_call = false;
+    let mut used_in_bin = false;
     let mut used_in_check = false;
     let mut derefed = false;
     let mut returned = false;
@@ -110,6 +111,7 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
           let arg_is_op0 = &**op0 == arg;
           let arg_is_op1 = &**op1 == arg;
           if arg_is_op0 || arg_is_op1 {
+            used_in_bin = true;
             used = true;
           }
         }
@@ -120,6 +122,7 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
     json!({
       "used": used,
       "used_in_call": used_in_call,
+      "used_in_bin": used_in_bin,
       "used_in_check": used_in_check,
       "derefed": derefed,
       "returned": returned,
