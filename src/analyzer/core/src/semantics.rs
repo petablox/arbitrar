@@ -99,11 +99,11 @@ macro_rules! decl_value_with_wrapper {
       Sym(usize),      // Temporary Symbol ID
       Glob(String),    // Global Value Name
       Func(String),    // Function Name
+      Alloc(usize),    // Local alloca ID
       FuncPtr,
       Asm,
       Int(i64),
       Null,
-      Alloc(usize), // Local alloca ID
       GEP {
         loc: $wrapper<Value>,
         indices: Vec<$wrapper<Value>>,

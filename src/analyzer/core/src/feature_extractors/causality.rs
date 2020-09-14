@@ -105,7 +105,11 @@ fn find_caused_functions(trace: &Trace, dir: TraceIterDirection) -> HashMap<Stri
     match &instr.sem {
       Semantics::Call { func, .. } => match &**func {
         Value::Func(f) => {
-          *result.entry(f.clone()).or_insert(0) += 1;
+          // Count function as many times as it appears in the trace
+          // *result.entry(f.clone()).or_insert(0) += 1;
+
+          // Only count same function once
+          *result.entry(f.clone()).or_insert(0) = 1;
         }
         _ => {}
       },
