@@ -32,7 +32,7 @@ class FeatureGroup:
 
 
 class ControlFlowFeatureGroup(FeatureGroup):
-  fields = ["has_loop", "target_in_a_loop"]
+  fields = ["has_loop", "target_in_a_loop", "has_cond_br_after_target"]
 
   def field(self) -> str:
     return "control_flow"

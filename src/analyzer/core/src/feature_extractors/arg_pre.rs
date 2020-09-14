@@ -34,14 +34,14 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     let mut arg_check_is_zero = false;
     let mut is_constant = false;
     let mut is_global = false;
+    let mut is_arg = false;
 
     let arg = trace.target_arg(self.index);
 
     // Setup kind of argument
     match arg {
-      Value::Glob(_) => {
-        is_global = true;
-      }
+      Value::Glob(_) => { is_global = true; }
+      Value::Arg(_) => { is_arg = true; }
       Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
         is_constant = true;
       }
@@ -100,6 +100,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       "compared_with_zero": compared_with_zero,
       "arg_check_is_zero": arg_check_is_zero,
       "arg_check_not_zero": arg_check_not_zero,
+      "is_arg": is_arg,
       "is_constant": is_constant,
       "is_global": is_global,
     })
