@@ -27,6 +27,7 @@ learners = {
 
 def setup_parser(parser):
   parser.add_argument('function', type=str, help='Function to train on')
+  parser.add_argument('--bc', type=str)
   parser.add_argument('--active-learner', type=str, default='kde')
   parser.add_argument('--limit', type=float, default=0.1, help='Number of alarms to report')
   parser.add_argument('--evaluate-count', type=int)

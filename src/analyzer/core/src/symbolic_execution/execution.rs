@@ -746,9 +746,16 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     }
   }
 
-  pub fn execute_slice(&self, slice: &Slice<'ctx>, slice_id: usize) -> MetaData {
+  pub fn execute_block_state(&self, block: Block<'ctx>, state: &mut State<'ctx>, env: &mut Environment<'ctx>) {
+    let mut curr_instr = self.execute_block(block, state, env);
+    while curr_instr.is_some() {
+      curr_instr = self.execute_instr(curr_instr, state, env);
+    }
+  }
+
+  pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
-    let mut env = Environment::new(slice, self.options.max_work, self.options.seed);
+    let mut env = Environment::new(&slice, self.options.max_work, self.options.seed);
 
     // Add a work to the environment list
     if self.options.no_prefilter_block_trace {
@@ -764,7 +771,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         if self.options.print_block_trace {
           println!("{:?}", block_trace);
         }
-        let work = Work::entry_with_block_trace(slice, block_trace);
+        let work = Work::entry_with_block_trace(&slice, block_trace);
         env.add_work(work);
       }
     }
@@ -774,10 +781,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       let mut work = env.pop_work(!self.options.no_random_work);
 
       // Start the execution by iterating through instructions
-      let mut curr_instr = self.execute_block(work.block, &mut work.state, &mut env);
-      while curr_instr.is_some() {
-        curr_instr = self.execute_instr(curr_instr, &mut work.state, &mut env);
-      }
+      self.execute_block_state(work.block, &mut work.state, &mut env);
 
       // Finish the instruction and settle down the states
       self.finish_execution(work.state, slice_id, &mut metadata, &mut env);
@@ -794,12 +798,12 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     &self,
     target_name: &String,
     slice_id_offset: usize,
-    slices: &Vec<Slice<'ctx>>,
+    slices: Vec<Slice<'ctx>>,
   ) -> MetaData {
     if self.options.use_serial {
       slices.into_iter().progress().enumerate().fold(
         MetaData::new(),
-        |meta: MetaData, (id, slice): (usize, &Slice<'ctx>)| {
+        |meta: MetaData, (id, slice): (usize, Slice<'ctx>)| {
           let slice_id = slice_id_offset + id;
           self
             .initialize_traces_function_slice_folder(target_name, slice_id)
@@ -814,7 +818,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .enumerate()
         .fold(
           || MetaData::new(),
-          |meta: MetaData, (id, slice): (usize, &Slice<'ctx>)| {
+          |meta: MetaData, (id, slice): (usize, Slice<'ctx>)| {
             let slice_id = slice_id_offset + id;
             self
               .initialize_traces_function_slice_folder(target_name, slice_id)
@@ -832,7 +836,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
       target_slices_map
         .into_iter()
         .fold(MetaData::new(), |meta, (target_name, (offset, slices))| {
-          meta.combine(self.execute_target_slices(&target_name, offset, &slices))
+          meta.combine(self.execute_target_slices(&target_name, offset, slices))
         })
     } else {
       let num_targets = target_slices_map.len();
@@ -841,7 +845,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         .fold(
           || MetaData::new(),
           |meta, (target_name, (offset, slices))| {
-            meta.combine(self.execute_target_slices(&target_name, offset, &slices))
+            meta.combine(self.execute_target_slices(&target_name, offset, slices))
           },
         )
         .progress_count(num_targets as u64)

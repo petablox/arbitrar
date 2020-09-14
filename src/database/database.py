@@ -335,7 +335,7 @@ class Database:
         slice_id = int(os.path.splitext(slice_name)[0])
         yield slice_id, self.slice(func_name, bc, slice_id)
 
-  def function_datapoints(self, func_name: str):
+  def function_datapoints(self, func_name: str, bc_filter = ""):
     # Check if the function is there
     func_slices_dir = self.func_slices_dir(func_name, create=False)
     if not os.path.exists(func_slices_dir):
@@ -343,11 +343,12 @@ class Database:
 
     # List the directory
     for bc in os.listdir(func_slices_dir):
-      bc_dir = self.func_bc_slices_dir(func_name, bc)
-      for slice_name in os.listdir(bc_dir):
-        slice_id = int(os.path.splitext(slice_name)[0])
-        slice = self.slice(func_name, bc, slice_id)
-        trace_dir = self.func_bc_slice_traces_dir(func_name, bc, slice_id)
-        for trace_name in os.listdir(trace_dir):
-          trace_id = int(os.path.splitext(trace_name)[0])
-          yield DataPoint(self, func_name, bc, slice_id, trace_id, slice=slice)
+      if bc_filter == "" or bc_filter in bc:
+        bc_dir = self.func_bc_slices_dir(func_name, bc)
+        for slice_name in os.listdir(bc_dir):
+          slice_id = int(os.path.splitext(slice_name)[0])
+          slice = self.slice(func_name, bc, slice_id)
+          trace_dir = self.func_bc_slice_traces_dir(func_name, bc, slice_id)
+          for trace_name in os.listdir(trace_dir):
+            trace_id = int(os.path.splitext(trace_name)[0])
+            yield DataPoint(self, func_name, bc, slice_id, trace_id, slice=slice)

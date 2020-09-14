@@ -12,10 +12,10 @@ def unify_features_with_sample(datapoints, unified):
 
 
 def unify_causality(causalities):
-  d = {}
+  d = set()
   for causality in causalities:
     for func in causality.keys():
-      d[func] = True
+      d.add(func)
   return d
 
 
@@ -27,11 +27,12 @@ def unify_features(datapoints):
   # Unify the features
   for feature in features:
     # First invoked before
-    for func in before.keys():
+    for func in before:
       if not func in feature["before"]:
         feature["before"][func] = CausalityFeatureGroup.default()
+
     # Then invoked after
-    for func in after.keys():
+    for func in after:
       if not func in feature["after"]:
         feature["after"][func] = CausalityFeatureGroup.default()
 
