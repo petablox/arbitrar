@@ -29,12 +29,29 @@ impl FeatureExtractor for ControlFlowFeaturesExtractor {
     let mut loop_stack = 0;
     let mut has_loop = false;
     let mut target_in_a_loop = false;
+    let mut has_cond_br_after_target = false;
+    let mut visited_target = false;
     for (i, instr) in trace.instrs.iter().enumerate() {
+
+      // Mark target visit
+      if i > trace.target {
+        visited_target = true;
+      }
+
+      // Check trace target inside a loop
+      if i == trace.target && loop_stack > 0 {
+        target_in_a_loop = true;
+      }
+
+      // Check branch &
       match instr.sem {
         Semantics::CondBr { beg_loop, .. } => {
           if beg_loop {
             has_loop = true;
             loop_stack += 1;
+          }
+          if visited_target {
+            has_cond_br_after_target = true;
           }
         }
         Semantics::UncondBr { end_loop } => {
@@ -42,17 +59,13 @@ impl FeatureExtractor for ControlFlowFeaturesExtractor {
             loop_stack -= 1;
           }
         }
-        Semantics::Call { .. } => {
-          if i == trace.target && loop_stack > 0 {
-            target_in_a_loop = true;
-          }
-        }
         _ => {}
       }
     }
     json!({
       "has_loop": has_loop,
-      "target_in_a_loop": target_in_a_loop
+      "target_in_a_loop": target_in_a_loop,
+      "has_cond_br_after_target": has_cond_br_after_target,
     })
   }
 }
