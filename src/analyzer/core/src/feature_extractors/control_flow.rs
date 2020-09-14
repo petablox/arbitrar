@@ -4,17 +4,17 @@ use serde_json::json;
 use crate::feature_extraction::*;
 use crate::semantics::boxed::*;
 
-pub struct LoopFeaturesExtractor;
+pub struct ControlFlowFeaturesExtractor;
 
-impl LoopFeaturesExtractor {
+impl ControlFlowFeaturesExtractor {
   pub fn new() -> Self {
     Self
   }
 }
 
-impl FeatureExtractor for LoopFeaturesExtractor {
+impl FeatureExtractor for ControlFlowFeaturesExtractor {
   fn name(&self) -> String {
-    "loop".to_string()
+    "control_flow".to_string()
   }
 
   fn filter<'ctx>(&self, _: &String, _: FunctionType<'ctx>) -> bool {

@@ -122,7 +122,7 @@ impl FeatureExtractors {
         Box::new(ArgumentPostconditionFeatureExtractor::new(3)),
         Box::new(CausalityFeatureExtractor::pre(options.causality_dictionary_size)),
         Box::new(CausalityFeatureExtractor::post(options.causality_dictionary_size)),
-        Box::new(LoopFeaturesExtractor::new()),
+        Box::new(ControlFlowFeaturesExtractor::new()),
       ],
     }
   }

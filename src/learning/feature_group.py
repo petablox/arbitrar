@@ -31,14 +31,14 @@ class FeatureGroup:
       raise Exception(f"Cannot get field {self.field()} from json {feature_json}")
 
 
-class LoopFeatureGroup(FeatureGroup):
+class ControlFlowFeatureGroup(FeatureGroup):
   fields = ["has_loop", "target_in_a_loop"]
 
   def field(self) -> str:
-    return "loop"
+    return "control_flow"
 
   def meaning_of(self, i) -> str:
-    return f"loop.{self.fields[i]}"
+    return f"control_flow.{self.fields[i]}"
 
 
 class ArgPreFeatureGroup(FeatureGroup):
