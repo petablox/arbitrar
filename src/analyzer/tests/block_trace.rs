@@ -1,11 +1,11 @@
 use llir::{values::*, *};
 use std::path::Path;
 
-use analyzer_core::call_graph::*;
-use analyzer_core::options::*;
-use analyzer_core::slicer::*;
-use analyzer_core::symbolic_execution::*;
-use analyzer_core::utils::*;
+use analyzer::call_graph::*;
+use analyzer::options::*;
+use analyzer::slicer::*;
+use analyzer::symbolic_execution::*;
+use analyzer::utils::*;
 
 fn process_slice<F>(path: &Path, entry: &str, caller: &str, target: &str, f: F) -> Result<(), String>
 where
@@ -113,8 +113,8 @@ fn slice_block_trace_example_temp() -> Result<(), String> {
   test_block_trace(path, "main", "f", "malloc", 50)
 }
 
-#[test]
-fn slice_block_trace_kernel_vbt_panel_init() -> Result<(), String> {
-  let path = Path::new("/home/aspire/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc");
-  test_block_trace(path, "vbt_panel_init", "vbt_panel_init", "devm_kzalloc", 50)
-}
+// #[test]
+// fn slice_block_trace_kernel_vbt_panel_init() -> Result<(), String> {
+//   let path = Path::new("/home/aspire/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc");
+//   test_block_trace(path, "vbt_panel_init", "vbt_panel_init", "devm_kzalloc", 50)
+// }

@@ -37,6 +37,7 @@ pub struct Options {
   pub no_prefilter_block_trace: bool,
 
   // Feature Extraction Options
+  pub no_feature: bool,
   pub feature_only: bool,
   pub causality_dictionary_size: usize,
 }
@@ -80,6 +81,7 @@ impl Default for Options {
       no_prefilter_block_trace: false,
 
       // Feature extraction options
+      no_feature: false,
       feature_only: false,
       causality_dictionary_size: 10,
     }
@@ -187,6 +189,9 @@ impl Options {
         .about("No prefilter of block trace"),
 
       // Feature extraction options
+      Arg::new("no_feature")
+        .long("no-feature")
+        .about("No feature extraction"),
       Arg::new("feature_only")
         .long("feature-only")
         .about("Only redo feature generation"),
@@ -242,6 +247,7 @@ impl Options {
       no_prefilter_block_trace: matches.is_present("no_prefilter_block_trace"),
 
       // Feature extraction options
+      no_feature: matches.is_present("no_feature"),
       feature_only: matches.is_present("feature_only"),
       causality_dictionary_size: matches.value_of_t::<usize>("causality_dictionary_size").unwrap(),
     })

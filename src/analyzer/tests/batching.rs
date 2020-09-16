@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use analyzer_core::utils::*;
+use analyzer::utils::*;
 
 #[test]
 fn test_only_batch() {
