@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use serde_json::json;
 use petgraph::*;
 
-use analyzer_core::*;
-use call_graph::*;
-use options::*;
-use utils::*;
+use analyzer::{call_graph::*, options::*, utils::*};
 
 fn arg_parser<'a>() -> App<'a> {
   let app = App::new("analyzer");

@@ -1,13 +1,7 @@
 use clap::App;
 use std::collections::HashMap;
 
-use analyzer_core::*;
-use call_graph::*;
-use feature_extraction::*;
-use options::*;
-use slicer::*;
-use symbolic_execution::*;
-use utils::*;
+use analyzer::{call_graph::*, feature_extraction::*, options::*, slicer::*, symbolic_execution::*, utils::*};
 
 fn main() -> Result<(), String> {
   let options = Options::from_matches(&arg_parser().get_matches())?;
