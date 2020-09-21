@@ -45,7 +45,10 @@ def main(args):
         packages_functions[bc_file] = functions
       except Exception as e:
         print(e)
-  run_feature_extractor(db, packages_functions, args)
+        exit()
+
+  input_file = generate_feature_extract_input(db, packages_functions)
+  run_feature_extractor(db, input_file, args)
 
 
 def get_analyzer_args(db, bc_file, args):
@@ -98,11 +101,55 @@ def get_analyzer_args(db, bc_file, args):
 
 def run_analyzer(db, bc_file, args):
   print(f"Running analyzer on {os.path.basename(bc_file)}")
+  bc_name = ntpath.basename(bc_file)
+
   analyzer = "target/release/analyzer"
   analyzer_args = get_analyzer_args(db, bc_file, args)
   cmd = [analyzer] + analyzer_args
   run = subprocess.run(cmd, cwd=this_path)
 
+  output_file = db.analysis_dir() + "/temp/" + bc_name + ".json"
+  with open(output_file) as f:
+    return json.load(f)
 
-def run_feature_extractor(db, packages_functions, args):
-  pass
+
+def generate_feature_extract_input(db, packages_functions):
+  print(packages_functions)
+  packages = []
+  functions = {}
+  for package, occurrences in packages_functions.items():
+    pkg_name = ntpath.basename(package)
+    pkg = {"name": pkg_name, "dir": package}
+    packages.append(pkg)
+    for func_name, num_slices in occurrences.items():
+      if not func_name in functions:
+        functions[func_name] = {"name": func_name, "occurrences": []}
+      functions[func_name]["occurrences"].append([pkg_name, num_slices])
+  result = {
+    "packages": packages,
+    "functions": list(functions.values()),
+  }
+
+  print(result)
+
+  filename = db.analysis_dir() + "/temp/ALL.json"
+  with open(filename, "w") as f:
+    json.dump(result, f)
+
+  return filename
+
+
+def get_extractor_args(db, input_file, args):
+  base_args = [input_file, db.analysis_dir()]
+
+  if args.causality_dict_size != None:
+    base_args += ['--causality-dictionary-size', str(args.causality_dict_size)]
+
+  return base_args
+
+
+def run_feature_extractor(db, input_file, args):
+  extractor = "target/release/feature-extract"
+  extractor_args = get_extractor_args(db, input_file, args)
+  cmd = [extractor] + extractor_args
+  run = subprocess.run(cmd, cwd=this_path)

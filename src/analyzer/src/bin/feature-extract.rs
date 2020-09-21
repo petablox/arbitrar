@@ -193,6 +193,7 @@ fn main() -> Result<(), String> {
   }
 
   let target_map = TargetPackageNumSlicesMap::new();
+
   target_map.into_par_iter().for_each(|(target, package_num_slices)| {
     let func_type = func_types(&packages, &target).unwrap();
 

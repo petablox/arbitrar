@@ -317,7 +317,6 @@ impl Options {
 
   pub fn target_num_slices_map_path(&self) -> Option<PathBuf> {
     if let Some(filename) = &self.target_num_slices_map_file {
-      println!("AHAHAHAHAHAH");
       Some(self.output_path().join(filename))
     } else {
       None
