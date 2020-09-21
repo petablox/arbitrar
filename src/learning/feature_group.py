@@ -41,6 +41,16 @@ class ControlFlowFeatureGroup(FeatureGroup):
     return f"control_flow.{self.fields[i]}"
 
 
+class LoopFeatureGroup(FeatureGroup):
+  fields = ["has_loop", "target_in_a_loop"]
+
+  def field(self) -> str:
+    return "loop"
+
+  def meaning_of(self, i) -> str:
+    return f"loop.{self.fields[i]}"
+
+
 class ArgPreFeatureGroup(FeatureGroup):
   fields = ["checked", "compared_with_zero", "arg_check_is_zero", "arg_check_not_zero", "is_constant", "is_global"]
 
@@ -132,6 +142,9 @@ class FeatureGroups:
 
     if enable_loop and "loop" in sample_feature_json:
       self.groups.append(LoopFeatureGroup())
+
+    if "control_flow" in sample_feature_json:
+      self.groups.append(ControlFlowFeatureGroup())
 
     if enable_causality:
       for invoked_type in InvokedType:

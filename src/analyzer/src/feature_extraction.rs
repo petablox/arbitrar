@@ -159,7 +159,7 @@ impl FeatureExtractors {
 }
 
 pub struct FeatureExtractionContext<'a, 'ctx> {
-  pub module: &'a Module<'ctx>,
+  pub modules: Vec<&'a Module<'ctx>>,
   pub options: &'a Options,
   pub target_num_slices_map: HashMap<String, usize>,
   pub func_types: HashMap<String, FunctionType<'ctx>>,
@@ -173,7 +173,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   ) -> Result<Self, String> {
     let func_types = module.function_types();
     Ok(Self {
-      module,
+      modules: vec![module],
       options,
       target_num_slices_map,
       func_types,
