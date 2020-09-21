@@ -197,9 +197,9 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   pub fn load_slices(&self, target: &String, num_slices: usize) -> Vec<Slice> {
     (0..num_slices)
       .collect::<Vec<_>>()
-      .par_iter()
+      .into_par_iter()
       .map(|slice_id| {
-        let path = self.options.slice_file_path(target.as_str(), *slice_id);
+        let path = self.options.slice_file_path(target.as_str(), slice_id);
         let file = File::open(path).expect("Could not open slice file");
         serde_json::from_reader(file).expect("Cannot parse slice file")
       })
