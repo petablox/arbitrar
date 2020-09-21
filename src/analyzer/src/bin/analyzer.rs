@@ -50,6 +50,11 @@ fn main() -> Result<(), String> {
     }
     logging_ctx.log_finished_execution(options.use_batch, global_metadata)?;
 
+    if let Some(filename) = options.target_num_slices_map_path() {
+      println!("{:?}", filename);
+      target_num_slices_map.dump(filename)?;
+    }
+
     target_num_slices_map
   } else {
 

@@ -3,6 +3,7 @@ use petgraph::{graph::*, visit::*, Direction};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::json;
+use std::path::PathBuf;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -140,6 +141,20 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
         dump_json(&slice.to_json(), path).expect("Cannot dump slice json");
       });
     }
+  }
+}
+
+pub type TargetNumSlicesMap = HashMap<String, usize>;
+
+pub trait TargetNumSlicesMapTrait {
+  fn dump(&self, filename: PathBuf) -> Result<(), String>;
+}
+
+impl TargetNumSlicesMapTrait for TargetNumSlicesMap {
+  fn dump(&self, filename: PathBuf) -> Result<(), String> {
+    crate::utils::dump_json(&serde_json::Value::Object(self.iter().map(|(name, num)| {
+      (name.clone(), serde_json::Value::Number(serde_json::Number::from(num.clone())))
+    }).collect()), filename)
   }
 }
 

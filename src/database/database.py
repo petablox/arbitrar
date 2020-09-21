@@ -56,6 +56,7 @@ class Database:
 
   def setup_analysis_file_system(self):
     mkdir(self.analysis_dir())
+    mkdir(self.analysis_temp_dir())
     mkdir(self.slices_dir())
     mkdir(self.traces_dir())
 
@@ -81,6 +82,9 @@ class Database:
 
   def analysis_dir(self) -> str:
     return f"{self.directory}/analysis"
+
+  def analysis_temp_dir(self) -> str:
+    return f"{self.directory}/analysis/temp"
 
   def occurrence_dir(self) -> str:
     return f"{self.analysis_dir()}/occurrences"

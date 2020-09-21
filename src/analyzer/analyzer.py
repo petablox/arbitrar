@@ -37,12 +37,15 @@ def setup_parser(parser):
 
 def main(args):
   db = args.db
+  packages_functions = {}
   for bc_file in db.bc_files():
     if args.bc == '' or args.bc in bc_file:
       try:
-        run_analyzer(db, bc_file, args)
+        functions = run_analyzer(db, bc_file, args)
+        packages_functions[bc_file] = functions
       except Exception as e:
         print(e)
+  run_feature_extractor(db, packages_functions, args)
 
 
 def get_analyzer_args(db, bc_file, args):
@@ -53,6 +56,8 @@ def get_analyzer_args(db, bc_file, args):
     db.analysis_dir(),
     '--subfolder', bc_name,
     '--slice-depth', str(args.slice_depth),
+    '--no-feature',
+    '--target-num-slices-map-file', f'temp/{bc_name}.json'
   ]
 
   if args.include_fn:
@@ -97,3 +102,7 @@ def run_analyzer(db, bc_file, args):
   analyzer_args = get_analyzer_args(db, bc_file, args)
   cmd = [analyzer] + analyzer_args
   run = subprocess.run(cmd, cwd=this_path)
+
+
+def run_feature_extractor(db, packages_functions, args):
+  pass

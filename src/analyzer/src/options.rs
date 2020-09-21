@@ -24,6 +24,7 @@ pub struct Options {
   pub use_batch: bool,
   pub batch_size: usize,
   pub print_slice: bool,
+  pub target_num_slices_map_file: Option<String>,
 
   // Symbolic Execution Options
   pub max_work: usize,
@@ -64,6 +65,7 @@ impl Default for Options {
       use_regex_filter: false,
       no_reduce_slice: false,
       print_slice: false,
+      target_num_slices_map_file: None,
 
       // Batching options
       use_batch: false,
@@ -143,6 +145,11 @@ impl Options {
       Arg::new("no_reduce_slice")
         .long("no-reduce-slice")
         .about("No reduce slice using relevancy test"),
+      Arg::new("target_num_slices_map_file")
+        .long("target-num-slices-map-file")
+        .takes_value(true)
+        .value_name("TARGET_NUM_SLICES_MAP")
+        .about("Dump target-num-slices-map file"),
       Arg::new("use_batch").long("use-batch").about("Use batched execution"),
       Arg::new("batch_size")
         .value_name("BATCH_SIZE")
@@ -150,6 +157,7 @@ impl Options {
         .default_value("50")
         .long("batch-size"),
       Arg::new("print_slice").long("print-slice").about("Print slice"),
+
       // Symbolic Execution Options
       Arg::new("max_work")
         .long("max-work")
@@ -229,11 +237,14 @@ impl Options {
       entry_filter: matches.value_of("entry_filter").map(String::from),
       no_reduce_slice: matches.is_present("no_reduce_slice"),
       use_batch: matches.is_present("use_batch"),
+      target_num_slices_map_file: matches.value_of("target_num_slices_map_file").map(String::from),
+      print_slice: matches.is_present("print_slice"),
+
+      // Batching
       batch_size: matches
         .value_of_t::<usize>("batch_size")
         .map_err(|_| String::from("Cannot parse batch size"))?,
       use_regex_filter: matches.is_present("use_regex_filter"),
-      print_slice: matches.is_present("print_slice"),
 
       // Symbolic execution options
       max_work: matches.value_of_t::<usize>("max_work").unwrap(),
@@ -301,7 +312,16 @@ impl Options {
   pub fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf {
     self
       .slice_target_dir_path(target)
-      .join(format!("{}.json", slice_id).to_string())
+      .join(format!("{}.json", slice_id))
+  }
+
+  pub fn target_num_slices_map_path(&self) -> Option<PathBuf> {
+    if let Some(filename) = &self.target_num_slices_map_file {
+      println!("AHAHAHAHAHAH");
+      Some(self.output_path().join(filename))
+    } else {
+      None
+    }
   }
 
   pub fn trace_dir_path(&self) -> PathBuf {
