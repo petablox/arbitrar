@@ -90,6 +90,16 @@ impl Trace {
   }
 }
 
+pub trait FeatureExtractorOptions {
+  fn causality_dictionary_size(&self) -> usize;
+}
+
+impl FeatureExtractorOptions for Options {
+  fn causality_dictionary_size(&self) -> usize {
+    self.causality_dictionary_size
+  }
+}
+
 pub trait FeatureExtractor: Send + Sync {
   fn name(&self) -> String;
 
@@ -107,7 +117,7 @@ pub struct FeatureExtractors {
 }
 
 impl FeatureExtractors {
-  fn all(options: &Options) -> Self {
+  pub fn all(options: &impl FeatureExtractorOptions) -> Self {
     Self {
       extractors: vec![
         Box::new(ReturnValueFeatureExtractor::new()),
@@ -120,14 +130,18 @@ impl FeatureExtractors {
         Box::new(ArgumentPostconditionFeatureExtractor::new(1)),
         Box::new(ArgumentPostconditionFeatureExtractor::new(2)),
         Box::new(ArgumentPostconditionFeatureExtractor::new(3)),
-        Box::new(CausalityFeatureExtractor::pre(options.causality_dictionary_size)),
-        Box::new(CausalityFeatureExtractor::post(options.causality_dictionary_size)),
+        Box::new(CausalityFeatureExtractor::pre(options.causality_dictionary_size())),
+        Box::new(CausalityFeatureExtractor::post(options.causality_dictionary_size())),
         Box::new(ControlFlowFeaturesExtractor::new()),
       ],
     }
   }
 
-  fn extractors_for_target<'ctx>(target: &String, target_type: FunctionType<'ctx>, options: &Options) -> Self {
+  pub fn extractors_for_target<'ctx>(
+    target: &String,
+    target_type: FunctionType<'ctx>,
+    options: &impl FeatureExtractorOptions
+  ) -> Self {
     Self {
       extractors: Self::all(options)
         .extractors
@@ -137,19 +151,19 @@ impl FeatureExtractors {
     }
   }
 
-  fn initialize(&mut self, slice: &Slice, num_traces: usize, trace: &Trace) {
+  pub fn initialize(&mut self, slice: &Slice, num_traces: usize, trace: &Trace) {
     for extractor in &mut self.extractors {
       extractor.init(slice, num_traces, trace);
     }
   }
 
-  fn finalize(&mut self) {
+  pub fn finalize(&mut self) {
     for extractor in &mut self.extractors {
       extractor.finalize();
     }
   }
 
-  fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
+  pub fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     for extractor in &self.extractors {
       map.insert(extractor.name(), extractor.extract(&slice, &trace));
@@ -159,7 +173,7 @@ impl FeatureExtractors {
 }
 
 pub struct FeatureExtractionContext<'a, 'ctx> {
-  pub modules: Vec<&'a Module<'ctx>>,
+  pub modules: &'a Module<'ctx>,
   pub options: &'a Options,
   pub target_num_slices_map: HashMap<String, usize>,
   pub func_types: HashMap<String, FunctionType<'ctx>>,
@@ -173,7 +187,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   ) -> Result<Self, String> {
     let func_types = module.function_types();
     Ok(Self {
-      modules: vec![module],
+      modules: module,
       options,
       target_num_slices_map,
       func_types,
@@ -225,10 +239,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
         let traces = self
           .load_trace_file_paths(&target, slice_id)
           .into_par_iter()
-          .map(|(_, dir_entry)| -> Trace {
-            let file = File::open(dir_entry).expect("Could not open trace file");
-            serde_json::from_reader(file).expect("Cannot parse trace file")
-          })
+          .map(|(_, dir_entry)| self.load_trace(&dir_entry))
           .collect::<Vec<_>>();
         let num_traces = traces.len();
         for trace in traces {
