@@ -16,16 +16,16 @@ class SlicesQuery(Executor):
   def execute(args):
     db = args.db
     for slice_id, slice in db.function_slices(args.function):
-      if not args.location or args.location in slice["call_edge"]["location"]:
+      if not args.location or args.location in slice["instr"]:
         system('clear')
         if not args.source:
           print("Slice", slice_id)
           pp.pprint(slice)
         else:
           # Split in
-          toks = slice['call_edge']['location'].split(":")
+          toks = slice['instr'].split(":")
           path, func, line, col = toks[0], toks[1], int(toks[2]), toks[3]
-          cprint(f"Slice {slice_id} [{path}] [{(slice['call_edge']['instr']).strip()}]")
+          # cprint(f"Slice {slice_id} [{path}] [{(slice['call_edge']['instr']).strip()}]")
           path = os.path.join(args.source, path)
           padding = args.padding if args.padding else 5
           if not os.path.exists(path):

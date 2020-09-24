@@ -39,14 +39,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     let arg = trace.target_arg(self.index);
 
     // Setup kind of argument
-    match arg {
-      Value::Glob(_) => { is_global = true; }
-      Value::Arg(_) => { is_arg = true; }
-      Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
-        is_constant = true;
-      }
-      _ => {}
-    }
+    arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant);
 
     // Checks
     for (i, instr) in trace
@@ -104,5 +97,20 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       "is_constant": is_constant,
       "is_global": is_global,
     })
+  }
+}
+
+fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &mut bool) {
+  // Setup kind of argument
+  match arg {
+    Value::Glob(_) => { *is_global = true; }
+    Value::Arg(_) => { *is_arg = true; }
+    Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
+      *is_constant = true;
+    }
+    Value::GEP { loc, .. } => {
+      arg_type(&*loc, is_global, is_arg, is_constant);
+    }
+    _ => {}
   }
 }

@@ -192,7 +192,10 @@ fn main() -> Result<(), String> {
     return Err("No packages included".to_string())
   }
 
-  let target_map = TargetPackageNumSlicesMap::new();
+  let mut target_map = TargetPackageNumSlicesMap::new();
+  for input_function in input.functions {
+    target_map.insert(input_function.name, input_function.occurrences);
+  }
 
   target_map.into_par_iter().for_each(|(target, package_num_slices)| {
     let func_type = func_types(&packages, &target).unwrap();

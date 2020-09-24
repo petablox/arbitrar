@@ -114,7 +114,6 @@ def run_analyzer(db, bc_file, args):
 
 
 def generate_feature_extract_input(db, packages_functions):
-  print(packages_functions)
   packages = []
   functions = {}
   for package, occurrences in packages_functions.items():
@@ -129,8 +128,6 @@ def generate_feature_extract_input(db, packages_functions):
     "packages": packages,
     "functions": list(functions.values()),
   }
-
-  print(result)
 
   filename = db.analysis_dir() + "/temp/ALL.json"
   with open(filename, "w") as f:

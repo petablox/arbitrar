@@ -198,7 +198,7 @@ class KDELearner(ActiveLearner):
   def setup_parser(parser):
     parser.add_argument('--kde-score', type=str, default="score_7", help='Score Function')
     parser.add_argument('--kde-bandwidth', type=float)
-    parser.add_argument('--kde-cv', type=int, default=10)
+    parser.add_argument('--kde-cv', type=int, default=5)
     parser.add_argument('--p-pos', type=float, default=0.1)
 
   def select(self, unlabeled):

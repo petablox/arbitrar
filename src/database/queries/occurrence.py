@@ -62,12 +62,13 @@ class OccurrenceQuery(Executor):
           else:
             itsct = itsct.intersection(s)
 
-        for func in itsct:
-          print(f"{func} -- ", end="")
-          for bc_file, occs in occurrences.items():
-            if func in occs:
-              print(f"{bc_file}: {occs[func]}, ", end="")
-          print()
+        if itsct != None:
+          for func in itsct:
+            print(f"{func} -- ", end="")
+            for bc_file, occs in occurrences.items():
+              if func in occs:
+                print(f"{bc_file}: {occs[func]}, ", end="")
+            print()
 
       else:
         counts = {}

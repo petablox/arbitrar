@@ -75,7 +75,7 @@ class SourceFeatureVisualizer():
         for l in f.readlines():
           if lcount >= lmin and lcount <= lmax:
             if lcount == line:
-              self.left_window.addstr(f"==> {lcount}:{l}", curses.color_pair(2))
+              self.left_window.addstr(f"==> {lcount}:{l}", curses.color_pair(1))
               #cprint(f"==> {lcount}:{l}", "red", end="")
             else:
               colr = 3 if lcount in used else 0
