@@ -15,14 +15,14 @@ pub struct Environment<'ctx> {
 }
 
 impl<'ctx> Environment<'ctx> {
-  pub fn new(slice: &Slice<'ctx>, max_work: usize, seed: u8) -> Self {
+  pub fn new(slice: &Slice<'ctx>, max_work: usize, seed: u64) -> Self {
     Self {
       slice: slice.clone(),
       work_list: vec![],
       block_traces: vec![],
       call_id: 0,
       max_work: max_work,
-      rng: StdRng::from_seed([seed; 32]),
+      rng: StdRng::seed_from_u64(seed),
     }
   }
 

@@ -13,19 +13,83 @@ use crate::utils::*;
 
 use super::*;
 
-pub struct SymbolicExecutionContext<'a, 'ctx> {
-  pub module: &'a Module<'ctx>,
-  pub call_graph: &'a CallGraph<'ctx>,
-  pub options: &'a Options,
+pub trait SymbolicExecutionOptions : GeneralOptions + IOOptions + Send + Sync {
+  fn slice_depth(&self) -> usize;
+
+  fn max_work(&self) -> usize;
+
+  fn no_random_work(&self) -> bool;
+
+  fn max_node_per_trace(&self) -> usize;
+
+  fn max_explored_trace_per_slice(&self) -> usize;
+
+  fn max_trace_per_slice(&self) -> usize;
+
+  fn no_trace_reduction(&self) -> bool;
+
+  fn no_prefilter_block_trace(&self) -> bool;
+
+  fn print_block_trace(&self) -> bool;
+
+  fn print_trace(&self) -> bool;
 }
 
-impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
-  pub fn new(module: &'a Module<'ctx>, call_graph: &'a CallGraph<'ctx>, options: &'a Options) -> Result<Self, String> {
-    Ok(Self {
+impl SymbolicExecutionOptions for Options {
+  fn slice_depth(&self) -> usize {
+    self.slice_depth as usize
+  }
+
+  fn max_work(&self) -> usize {
+    self.max_work
+  }
+
+  fn no_random_work(&self) -> bool {
+    self.no_random_work
+  }
+
+  fn max_node_per_trace(&self) -> usize {
+    self.max_node_per_trace
+  }
+
+  fn max_explored_trace_per_slice(&self) -> usize {
+    self.max_explored_trace_per_slice
+  }
+
+  fn max_trace_per_slice(&self) -> usize {
+    self.max_trace_per_slice
+  }
+
+  fn no_trace_reduction(&self) -> bool {
+    self.no_trace_reduction
+  }
+
+  fn no_prefilter_block_trace(&self) -> bool {
+    self.no_prefilter_block_trace
+  }
+
+  fn print_block_trace(&self) -> bool {
+    self.print_block_trace
+  }
+
+  fn print_trace(&self) -> bool {
+    self.print_trace
+  }
+}
+
+pub struct SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecutionOptions {
+  pub module: &'a Module<'ctx>,
+  pub call_graph: &'a CallGraph<'ctx>,
+  pub options: &'a O,
+}
+
+impl<'a, 'ctx, O> SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecutionOptions {
+  pub fn new(module: &'a Module<'ctx>, call_graph: &'a CallGraph<'ctx>, options: &'a O) -> Self {
+    Self {
       module,
       call_graph,
       options,
-    })
+    }
   }
 
   pub fn execute_function(
@@ -73,7 +137,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     state: &mut State<'ctx>,
     env: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
-    if state.trace.len() > self.options.max_node_per_trace {
+    if state.trace.len() > self.options.max_node_per_trace() {
       state.finish_state = FinishState::ExceedingMaxTraceLength;
       None
     } else {
@@ -684,8 +748,8 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn continue_execution(&self, metadata: &MetaData) -> bool {
-    metadata.explored_trace_count < self.options.max_explored_trace_per_slice
-      && metadata.proper_trace_count < self.options.max_trace_per_slice
+    metadata.explored_trace_count < self.options.max_explored_trace_per_slice()
+      && metadata.proper_trace_count < self.options.max_trace_per_slice()
   }
 
   pub fn finish_execution(
@@ -700,7 +764,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
         FinishState::ProperlyReturned => {
           // Generate the trace for output
           let raw_trace = TraceWithTarget::new(state.trace, target_id);
-          let trace = if !self.options.no_trace_reduction {
+          let trace = if !self.options.no_trace_reduction() {
             raw_trace.reduce()
           } else {
             raw_trace
@@ -721,7 +785,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
                 .trace_file_path(env.slice.target_function_name().as_str(), slice_id, trace_id);
 
               // If printing trace
-              if self.options.print_trace && self.options.use_serial {
+              if self.options.print_trace() && self.options.use_serial() {
                 println!("\nSlice {} Trace {} Log", slice_id, trace_id);
                 trace.print();
               }
@@ -755,20 +819,20 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
   pub fn execute_slice(&self, slice: Slice<'ctx>, slice_id: usize) -> MetaData {
     let mut metadata = MetaData::new();
-    let mut env = Environment::new(&slice, self.options.max_work, self.options.seed);
+    let mut env = Environment::new(&slice, self.options.max_work(), self.options.seed());
 
     // Add a work to the environment list
-    if self.options.no_prefilter_block_trace {
+    if self.options.no_prefilter_block_trace() {
       let first_work = Work::entry(&slice);
       env.add_work(first_work);
     } else {
       let block_traces = slice.block_traces(
         self.call_graph,
-        self.options.slice_depth as usize * 2,
-        self.options.max_work,
+        self.options.slice_depth() * 2,
+        self.options.max_work(),
       );
       for block_trace in block_traces {
-        if self.options.print_block_trace {
+        if self.options.print_block_trace() {
           println!("{:?}", block_trace);
         }
         let work = Work::entry_with_block_trace(&slice, block_trace);
@@ -778,7 +842,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
 
     // Iterate till no more work to be done or should end execution
     while env.has_work() && self.continue_execution(&metadata) {
-      let mut work = env.pop_work(!self.options.no_random_work);
+      let mut work = env.pop_work(!self.options.no_random_work());
 
       // Start the execution by iterating through instructions
       self.execute_block_state(work.block, &mut work.state, &mut env);
@@ -800,7 +864,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
     slice_id_offset: usize,
     slices: Vec<Slice<'ctx>>,
   ) -> MetaData {
-    if self.options.use_serial {
+    if self.options.use_serial() {
       slices.into_iter().progress().enumerate().fold(
         MetaData::new(),
         |meta: MetaData, (id, slice): (usize, Slice<'ctx>)| {
@@ -832,7 +896,7 @@ impl<'a, 'ctx> SymbolicExecutionContext<'a, 'ctx> {
   }
 
   pub fn execute_target_slices_map(&self, target_slices_map: HashMap<String, (usize, Vec<Slice<'ctx>>)>) -> MetaData {
-    if self.options.use_serial {
+    if self.options.use_serial() {
       target_slices_map
         .into_iter()
         .fold(MetaData::new(), |meta, (target_name, (offset, slices))| {

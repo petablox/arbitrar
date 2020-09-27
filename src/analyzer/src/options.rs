@@ -1,18 +1,6 @@
 use clap::{App, Arg, ArgMatches};
 use std::path::PathBuf;
 
-pub trait GeneralOptionsWithPackage {
-  fn slice_target_dir_path(&self, target: &str) -> PathBuf;
-
-  fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf;
-}
-
-pub trait GeneralOptions {
-  fn slice_target_dir_path(&self, package: &str, target: &str) -> PathBuf;
-
-  fn slice_file_path(&self, package: &str, target: &str, slice_id: usize) -> PathBuf;
-}
-
 #[derive(Debug, Clone)]
 pub struct Options {
   // General Options
@@ -55,19 +43,33 @@ pub struct Options {
   pub causality_dictionary_size: usize,
 }
 
+pub trait GeneralOptions {
+  fn use_serial(&self) -> bool;
+
+  fn seed(&self) -> u64;
+}
+
 impl GeneralOptions for Options {
-  fn slice_target_dir_path(&self, _package: &str, _target: &str) -> PathBuf {
-    // TODO
-    PathBuf::new()
+  fn use_serial(&self) -> bool {
+    self.use_serial
   }
 
-  fn slice_file_path(&self, _package: &str, _target: &str, _slice_id: usize) -> PathBuf {
-    // TODO
-    PathBuf::new()
+  fn seed(&self) -> u64 {
+    self.seed as u64
   }
 }
 
-impl GeneralOptionsWithPackage for Options {
+pub trait IOOptions {
+  fn slice_target_dir_path(&self, target: &str) -> PathBuf;
+
+  fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf;
+
+  fn trace_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf;
+
+  fn trace_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf;
+}
+
+impl IOOptions for Options {
   fn slice_target_dir_path(&self, _target: &str) -> PathBuf {
     // TODO
     PathBuf::new()
@@ -75,6 +77,14 @@ impl GeneralOptionsWithPackage for Options {
 
   fn slice_file_path(&self, _target: &str, _slice_id: usize) -> PathBuf {
     // TODO
+    PathBuf::new()
+  }
+
+  fn trace_target_slice_dir_path(&self, target: &str, slice_id: usize) -> PathBuf {
+    PathBuf::new()
+  }
+
+  fn trace_file_path(&self, target: &str, slice_id: usize, trace_id: usize) -> PathBuf {
     PathBuf::new()
   }
 }

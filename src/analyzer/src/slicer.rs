@@ -12,9 +12,7 @@ use crate::call_graph::*;
 use crate::options::*;
 use crate::utils::*;
 
-pub trait SlicerOptions : Send + Sync {
-  fn use_serial(&self) -> bool;
-
+pub trait SlicerOptions : GeneralOptions + Send + Sync {
   fn no_reduce_slice(&self) -> bool;
 
   fn slice_depth(&self) -> usize;
@@ -29,10 +27,6 @@ pub trait SlicerOptions : Send + Sync {
 }
 
 impl SlicerOptions for Options {
-  fn use_serial(&self) -> bool {
-    self.use_serial
-  }
-
   fn no_reduce_slice(&self) -> bool {
     self.no_reduce_slice
   }
@@ -166,7 +160,7 @@ pub type TargetSlicesMap<'ctx> = HashMap<String, Vec<Slice<'ctx>>>;
 pub trait TargetSlicesMapTrait<'ctx>: Sized {
   fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Self;
 
-  fn dump<O>(&self, options: &O) where O : SlicerOptions + GeneralOptionsWithPackage;
+  fn dump<O>(&self, options: &O) where O : SlicerOptions + IOOptions;
 }
 
 impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
@@ -180,12 +174,12 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
   }
 
   fn dump<O>(&self, options: &O)
-    where O : SlicerOptions + GeneralOptionsWithPackage
+    where O : SlicerOptions + IOOptions
   {
     for (target, slices) in self {
-      fs::create_dir_all(options.slice_target_dir_path(target.as_str())).expect("Cannot create slice folder");
+      fs::create_dir_all(IOOptions::slice_target_dir_path(options, target.as_str())).expect("Cannot create slice folder");
       slices.par_iter().enumerate().for_each(|(i, slice)| {
-        let path = options.slice_file_path(target.as_str(), i);
+        let path = IOOptions::slice_file_path(options, target.as_str(), i);
         dump_json(&slice.to_json(), path).expect("Cannot dump slice json");
       });
     }
