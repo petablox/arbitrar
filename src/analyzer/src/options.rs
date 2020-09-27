@@ -1,6 +1,18 @@
 use clap::{App, Arg, ArgMatches};
 use std::path::PathBuf;
 
+pub trait GeneralOptionsWithPackage {
+  fn slice_target_dir_path(&self, target: &str) -> PathBuf;
+
+  fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf;
+}
+
+pub trait GeneralOptions {
+  fn slice_target_dir_path(&self, package: &str, target: &str) -> PathBuf;
+
+  fn slice_file_path(&self, package: &str, target: &str, slice_id: usize) -> PathBuf;
+}
+
 #[derive(Debug, Clone)]
 pub struct Options {
   // General Options
@@ -41,6 +53,30 @@ pub struct Options {
   pub no_feature: bool,
   pub feature_only: bool,
   pub causality_dictionary_size: usize,
+}
+
+impl GeneralOptions for Options {
+  fn slice_target_dir_path(&self, package: &str, target: &str) -> PathBuf {
+    // TODO
+    PathBuf::new()
+  }
+
+  fn slice_file_path(&self, package: &str, target: &str, slice_id: usize) -> PathBuf {
+    // TODO
+    PathBuf::new()
+  }
+}
+
+impl GeneralOptionsWithPackage for Options {
+  fn slice_target_dir_path(&self, target: &str) -> PathBuf {
+    // TODO
+    PathBuf::new()
+  }
+
+  fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf {
+    // TODO
+    PathBuf::new()
+  }
 }
 
 impl Default for Options {

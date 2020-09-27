@@ -12,6 +12,52 @@ use crate::call_graph::*;
 use crate::options::*;
 use crate::utils::*;
 
+pub trait SlicerOptions : Send + Sync {
+  fn use_serial(&self) -> bool;
+
+  fn no_reduce_slice(&self) -> bool;
+
+  fn slice_depth(&self) -> usize;
+
+  fn entry_filter(&self) -> &Option<String>;
+
+  fn target_inclusion_filter(&self) -> &Option<String>;
+
+  fn target_exclusion_filter(&self) -> &Option<String>;
+
+  fn use_regex_filter(&self) -> bool;
+}
+
+impl SlicerOptions for Options {
+  fn use_serial(&self) -> bool {
+    self.use_serial
+  }
+
+  fn no_reduce_slice(&self) -> bool {
+    self.no_reduce_slice
+  }
+
+  fn slice_depth(&self) -> usize {
+    self.slice_depth as usize
+  }
+
+  fn entry_filter(&self) -> &Option<String> {
+    &self.entry_filter
+  }
+
+  fn target_inclusion_filter(&self) -> &Option<String> {
+    &self.target_inclusion_filter
+  }
+
+  fn target_exclusion_filter(&self) -> &Option<String> {
+    &self.target_exclusion_filter
+  }
+
+  fn use_regex_filter(&self) -> bool {
+    self.use_regex_filter
+  }
+}
+
 #[derive(Clone)]
 pub struct Slice<'ctx> {
   pub entry: Function<'ctx>,
@@ -84,13 +130,13 @@ impl TargetFilter {
 pub type TargetEdgesMap = HashMap<String, Vec<EdgeIndex>>;
 
 pub trait TargetEdgesMapTrait: Sized {
-  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &Options) -> Result<Self, String>;
+  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Result<Self, String>;
 }
 
 impl TargetEdgesMapTrait for TargetEdgesMap {
-  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &Options) -> Result<Self, String> {
-    let inclusion_filter = TargetFilter::new(options.target_inclusion_filter.clone(), options.use_regex_filter, true)?;
-    let exclusion_filter = TargetFilter::new(options.target_exclusion_filter.clone(), options.use_regex_filter, false)?;
+  fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Result<Self, String> {
+    let inclusion_filter = TargetFilter::new(options.target_inclusion_filter().clone(), options.use_regex_filter(), true)?;
+    let exclusion_filter = TargetFilter::new(options.target_inclusion_filter().clone(), options.use_regex_filter(), false)?;
     let mut target_edges_map = TargetEdgesMap::new();
     for callee_id in call_graph.graph.node_indices() {
       let func = call_graph.graph[callee_id];
@@ -118,13 +164,13 @@ impl TargetEdgesMapTrait for TargetEdgesMap {
 pub type TargetSlicesMap<'ctx> = HashMap<String, Vec<Slice<'ctx>>>;
 
 pub trait TargetSlicesMapTrait<'ctx>: Sized {
-  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &Options) -> Self;
+  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Self;
 
-  fn dump(&self, options: &Options);
+  fn dump<O>(&self, options: &O) where O : SlicerOptions + GeneralOptionsWithPackage;
 }
 
 impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
-  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &Options) -> Self {
+  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Self {
     let mut result = HashMap::new();
     for (target, edges) in target_edges_map {
       let slices = call_graph.slices_of_call_edges(&edges[..], options);
@@ -133,7 +179,9 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
     result
   }
 
-  fn dump(&self, options: &Options) {
+  fn dump<O>(&self, options: &O)
+    where O : SlicerOptions + GeneralOptionsWithPackage
+  {
     for (target, slices) in self {
       fs::create_dir_all(options.slice_target_dir_path(target.as_str())).expect("Cannot create slice folder");
       slices.par_iter().enumerate().for_each(|(i, slice)| {
@@ -161,13 +209,13 @@ impl TargetNumSlicesMapTrait for TargetNumSlicesMap {
 pub trait Slicer<'ctx> {
   fn reduce_slice(&self, target_id: NodeIndex, functions: HashSet<NodeIndex>, depth: usize) -> HashSet<NodeIndex>;
 
-  fn find_entries(&self, edge_id: EdgeIndex, options: &Options) -> Vec<NodeIndex>;
+  fn find_entries(&self, edge_id: EdgeIndex, options: &impl SlicerOptions) -> Vec<NodeIndex>;
 
-  fn slice_of_entry(&self, entry_id: NodeIndex, edge_id: EdgeIndex, options: &Options) -> Slice<'ctx>;
+  fn slice_of_entry(&self, entry_id: NodeIndex, edge_id: EdgeIndex, options: &impl SlicerOptions) -> Slice<'ctx>;
 
-  fn slices_of_call_edge(&self, edge_id: EdgeIndex, options: &Options) -> Vec<Slice<'ctx>>;
+  fn slices_of_call_edge(&self, edge_id: EdgeIndex, options: &impl SlicerOptions) -> Vec<Slice<'ctx>>;
 
-  fn slices_of_call_edges(&self, edges: &[EdgeIndex], options: &Options) -> Vec<Slice<'ctx>>;
+  fn slices_of_call_edges(&self, edges: &[EdgeIndex], options: &impl SlicerOptions) -> Vec<Slice<'ctx>>;
 }
 
 impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
@@ -196,8 +244,8 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
       .collect()
   }
 
-  fn find_entries(&self, edge_id: EdgeIndex, options: &Options) -> Vec<NodeIndex> {
-    let entry_location_filter = match &options.entry_filter {
+  fn find_entries(&self, edge_id: EdgeIndex, options: &impl SlicerOptions) -> Vec<NodeIndex> {
+    let entry_location_filter = match options.entry_filter() {
       Some(filter) => Some(
         Regex::new(filter.as_str())
           .map_err(|_| String::from("Cannot parse entry filter regex"))
@@ -209,7 +257,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     match self.graph.edge_endpoints(edge_id) {
       Some((func_id, _)) => {
         let mut fringe = Vec::new();
-        fringe.push((func_id, options.slice_depth));
+        fringe.push((func_id, options.slice_depth()));
         while !fringe.is_empty() {
           let (func_id, depth) = fringe.pop().unwrap();
           if depth == 0 {
@@ -243,7 +291,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
       .collect()
   }
 
-  fn slice_of_entry(&self, entry_id: NodeIndex, edge_id: EdgeIndex, options: &Options) -> Slice<'ctx> {
+  fn slice_of_entry(&self, entry_id: NodeIndex, edge_id: EdgeIndex, options: &impl SlicerOptions) -> Slice<'ctx> {
     // Get basic informations
     let entry = self.graph[entry_id];
     let instr = self.graph[edge_id];
@@ -253,7 +301,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     };
 
     // Get included functions
-    let mut fringe = vec![(entry_id, options.slice_depth * 2)];
+    let mut fringe = vec![(entry_id, options.slice_depth() * 2)];
     let mut visited = HashSet::new();
     let mut function_ids = HashSet::new();
     while !fringe.is_empty() {
@@ -277,10 +325,10 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     }
 
     // Reduced function boundary
-    let function_ids = if options.no_reduce_slice {
+    let function_ids = if options.no_reduce_slice() {
       function_ids
     } else {
-      self.reduce_slice(callee_id, function_ids, options.slice_depth as usize)
+      self.reduce_slice(callee_id, function_ids, options.slice_depth())
     };
 
     // Generate slice
@@ -294,7 +342,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     }
   }
 
-  fn slices_of_call_edge(&self, edge_id: EdgeIndex, options: &Options) -> Vec<Slice<'ctx>> {
+  fn slices_of_call_edge(&self, edge_id: EdgeIndex, options: &impl SlicerOptions) -> Vec<Slice<'ctx>> {
     let entry_ids = self.find_entries(edge_id, options);
     entry_ids
       .into_iter()
@@ -302,9 +350,9 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
       .collect()
   }
 
-  fn slices_of_call_edges(&self, edges: &[EdgeIndex], options: &Options) -> Vec<Slice<'ctx>> {
+  fn slices_of_call_edges(&self, edges: &[EdgeIndex], options: &impl SlicerOptions) -> Vec<Slice<'ctx>> {
     let f = |edge_id: &EdgeIndex| -> Vec<Slice<'ctx>> { self.slices_of_call_edge(edge_id.clone(), options) };
-    if options.use_serial {
+    if options.use_serial() {
       edges.iter().map(f).flatten().collect()
     } else {
       edges.par_iter().map(f).flatten().collect()
