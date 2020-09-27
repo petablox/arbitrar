@@ -8,6 +8,16 @@ use std::collections::HashMap;
 use crate::options::*;
 use crate::utils::*;
 
+pub trait CallGraphOptions {
+  fn remove_llvm_funcs(&self) -> bool;
+}
+
+impl CallGraphOptions for Options {
+  fn remove_llvm_funcs(&self) -> bool {
+    !self.no_remove_llvm_funcs
+  }
+}
+
 pub struct CallEdge<'ctx> {
   pub caller: Function<'ctx>,
   pub callee: Function<'ctx>,
@@ -188,7 +198,7 @@ impl<'ctx> CallGraph<'ctx> {
     paths.into_iter().map(|path| path.into_elements(&self.graph)).collect()
   }
 
-  pub fn from_module(module: &Module<'ctx>, options: &Options) -> Self {
+  pub fn from_module(module: &Module<'ctx>, options: &impl CallGraphOptions) -> Self {
     let mut value_id_map: HashMap<Function<'ctx>, NodeIndex> = HashMap::new();
 
     // Generate Call Graph by iterating through all blocks & instructions for each function
@@ -202,7 +212,7 @@ impl<'ctx> CallGraph<'ctx> {
         for i in b.iter_instructions() {
           match i {
             Instruction::Call(call_instr) => {
-              if options.no_remove_llvm_funcs || !call_instr.is_intrinsic_call() {
+              if !options.remove_llvm_funcs() || !call_instr.is_intrinsic_call() {
                 match call_instr.callee_function() {
                   Some(callee) => {
                     let callee_id = value_id_map

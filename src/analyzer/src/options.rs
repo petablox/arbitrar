@@ -56,24 +56,24 @@ pub struct Options {
 }
 
 impl GeneralOptions for Options {
-  fn slice_target_dir_path(&self, package: &str, target: &str) -> PathBuf {
+  fn slice_target_dir_path(&self, _package: &str, _target: &str) -> PathBuf {
     // TODO
     PathBuf::new()
   }
 
-  fn slice_file_path(&self, package: &str, target: &str, slice_id: usize) -> PathBuf {
+  fn slice_file_path(&self, _package: &str, _target: &str, _slice_id: usize) -> PathBuf {
     // TODO
     PathBuf::new()
   }
 }
 
 impl GeneralOptionsWithPackage for Options {
-  fn slice_target_dir_path(&self, target: &str) -> PathBuf {
+  fn slice_target_dir_path(&self, _target: &str) -> PathBuf {
     // TODO
     PathBuf::new()
   }
 
-  fn slice_file_path(&self, target: &str, slice_id: usize) -> PathBuf {
+  fn slice_file_path(&self, _target: &str, _slice_id: usize) -> PathBuf {
     // TODO
     PathBuf::new()
   }
