@@ -5,17 +5,10 @@ use petgraph::{
 };
 use std::collections::HashMap;
 
-use crate::options::*;
 use crate::utils::*;
 
 pub trait CallGraphOptions {
   fn remove_llvm_funcs(&self) -> bool;
-}
-
-impl CallGraphOptions for Options {
-  fn remove_llvm_funcs(&self) -> bool {
-    !self.no_remove_llvm_funcs
-  }
 }
 
 pub struct CallEdge<'ctx> {

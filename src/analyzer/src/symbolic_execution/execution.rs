@@ -13,7 +13,7 @@ use crate::utils::*;
 
 use super::*;
 
-pub trait SymbolicExecutionOptions : GeneralOptions + IOOptions + Send + Sync {
+pub trait SymbolicExecutionOptions: GeneralOptions + IOOptions + Send + Sync {
   fn slice_depth(&self) -> usize;
 
   fn max_work(&self) -> usize;
@@ -35,55 +35,19 @@ pub trait SymbolicExecutionOptions : GeneralOptions + IOOptions + Send + Sync {
   fn print_trace(&self) -> bool;
 }
 
-impl SymbolicExecutionOptions for Options {
-  fn slice_depth(&self) -> usize {
-    self.slice_depth as usize
-  }
-
-  fn max_work(&self) -> usize {
-    self.max_work
-  }
-
-  fn no_random_work(&self) -> bool {
-    self.no_random_work
-  }
-
-  fn max_node_per_trace(&self) -> usize {
-    self.max_node_per_trace
-  }
-
-  fn max_explored_trace_per_slice(&self) -> usize {
-    self.max_explored_trace_per_slice
-  }
-
-  fn max_trace_per_slice(&self) -> usize {
-    self.max_trace_per_slice
-  }
-
-  fn no_trace_reduction(&self) -> bool {
-    self.no_trace_reduction
-  }
-
-  fn no_prefilter_block_trace(&self) -> bool {
-    self.no_prefilter_block_trace
-  }
-
-  fn print_block_trace(&self) -> bool {
-    self.print_block_trace
-  }
-
-  fn print_trace(&self) -> bool {
-    self.print_trace
-  }
-}
-
-pub struct SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecutionOptions {
+pub struct SymbolicExecutionContext<'a, 'ctx, O>
+where
+  O: SymbolicExecutionOptions,
+{
   pub module: &'a Module<'ctx>,
   pub call_graph: &'a CallGraph<'ctx>,
   pub options: &'a O,
 }
 
-impl<'a, 'ctx, O> SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecutionOptions {
+impl<'a, 'ctx, O> SymbolicExecutionContext<'a, 'ctx, O>
+where
+  O: SymbolicExecutionOptions,
+{
   pub fn new(module: &'a Module<'ctx>, call_graph: &'a CallGraph<'ctx>, options: &'a O) -> Self {
     Self {
       module,
@@ -780,9 +744,11 @@ impl<'a, 'ctx, O> SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecut
             if state.constraints.sat() {
               // Need store
               let trace_id = metadata.proper_trace_count;
-              let path = self
-                .options
-                .trace_file_path(env.slice.target_function_name().as_str(), slice_id, trace_id);
+              let path = self.options.trace_target_slice_file_path(
+                env.slice.target_function_name().as_str(),
+                slice_id,
+                trace_id,
+              );
 
               // If printing trace
               if self.options.print_trace() && self.options.use_serial() {
@@ -826,11 +792,7 @@ impl<'a, 'ctx, O> SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecut
       let first_work = Work::entry(&slice);
       env.add_work(first_work);
     } else {
-      let block_traces = slice.block_traces(
-        self.call_graph,
-        self.options.slice_depth() * 2,
-        self.options.max_work(),
-      );
+      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth() * 2, self.options.max_work());
       for block_trace in block_traces {
         if self.options.print_block_trace() {
           println!("{:?}", block_trace);
@@ -854,7 +816,7 @@ impl<'a, 'ctx, O> SymbolicExecutionContext<'a, 'ctx, O> where O : SymbolicExecut
   }
 
   fn initialize_traces_function_slice_folder(&self, func_name: &String, slice_id: usize) -> Result<(), String> {
-    let path = self.options.trace_target_slice_dir_path(func_name.as_str(), slice_id);
+    let path = self.options.trace_target_slice_dir(func_name.as_str(), slice_id);
     fs::create_dir_all(path).map_err(|_| "Cannot create trace function slice folder".to_string())
   }
 

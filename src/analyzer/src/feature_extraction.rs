@@ -80,24 +80,13 @@ impl Trace {
     if dir.is_forward() {
       self.instrs.iter().skip(from + 1).collect::<Vec<_>>()
     } else {
-      self
-        .instrs
-        .iter()
-        .take(from)
-        .rev()
-        .collect::<Vec<_>>()
+      self.instrs.iter().take(from).rev().collect::<Vec<_>>()
     }
   }
 }
 
-pub trait FeatureExtractorOptions {
+pub trait FeatureExtractorOptions: IOOptions + Send + Sync {
   fn causality_dictionary_size(&self) -> usize;
-}
-
-impl FeatureExtractorOptions for Options {
-  fn causality_dictionary_size(&self) -> usize {
-    self.causality_dictionary_size
-  }
 }
 
 pub trait FeatureExtractor: Send + Sync {
@@ -140,7 +129,7 @@ impl FeatureExtractors {
   pub fn extractors_for_target<'ctx>(
     target: &String,
     target_type: FunctionType<'ctx>,
-    options: &impl FeatureExtractorOptions
+    options: &impl FeatureExtractorOptions,
   ) -> Self {
     Self {
       extractors: Self::all(options)
@@ -172,18 +161,24 @@ impl FeatureExtractors {
   }
 }
 
-pub struct FeatureExtractionContext<'a, 'ctx> {
+pub struct FeatureExtractionContext<'a, 'ctx, O>
+where
+  O: FeatureExtractorOptions + IOOptions,
+{
   pub modules: &'a Module<'ctx>,
-  pub options: &'a Options,
+  pub options: &'a O,
   pub target_num_slices_map: HashMap<String, usize>,
   pub func_types: HashMap<String, FunctionType<'ctx>>,
 }
 
-impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
+impl<'a, 'ctx, O> FeatureExtractionContext<'a, 'ctx, O>
+where
+  O: FeatureExtractorOptions + IOOptions,
+{
   pub fn new(
     module: &'a Module<'ctx>,
     target_num_slices_map: HashMap<String, usize>,
-    options: &'a Options,
+    options: &'a O,
   ) -> Result<Self, String> {
     let func_types = module.function_types();
     Ok(Self {
@@ -199,7 +194,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
       .collect::<Vec<_>>()
       .into_par_iter()
       .map(|slice_id| {
-        let path = self.options.slice_file_path(target.as_str(), slice_id);
+        let path = self.options.slice_target_file_path(target.as_str(), slice_id);
         let file = File::open(path).expect("Could not open slice file");
         serde_json::from_reader(file).expect("Cannot parse slice file")
       })
@@ -207,7 +202,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   }
 
   pub fn load_trace_file_paths(&self, target: &String, slice_id: usize) -> Vec<(usize, PathBuf)> {
-    fs::read_dir(self.options.trace_target_slice_dir_path(target.as_str(), slice_id))
+    fs::read_dir(self.options.trace_target_slice_dir(target.as_str(), slice_id))
       .expect("Cannot read traces folder")
       .map(|path| {
         let path = path.expect("Cannot read traces folder path").path();
@@ -223,7 +218,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
   }
 
   pub fn extract_features(&self) {
-    fs::create_dir_all(self.options.features_dir_path()).expect("Cannot create features directory");
+    fs::create_dir_all(self.options.feature_dir()).expect("Cannot create features directory");
 
     self.target_num_slices_map.par_iter().for_each(|(target, &num_slices)| {
       // Initialize extractors
@@ -253,7 +248,7 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
       // Extract features
       slices.par_iter().enumerate().for_each(|(slice_id, slice)| {
         // First create directory
-        fs::create_dir_all(self.options.features_target_slice_dir_path(target.as_str(), slice_id))
+        fs::create_dir_all(self.options.feature_target_slice_dir(target.as_str(), slice_id))
           .expect("Cannot create features target slice directory");
 
         // Then load trace file directories
@@ -266,7 +261,9 @@ impl<'a, 'ctx> FeatureExtractionContext<'a, 'ctx> {
 
             // Extract and dump features
             let features = extractors.extract_features(slice, &trace);
-            let path = self.options.features_file_path(target.as_str(), slice_id, trace_id);
+            let path = self
+              .options
+              .feature_target_slice_file_path(target.as_str(), slice_id, trace_id);
             dump_json(&features, path).expect("Cannot dump features json");
           })
       });

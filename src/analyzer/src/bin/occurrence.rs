@@ -1,17 +1,57 @@
-use clap::App;
-use std::collections::HashMap;
-use serde_json::json;
 use petgraph::*;
+use serde_json::json;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 use analyzer::{call_graph::*, options::*, utils::*};
 
-fn arg_parser<'a>() -> App<'a> {
-  let app = App::new("analyzer");
-  Options::setup_parser(app)
+#[derive(StructOpt, Debug, Clone)]
+#[structopt(name = "occurrence")]
+pub struct Options {
+  #[structopt(index = 1, required = true, value_name = "INPUT")]
+  pub input: String,
+
+  #[structopt(index = 2, required = true, value_name = "OUTPUT")]
+  pub output: String,
+}
+
+impl IOOptions for Options {
+  fn input_path(&self) -> PathBuf {
+    PathBuf::from(&self.input)
+  }
+
+  fn output_path(&self) -> PathBuf {
+    PathBuf::from(&self.output)
+  }
+
+  fn default_package(&self) -> Option<&str> {
+    None
+  }
+}
+
+impl CallGraphOptions for Options {
+  fn remove_llvm_funcs(&self) -> bool {
+    true
+  }
+}
+
+impl Options {
+  pub fn input_bc_name(&self) -> String {
+    format!("{}", self.input_path().file_name().unwrap().to_str().unwrap())
+  }
+
+  fn occurrence_path(&self) -> PathBuf {
+    self.output_path().join("occurrences")
+  }
+
+  fn occurrence_file_path(&self) -> PathBuf {
+    self.occurrence_path().join(format!("{}.json", self.input_bc_name()))
+  }
 }
 
 fn main() -> Result<(), String> {
-  let options = Options::from_matches(&arg_parser().get_matches())?;
+  let options = Options::from_args();
   let mut logging_ctx = LoggingContext::new(&options)?;
 
   // Load the byte code module and generate analyzer context
@@ -35,7 +75,10 @@ fn main() -> Result<(), String> {
 
   // Transform occurrence map into json
   std::fs::create_dir_all(options.occurrence_path()).expect("Cannot create occurrence path");
-  let json_map : serde_json::Map<_, _> = map.into_iter().map(|(func, num_call_sites)| (func.simp_name(), json!(num_call_sites))).collect();
+  let json_map: serde_json::Map<_, _> = map
+    .into_iter()
+    .map(|(func, num_call_sites)| (func.simp_name(), json!(num_call_sites)))
+    .collect();
   let json_obj = serde_json::Value::Object(json_map);
   dump_json(&json_obj, options.occurrence_file_path())
 }

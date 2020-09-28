@@ -32,7 +32,6 @@ impl FeatureExtractor for ControlFlowFeaturesExtractor {
     let mut has_cond_br_after_target = false;
     let mut visited_target = false;
     for (i, instr) in trace.instrs.iter().enumerate() {
-
       // Mark target visit
       if i > trace.target {
         visited_target = true;

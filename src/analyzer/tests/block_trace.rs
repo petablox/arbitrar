@@ -2,10 +2,17 @@ use llir::{values::*, *};
 use std::path::Path;
 
 use analyzer::call_graph::*;
-use analyzer::options::*;
 use analyzer::slicer::*;
 use analyzer::symbolic_execution::*;
 use analyzer::utils::*;
+
+struct TempOptions;
+
+impl CallGraphOptions for TempOptions {
+  fn remove_llvm_funcs(&self) -> bool {
+    false
+  }
+}
 
 fn process_slice<F>(path: &Path, entry: &str, caller: &str, target: &str, f: F) -> Result<(), String>
 where
@@ -15,7 +22,7 @@ where
   let module = ctx.load_module(path)?;
 
   // Build call graph
-  let call_graph = CallGraph::from_module(&module, &Options::default());
+  let call_graph = CallGraph::from_module(&module, &TempOptions);
 
   // Build the slice
   let entry_func = module.get_function(entry).unwrap();

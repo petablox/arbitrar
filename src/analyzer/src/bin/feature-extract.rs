@@ -1,19 +1,19 @@
+use llir::{types::*, *};
+use rayon::prelude::*;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::path::PathBuf;
-use rayon::prelude::*;
 use structopt::StructOpt;
-use serde::Deserialize;
-use llir::{*, types::*};
 
 use analyzer::feature_extraction::*;
+use analyzer::options::*;
 use analyzer::utils::*;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "sudoku-gen")]
+#[structopt(name = "feature-extract")]
 pub struct Options {
-
   #[structopt(index = 1, required = true, value_name = "INPUT")]
   input: String,
 
@@ -24,59 +24,23 @@ pub struct Options {
   causality_dictionary_size: usize,
 }
 
-impl FeatureExtractorOptions for Options {
-  fn causality_dictionary_size(&self) -> usize {
-    self.causality_dictionary_size
+impl IOOptions for Options {
+  fn input_path(&self) -> PathBuf {
+    PathBuf::from(&self.input)
   }
-}
 
-impl Options {
   fn output_path(&self) -> PathBuf {
     PathBuf::from(&self.output)
   }
 
-  fn slice_dir_path(&self) -> PathBuf {
-    self.output_path().join("slices")
+  fn default_package(&self) -> Option<&str> {
+    None
   }
+}
 
-  fn slice_package_dir_path(&self, target: &str, package: &str) -> PathBuf {
-    self.slice_dir_path().join(target).join(package)
-  }
-
-  fn slice_file_path(&self, target: &str, package: &str, slice_id: usize) -> PathBuf {
-    self.slice_package_dir_path(target, package).join(format!("{}.json", slice_id))
-  }
-
-  fn trace_dir_path(&self) -> PathBuf {
-    self.output_path().join("traces")
-  }
-
-  fn trace_target_dir_path(&self, target: &str, package: &str) -> PathBuf {
-    self.trace_dir_path().join(target).join(package)
-  }
-
-  fn trace_target_slice_dir_path(&self, target: &str, package: &str, slice_id: usize) -> PathBuf {
-    self.trace_target_dir_path(target, package).join(slice_id.to_string())
-  }
-
-  // fn trace_file_path(&self, target: &str, package: &str, slice_id: usize, trace_id: usize) -> PathBuf {
-  //   self.trace_target_slice_dir_path(target, package, slice_id).join(format!("{}.json", trace_id))
-  // }
-
-  fn features_dir_path(&self) -> PathBuf {
-    self.output_path().join("features")
-  }
-
-  fn features_target_slice_dir_path(&self, target: &str, package: &str, slice_id: usize) -> PathBuf {
-    self
-      .features_dir_path()
-      .join(target)
-      .join(package)
-      .join(slice_id.to_string())
-  }
-
-  fn features_file_path(&self, target: &str, package: &str, slice_id: usize, trace_id: usize) -> PathBuf {
-    self.features_target_slice_dir_path(target, package, slice_id).join(format!("{}.json", trace_id))
+impl FeatureExtractorOptions for Options {
+  fn causality_dictionary_size(&self) -> usize {
+    self.causality_dictionary_size
   }
 }
 
@@ -145,21 +109,21 @@ fn load_slices(options: &Options, target: &str, package: &str, num_slices: usize
     .collect::<Vec<_>>()
     .into_par_iter()
     .map(|slice_id| {
-      let path = options.slice_file_path(target, package, slice_id);
+      let path = options.slice_target_package_file_path(target, package, slice_id);
       load_slice(path)
     })
     .collect::<Vec<_>>()
 }
 
 fn load_trace_file_paths(options: &Options, target: &str, package: &str, slice_id: usize) -> Vec<(usize, PathBuf)> {
-  fs::read_dir(options.trace_target_slice_dir_path(target, package, slice_id))
-      .expect("Cannot read traces folder")
-      .map(|path| {
-        let path = path.expect("Cannot read traces folder path").path();
-        let trace_id = path.file_stem().unwrap().to_str().unwrap().parse::<usize>().unwrap();
-        (trace_id, path)
-      })
-      .collect::<Vec<_>>()
+  fs::read_dir(options.trace_target_package_slice_dir(target, package, slice_id))
+    .expect("Cannot read traces folder")
+    .map(|path| {
+      let path = path.expect("Cannot read traces folder path").path();
+      let trace_id = path.file_stem().unwrap().to_str().unwrap().parse::<usize>().unwrap();
+      (trace_id, path)
+    })
+    .collect::<Vec<_>>()
 }
 
 pub fn load_trace(path: PathBuf) -> Trace {
@@ -170,10 +134,10 @@ pub fn load_trace(path: PathBuf) -> Trace {
 pub fn func_types<'ctx>(packages: &Packages<'ctx>, target: &str) -> Option<FunctionType<'ctx>> {
   for (_, (_, types)) in packages.iter() {
     if types.contains_key(target) {
-      return Some(types[target])
+      return Some(types[target]);
     }
   }
-  return None
+  return None;
 }
 
 fn main() -> Result<(), String> {
@@ -189,7 +153,7 @@ fn main() -> Result<(), String> {
   }
 
   if packages.is_empty() {
-    return Err("No packages included".to_string())
+    return Err("No packages included".to_string());
   }
 
   let mut target_map = TargetPackageNumSlicesMap::new();
@@ -223,7 +187,7 @@ fn main() -> Result<(), String> {
       let slices = load_slices(&options, &target, &package, num_slices);
       slices.into_par_iter().enumerate().for_each(|(slice_id, slice)| {
         // First create directory
-        fs::create_dir_all(options.features_target_slice_dir_path(&target, &package, slice_id))
+        fs::create_dir_all(options.feature_target_package_slice_dir(&target, &package, slice_id))
           .expect("Cannot create features target slice directory");
 
         // Then load trace file directories
@@ -232,7 +196,7 @@ fn main() -> Result<(), String> {
           .for_each(|(trace_id, dir_entry)| {
             let trace = load_trace(dir_entry);
             let features = extractors.extract_features(&slice, &trace);
-            let path = options.features_file_path(&target, &package, slice_id, trace_id);
+            let path = options.feature_target_package_slice_file_path(&target, &package, slice_id, trace_id);
             dump_json(&features, path).expect("Cannot dump features json");
           });
       })

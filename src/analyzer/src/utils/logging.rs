@@ -2,7 +2,7 @@ use chrono::{DateTime, Local};
 use std::fs::File;
 use std::io::prelude::*;
 
-use crate::options::Options;
+use crate::options::*;
 use crate::symbolic_execution::*;
 
 pub struct LoggingContext {
@@ -10,7 +10,7 @@ pub struct LoggingContext {
 }
 
 impl LoggingContext {
-  pub fn new(options: &Options) -> Result<Self, String> {
+  pub fn new(options: &impl IOOptions) -> Result<Self, String> {
     // Create the output directory
     let output_path = options.output_path();
     std::fs::create_dir_all(output_path.clone()).map_err(|_| String::from("Cannot create output directory"))?;

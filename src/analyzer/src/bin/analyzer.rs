@@ -1,10 +1,254 @@
-use clap::App;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 use analyzer::{call_graph::*, feature_extraction::*, options::*, slicer::*, symbolic_execution::*, utils::*};
 
+#[derive(StructOpt, Debug, Clone)]
+#[structopt(name = "analyzer")]
+pub struct Options {
+  #[structopt(index = 1, required = true, value_name = "INPUT")]
+  pub input: String,
+
+  #[structopt(index = 2, required = true, value_name = "OUTPUT")]
+  pub output: String,
+
+  #[structopt(long, takes_value = true, value_name = "SUBFOLDER")]
+  pub subfolder: Option<String>,
+
+  /// Serialize execution rather than parallel
+  #[structopt(short = "s", long)]
+  pub use_serial: bool,
+
+  /// Random seed
+  #[structopt(long, takes_value = true, default_value = "12345", value_name = "SEED")]
+  pub seed: u64,
+
+  /// Do not remove llvm functions
+  #[structopt(long)]
+  pub no_remove_llvm_funcs: bool,
+
+  /// Print call graph
+  #[structopt(long)]
+  pub print_call_graph: bool,
+
+  #[structopt(
+    short = "d",
+    long,
+    takes_value = true,
+    default_value = "1",
+    value_name = "SLICE_DEPTH"
+  )]
+  pub slice_depth: usize,
+
+  #[structopt(long, takes_value = true, value_name = "INCLUDE_TARGET")]
+  pub target_inclusion_filter: Option<String>,
+
+  #[structopt(long, takes_value = true, value_name = "EXCLUDE_TARGET")]
+  pub target_exclusion_filter: Option<String>,
+
+  /// Entry location filters. In the form of Regex if the option `use_regex_filter` is supplied
+  #[structopt(long, takes_value = true, value_name = "ENTRY_LOCATION")]
+  pub entry_filter: Option<String>,
+
+  /// Use regex in the filters
+  #[structopt(long)]
+  pub use_regex_filter: bool,
+
+  /// Don't do slice reduction
+  #[structopt(long)]
+  pub no_reduce_slice: bool,
+
+  /// Use batch execution. Especially useful when applying to large dataset
+  #[structopt(long)]
+  pub use_batch: bool,
+
+  /// The number of slices inside each batch
+  #[structopt(long, takes_value = true, default_value = "50", value_name = "BATCH_SIZE")]
+  pub batch_size: usize,
+
+  /// Print slice
+  #[structopt(long)]
+  pub print_slice: bool,
+
+  /// Dump target-num-slices-map file
+  #[structopt(long, takes_value = true, value_name = "TARGET_NUM_SLICES_MAP")]
+  pub target_num_slices_map_file: Option<String>,
+
+  #[structopt(long, takes_value = true, default_value = "50", value_name = "MAX_WORK")]
+  pub max_work: usize,
+
+  /// The maximum number of generated trace per slice
+  #[structopt(long, takes_value = true, default_value = "50", value_name = "MAX_TRACE_PER_SLICE")]
+  pub max_trace_per_slice: usize,
+
+  #[structopt(
+    long,
+    takes_value = true,
+    default_value = "1000",
+    value_name = "MAX_EXPLORED_TRACE_PER_SLICE"
+  )]
+  pub max_explored_trace_per_slice: usize,
+
+  #[structopt(long, takes_value = true, default_value = "5000", value_name = "MAX_NODE_PER_TRACE")]
+  pub max_node_per_trace: usize,
+
+  #[structopt(long)]
+  pub no_trace_reduction: bool,
+
+  #[structopt(long)]
+  pub no_random_work: bool,
+
+  #[structopt(long)]
+  pub print_block_trace: bool,
+
+  #[structopt(long)]
+  pub print_trace: bool,
+
+  #[structopt(long)]
+  pub no_prefilter_block_trace: bool,
+
+  #[structopt(long)]
+  pub no_feature: bool,
+
+  #[structopt(long)]
+  pub feature_only: bool,
+
+  #[structopt(
+    long,
+    takes_value = true,
+    default_value = "10",
+    value_name = "CAUSALITY_DICTIONARY_SIZE"
+  )]
+  pub causality_dictionary_size: usize,
+}
+
+impl GeneralOptions for Options {
+  fn use_serial(&self) -> bool {
+    self.use_serial
+  }
+
+  fn seed(&self) -> u64 {
+    self.seed as u64
+  }
+}
+
+impl IOOptions for Options {
+  fn input_path(&self) -> PathBuf {
+    PathBuf::from(&self.input)
+  }
+
+  fn output_path(&self) -> PathBuf {
+    PathBuf::from(&self.output)
+  }
+
+  fn default_package(&self) -> Option<&str> {
+    match &self.subfolder {
+      Some(subfolder) => Some(&subfolder),
+      None => None,
+    }
+  }
+}
+
+impl Options {
+  fn target_num_slices_map_path(&self) -> Option<PathBuf> {
+    if let Some(filename) = &self.target_num_slices_map_file {
+      Some(self.output_path().join(filename))
+    } else {
+      None
+    }
+  }
+
+  fn num_slices(&self, target: &str) -> usize {
+    match std::fs::read_dir(self.slice_target_dir(target)) {
+      Ok(dirs) => dirs.count(),
+      _ => 0,
+    }
+  }
+}
+
+impl CallGraphOptions for Options {
+  fn remove_llvm_funcs(&self) -> bool {
+    !self.no_remove_llvm_funcs
+  }
+}
+
+impl SlicerOptions for Options {
+  fn no_reduce_slice(&self) -> bool {
+    self.no_reduce_slice
+  }
+
+  fn slice_depth(&self) -> usize {
+    self.slice_depth as usize
+  }
+
+  fn entry_filter(&self) -> &Option<String> {
+    &self.entry_filter
+  }
+
+  fn target_inclusion_filter(&self) -> &Option<String> {
+    &self.target_inclusion_filter
+  }
+
+  fn target_exclusion_filter(&self) -> &Option<String> {
+    &self.target_exclusion_filter
+  }
+
+  fn use_regex_filter(&self) -> bool {
+    self.use_regex_filter
+  }
+}
+
+impl SymbolicExecutionOptions for Options {
+  fn slice_depth(&self) -> usize {
+    self.slice_depth
+  }
+
+  fn max_work(&self) -> usize {
+    self.max_work
+  }
+
+  fn no_random_work(&self) -> bool {
+    self.no_random_work
+  }
+
+  fn max_node_per_trace(&self) -> usize {
+    self.max_node_per_trace
+  }
+
+  fn max_explored_trace_per_slice(&self) -> usize {
+    self.max_explored_trace_per_slice
+  }
+
+  fn max_trace_per_slice(&self) -> usize {
+    self.max_trace_per_slice
+  }
+
+  fn no_trace_reduction(&self) -> bool {
+    self.no_trace_reduction
+  }
+
+  fn no_prefilter_block_trace(&self) -> bool {
+    self.no_prefilter_block_trace
+  }
+
+  fn print_block_trace(&self) -> bool {
+    self.print_block_trace
+  }
+
+  fn print_trace(&self) -> bool {
+    self.print_trace
+  }
+}
+
+impl FeatureExtractorOptions for Options {
+  fn causality_dictionary_size(&self) -> usize {
+    self.causality_dictionary_size
+  }
+}
+
 fn main() -> Result<(), String> {
-  let options = Options::from_matches(&arg_parser().get_matches())?;
+  let options = Options::from_args();
   let mut logging_ctx = LoggingContext::new(&options)?;
 
   // Load the byte code module and generate analyzer context
@@ -27,7 +271,6 @@ fn main() -> Result<(), String> {
 
   // Check if we need to "redo" the symbolic execution
   let target_num_slices_map = if !options.feature_only {
-
     // Generate slices
     logging_ctx.log_generated_call_edges(target_edges_map.num_elements())?;
     let target_slices_map = TargetSlicesMap::from_target_edges_map(&target_edges_map, &call_graph, &options);
@@ -56,7 +299,6 @@ fn main() -> Result<(), String> {
 
     target_num_slices_map
   } else {
-
     // If not, we directly load slices information from file
     load_target_num_slices_map(target_edges_map, &options)
   };
@@ -72,14 +314,12 @@ fn main() -> Result<(), String> {
   Ok(())
 }
 
-fn arg_parser<'a>() -> App<'a> {
-  let app = App::new("analyzer");
-  Options::setup_parser(app)
-}
-
 fn load_target_num_slices_map(target_edges_map: TargetEdgesMap, options: &Options) -> HashMap<String, usize> {
-  target_edges_map.into_iter().map(|(target, _)| {
-    let num_slices = options.num_slices(&target);
-    (target, num_slices)
-  }).collect()
+  target_edges_map
+    .into_iter()
+    .map(|(target, _)| {
+      let num_slices = options.num_slices(&target);
+      (target, num_slices)
+    })
+    .collect()
 }

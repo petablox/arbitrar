@@ -103,8 +103,12 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &mut bool) {
   // Setup kind of argument
   match arg {
-    Value::Glob(_) => { *is_global = true; }
-    Value::Arg(_) => { *is_arg = true; }
+    Value::Glob(_) => {
+      *is_global = true;
+    }
+    Value::Arg(_) => {
+      *is_arg = true;
+    }
     Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
       *is_constant = true;
     }

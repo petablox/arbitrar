@@ -3,16 +3,16 @@ use petgraph::{graph::*, visit::*, Direction};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::json;
-use std::path::PathBuf;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::path::PathBuf;
 
 use crate::call_graph::*;
 use crate::options::*;
 use crate::utils::*;
 
-pub trait SlicerOptions : GeneralOptions + Send + Sync {
+pub trait SlicerOptions: GeneralOptions + Send + Sync {
   fn no_reduce_slice(&self) -> bool;
 
   fn slice_depth(&self) -> usize;
@@ -24,32 +24,6 @@ pub trait SlicerOptions : GeneralOptions + Send + Sync {
   fn target_exclusion_filter(&self) -> &Option<String>;
 
   fn use_regex_filter(&self) -> bool;
-}
-
-impl SlicerOptions for Options {
-  fn no_reduce_slice(&self) -> bool {
-    self.no_reduce_slice
-  }
-
-  fn slice_depth(&self) -> usize {
-    self.slice_depth as usize
-  }
-
-  fn entry_filter(&self) -> &Option<String> {
-    &self.entry_filter
-  }
-
-  fn target_inclusion_filter(&self) -> &Option<String> {
-    &self.target_inclusion_filter
-  }
-
-  fn target_exclusion_filter(&self) -> &Option<String> {
-    &self.target_exclusion_filter
-  }
-
-  fn use_regex_filter(&self) -> bool {
-    self.use_regex_filter
-  }
 }
 
 #[derive(Clone)]
@@ -129,8 +103,16 @@ pub trait TargetEdgesMapTrait: Sized {
 
 impl TargetEdgesMapTrait for TargetEdgesMap {
   fn from_call_graph<'ctx>(call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Result<Self, String> {
-    let inclusion_filter = TargetFilter::new(options.target_inclusion_filter().clone(), options.use_regex_filter(), true)?;
-    let exclusion_filter = TargetFilter::new(options.target_inclusion_filter().clone(), options.use_regex_filter(), false)?;
+    let inclusion_filter = TargetFilter::new(
+      options.target_inclusion_filter().clone(),
+      options.use_regex_filter(),
+      true,
+    )?;
+    let exclusion_filter = TargetFilter::new(
+      options.target_inclusion_filter().clone(),
+      options.use_regex_filter(),
+      false,
+    )?;
     let mut target_edges_map = TargetEdgesMap::new();
     for callee_id in call_graph.graph.node_indices() {
       let func = call_graph.graph[callee_id];
@@ -158,13 +140,23 @@ impl TargetEdgesMapTrait for TargetEdgesMap {
 pub type TargetSlicesMap<'ctx> = HashMap<String, Vec<Slice<'ctx>>>;
 
 pub trait TargetSlicesMapTrait<'ctx>: Sized {
-  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Self;
+  fn from_target_edges_map(
+    target_edges_map: &TargetEdgesMap,
+    call_graph: &CallGraph<'ctx>,
+    options: &impl SlicerOptions,
+  ) -> Self;
 
-  fn dump<O>(&self, options: &O) where O : SlicerOptions + IOOptions;
+  fn dump<O>(&self, options: &O)
+  where
+    O: SlicerOptions + IOOptions;
 }
 
 impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
-  fn from_target_edges_map(target_edges_map: &TargetEdgesMap, call_graph: &CallGraph<'ctx>, options: &impl SlicerOptions) -> Self {
+  fn from_target_edges_map(
+    target_edges_map: &TargetEdgesMap,
+    call_graph: &CallGraph<'ctx>,
+    options: &impl SlicerOptions,
+  ) -> Self {
     let mut result = HashMap::new();
     for (target, edges) in target_edges_map {
       let slices = call_graph.slices_of_call_edges(&edges[..], options);
@@ -174,12 +166,13 @@ impl<'ctx> TargetSlicesMapTrait<'ctx> for TargetSlicesMap<'ctx> {
   }
 
   fn dump<O>(&self, options: &O)
-    where O : SlicerOptions + IOOptions
+  where
+    O: SlicerOptions + IOOptions,
   {
     for (target, slices) in self {
-      fs::create_dir_all(IOOptions::slice_target_dir_path(options, target.as_str())).expect("Cannot create slice folder");
+      fs::create_dir_all(options.slice_target_dir(target.as_str())).expect("Cannot create slice folder");
       slices.par_iter().enumerate().for_each(|(i, slice)| {
-        let path = IOOptions::slice_file_path(options, target.as_str(), i);
+        let path = options.slice_target_file_path(target.as_str(), i);
         dump_json(&slice.to_json(), path).expect("Cannot dump slice json");
       });
     }
@@ -194,9 +187,20 @@ pub trait TargetNumSlicesMapTrait {
 
 impl TargetNumSlicesMapTrait for TargetNumSlicesMap {
   fn dump(&self, filename: PathBuf) -> Result<(), String> {
-    crate::utils::dump_json(&serde_json::Value::Object(self.iter().map(|(name, num)| {
-      (name.clone(), serde_json::Value::Number(serde_json::Number::from(num.clone())))
-    }).collect()), filename)
+    crate::utils::dump_json(
+      &serde_json::Value::Object(
+        self
+          .iter()
+          .map(|(name, num)| {
+            (
+              name.clone(),
+              serde_json::Value::Number(serde_json::Number::from(num.clone())),
+            )
+          })
+          .collect(),
+      ),
+      filename,
+    )
   }
 }
 
