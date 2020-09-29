@@ -39,53 +39,58 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 
     let arg = trace.target_arg(self.index);
 
-    // Setup kind of argument
-    arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
+    let args_to_check = args_to_check(arg);
 
-    // Checks
-    for (i, instr) in trace
-      .iter_instrs_from_target(TraceIterDirection::Backward)
-      .iter()
-      .enumerate()
-    {
-      match &instr.sem {
-        Semantics::ICmp { pred, op0, op1 } => {
-          let arg_is_op0 = &**op0 == arg;
-          let arg_is_op1 = &**op1 == arg;
-          if arg_is_op0 || arg_is_op1 {
-            checked = true;
+    for arg in args_to_check {
 
-            let other_op = if arg_is_op0 { &**op1 } else { &**op0 };
-            match other_op {
-              Value::Int(0) | Value::Null => {
-                compared_with_zero = true;
+      // Setup kind of argument
+      arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
 
-                // Search for a branch instruction after the icmp
-                // Only go 5 steps forward
-                for maybe_br in trace.iter_instrs_from(TraceIterDirection::Forward, i).iter().take(5) {
-                  match &maybe_br.sem {
-                    Semantics::CondBr { cond, br, .. } => {
-                      if &**cond == &instr.res.clone().unwrap() {
-                        match (pred, br) {
-                          (Predicate::EQ, Branch::Then) | (Predicate::NE, Branch::Else) => {
-                            arg_check_is_zero = true;
+      // Checks
+      for (i, instr) in trace
+        .iter_instrs_from_target(TraceIterDirection::Backward)
+        .iter()
+        .enumerate()
+      {
+        match &instr.sem {
+          Semantics::ICmp { pred, op0, op1 } => {
+            let arg_is_op0 = **op0 == arg;
+            let arg_is_op1 = **op1 == arg;
+            if arg_is_op0 || arg_is_op1 {
+              checked = true;
+
+              let other_op = if arg_is_op0 { &**op1 } else { &**op0 };
+              match other_op {
+                Value::Int(0) | Value::Null => {
+                  compared_with_zero = true;
+
+                  // Search for a branch instruction after the icmp
+                  // Only go 5 steps forward
+                  for maybe_br in trace.iter_instrs_from(TraceIterDirection::Forward, i).iter().take(5) {
+                    match &maybe_br.sem {
+                      Semantics::CondBr { cond, br, .. } => {
+                        if &**cond == &instr.res.clone().unwrap() {
+                          match (pred, br) {
+                            (Predicate::EQ, Branch::Then) | (Predicate::NE, Branch::Else) => {
+                              arg_check_is_zero = true;
+                            }
+                            (Predicate::EQ, Branch::Else) | (Predicate::NE, Branch::Then) => {
+                              arg_check_not_zero = true;
+                            }
+                            _ => {}
                           }
-                          (Predicate::EQ, Branch::Else) | (Predicate::NE, Branch::Then) => {
-                            arg_check_not_zero = true;
-                          }
-                          _ => {}
                         }
                       }
+                      _ => {}
                     }
-                    _ => {}
                   }
                 }
+                _ => {}
               }
-              _ => {}
             }
           }
+          _ => {}
         }
-        _ => {}
       }
     }
 
@@ -99,6 +104,13 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       "is_global": is_global,
       "is_alloca": is_alloca,
     })
+  }
+}
+
+fn args_to_check(arg: &Value) -> Vec<Value> {
+  match arg {
+    Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
+    _ => vec![arg.clone()]
   }
 }
 

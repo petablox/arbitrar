@@ -109,7 +109,7 @@ impl TargetEdgesMapTrait for TargetEdgesMap {
       true,
     )?;
     let exclusion_filter = TargetFilter::new(
-      options.target_inclusion_filter().clone(),
+      options.target_exclusion_filter().clone(),
       options.use_regex_filter(),
       false,
     )?;

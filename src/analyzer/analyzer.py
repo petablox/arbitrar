@@ -4,6 +4,7 @@ import ntpath
 import json
 import shutil
 import re
+import random
 import string
 
 this_path = os.path.dirname(os.path.realpath(__file__))
@@ -26,32 +27,41 @@ def setup_parser(parser):
   parser.add_argument('--use-batch', action='store_true')
   parser.add_argument('--batch-size', type=int)
   parser.add_argument('--no-random-work', action='store_true')
+  parser.add_argument('--print-call-graph', action='store_true')
+  parser.add_argument('--print-options', action='store_true')
 
-  # parser.add_argument('--commit', action='store_true', help='Commit the analysis data to the database')
-  # parser.add_argument('--pretty-json', action='store_true', help='Prettify JSON')
-  # parser.add_argument('--redo-occurrence', action='store_true', help='Only do occurrence extraction')
-  # parser.add_argument('--redo-feature', action='store_true', help='Only do feature extraction')
-  # parser.add_argument('--sample-slice', action='store_true')
-  # parser.add_argument('--min-freq', type=int, default=1, help='Threshold of #occurrence of function to be included')
+
+def generate_temp_folder_name():
+  length = 6
+  letters = string.ascii_lowercase
+  return ''.join(random.choice(letters) for i in range(length))
 
 
 def main(args):
   db = args.db
   packages_functions = {}
+  temp_folder_name = generate_temp_folder_name()
+  os.mkdir(db.analysis_dir() + "/" + temp_folder_name)
+
+  # Run analyzer individually on each bc package
   for bc_file in db.bc_files():
     if args.bc == '' or args.bc in bc_file:
       try:
-        functions = run_analyzer(db, bc_file, args)
+        functions = run_analyzer(db, bc_file, temp_folder_name, args)
         packages_functions[bc_file] = functions
       except Exception as e:
         print(e)
         exit()
 
-  input_file = generate_feature_extract_input(db, packages_functions)
+  # Run feature extractor on all data generated
+  input_file = generate_feature_extract_input(db, packages_functions, temp_folder_name)
   run_feature_extractor(db, input_file, args)
 
+  # Remove the temp folder
+  shutil.rmtree(db.analysis_dir() + "/" + temp_folder_name)
 
-def get_analyzer_args(db, bc_file, args):
+
+def get_analyzer_args(db, bc_file, temp_folder, args):
   bc_name = ntpath.basename(bc_file)
 
   base_args = [
@@ -60,11 +70,11 @@ def get_analyzer_args(db, bc_file, args):
     '--subfolder', bc_name,
     '--slice-depth', str(args.slice_depth),
     '--no-feature',
-    '--target-num-slices-map-file', f'temp/{bc_name}.json'
+    '--target-num-slices-map-file', f'{temp_folder}/{bc_name}.json'
   ]
 
   if args.include_fn:
-    base_args += ['--include-target', args.include_fn]
+    base_args += ['--target-inclusion-filter', args.include_fn]
 
   if args.entry_location:
     base_args += ['--entry-location', args.entry_location]
@@ -96,24 +106,30 @@ def get_analyzer_args(db, bc_file, args):
   if args.feature_only:
     base_args += ['--feature-only']
 
+  if args.print_call_graph:
+    base_args += ['--print-call-graph']
+
+  if args.print_options:
+    base_args += ['--print-options']
+
   return base_args
 
 
-def run_analyzer(db, bc_file, args):
+def run_analyzer(db, bc_file, temp_folder, args):
   print(f"Running analyzer on {os.path.basename(bc_file)}")
   bc_name = ntpath.basename(bc_file)
 
   analyzer = "target/release/analyzer"
-  analyzer_args = get_analyzer_args(db, bc_file, args)
+  analyzer_args = get_analyzer_args(db, bc_file, temp_folder, args)
   cmd = [analyzer] + analyzer_args
   run = subprocess.run(cmd, cwd=this_path)
 
-  output_file = db.analysis_dir() + "/temp/" + bc_name + ".json"
+  output_file = db.analysis_dir() + "/" + temp_folder + "/" + bc_name + ".json"
   with open(output_file) as f:
     return json.load(f)
 
 
-def generate_feature_extract_input(db, packages_functions):
+def generate_feature_extract_input(db, packages_functions, temp_folder):
   packages = []
   functions = {}
   for package, occurrences in packages_functions.items():
@@ -129,7 +145,7 @@ def generate_feature_extract_input(db, packages_functions):
     "functions": list(functions.values()),
   }
 
-  filename = db.analysis_dir() + "/temp/ALL.json"
+  filename = db.analysis_dir() + "/" + temp_folder + "/ALL.json"
   with open(filename, "w") as f:
     json.dump(result, f)
 

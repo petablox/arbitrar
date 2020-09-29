@@ -190,21 +190,23 @@ fn find_function_causality(
                 // Check if sharing return value
                 if !features.share_return {
                   let retval = if dir.is_forward() {
-                    (target_instr.res.clone(), instr.sem.call_args())
+                    (tracked_res(target_instr), tracked_args(instr))
                   } else {
-                    (instr.res.clone(), target_instr.sem.call_args())
+                    (tracked_res(instr), tracked_args(target_instr))
                   };
-                  if let (Some(retval), args) = retval {
-                    if args.iter().find(|a| ***a == retval).is_some() {
-                      features.share_return = true;
+                  if let (Some(retvals), args) = retval {
+                    for retval in retvals {
+                      if args.iter().find(|a| &***a == retval).is_some() {
+                        features.share_return = true;
+                      }
                     }
                   }
                 }
 
                 // Check if sharing argument value
                 if !features.share_argument {
-                  let args_1 = instr.sem.call_args();
-                  let args_2 = target_instr.sem.call_args();
+                  let args_1 = tracked_args(instr);
+                  let args_2 = tracked_args(target_instr);
                   if args_1
                     .iter()
                     .find(|a| args_2.iter().find(|b| a == b).is_some())
@@ -227,4 +229,21 @@ fn find_function_causality(
     }
   }
   result
+}
+
+fn tracked_res(instr: &Instr) -> Option<Vec<&Value>> {
+  match &instr.res {
+    Some(r) => Some(match r {
+      Value::AllocOf(v) => vec![&r, &*v],
+      _ => vec![&r]
+    }),
+    None => None,
+  }
+}
+
+fn tracked_args(instr: &Instr) -> Vec<&Value> {
+  instr.sem.call_args().into_iter().map(|a| match a {
+    Value::AllocOf(v) => vec![a, &**v],
+    _ => vec![a]
+  }).flatten().collect::<Vec<_>>()
 }

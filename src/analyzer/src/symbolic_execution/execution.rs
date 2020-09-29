@@ -777,7 +777,7 @@ where
       let first_work = Work::entry(&slice);
       env.add_work(first_work);
     } else {
-      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth() * 2, self.options.max_work());
+      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth() * 2, self.options.max_work() * 2);
       for block_trace in block_traces {
         if self.options.print_block_trace() {
           println!("{:?}", block_trace);

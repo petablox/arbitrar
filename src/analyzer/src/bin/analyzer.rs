@@ -20,6 +20,9 @@ pub struct Options {
   #[structopt(short = "s", long)]
   pub use_serial: bool,
 
+  #[structopt(long)]
+  pub print_options: bool,
+
   /// Random seed
   #[structopt(long, takes_value = true, default_value = "12345", value_name = "SEED")]
   pub seed: u64,
@@ -249,6 +252,11 @@ impl FeatureExtractorOptions for Options {
 
 fn main() -> Result<(), String> {
   let options = Options::from_args();
+  if options.print_options {
+    println!("{:?}", options);
+  }
+
+  // Load a logging context
   let mut logging_ctx = LoggingContext::new(&options)?;
 
   // Load the byte code module and generate analyzer context

@@ -30,20 +30,6 @@ impl<'ctx> TraceWithTarget<'ctx> {
 
   pub fn reduce(self) -> Self {
     self
-    // let mut tracking = HashSet::new();
-
-    // let target = self.target();
-    // match &target.semantics {
-    //   Semantics::Call { args, .. } => {
-    //     for arg in args { tracking.insert(arg.clone()); }
-    //   }
-    //   _ => {}
-    // }
-    // if let Some(target_ret) = &target.result {
-    //   tracking.insert(target_ret.clone());
-    // }
-
-    // panic!("Not implemented")
   }
 
   pub fn to_json(&self) -> serde_json::Value {
