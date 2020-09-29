@@ -34,12 +34,13 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     let mut arg_check_is_zero = false;
     let mut is_constant = false;
     let mut is_global = false;
+    let mut is_alloca = false;
     let mut is_arg = false;
 
     let arg = trace.target_arg(self.index);
 
     // Setup kind of argument
-    arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant);
+    arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
 
     // Checks
     for (i, instr) in trace
@@ -96,11 +97,18 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       "is_arg": is_arg,
       "is_constant": is_constant,
       "is_global": is_global,
+      "is_alloca": is_alloca,
     })
   }
 }
 
-fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &mut bool) {
+fn arg_type(
+  arg: &Value,
+  is_global: &mut bool,
+  is_arg: &mut bool,
+  is_constant: &mut bool,
+  is_alloca: &mut bool
+) {
   // Setup kind of argument
   match arg {
     Value::Glob(_) => {
@@ -113,7 +121,11 @@ fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &
       *is_constant = true;
     }
     Value::GEP { loc, .. } => {
-      arg_type(&*loc, is_global, is_arg, is_constant);
+      arg_type(&*loc, is_global, is_arg, is_constant, is_alloca);
+    }
+    Value::AllocOf(v) => {
+      *is_alloca = true;
+      arg_type(&*v, is_global, is_arg, is_constant, is_alloca);
     }
     _ => {}
   }

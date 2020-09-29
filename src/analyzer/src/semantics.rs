@@ -100,6 +100,7 @@ macro_rules! decl_value_with_wrapper {
       Glob(String),    // Global Value Name
       Func(String),    // Function Name
       Alloc(usize),    // Local alloca ID
+      AllocOf($wrapper<Value>),
       FuncPtr,
       Asm,
       Int(i64),

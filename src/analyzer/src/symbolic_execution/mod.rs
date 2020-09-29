@@ -7,6 +7,7 @@ mod metadata;
 mod state;
 mod trace;
 mod work;
+mod options;
 
 pub use block_tracer::*;
 pub use constraints::*;
@@ -17,3 +18,4 @@ pub use metadata::*;
 pub use state::*;
 pub use trace::*;
 pub use work::*;
+pub use options::*;

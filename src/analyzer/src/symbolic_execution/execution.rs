@@ -6,34 +6,11 @@ use std::fs;
 use std::rc::Rc;
 
 use crate::call_graph::*;
-use crate::options::*;
 use crate::semantics::{rced::*, *};
 use crate::slicer::*;
 use crate::utils::*;
 
 use super::*;
-
-pub trait SymbolicExecutionOptions: GeneralOptions + IOOptions + Send + Sync {
-  fn slice_depth(&self) -> usize;
-
-  fn max_work(&self) -> usize;
-
-  fn no_random_work(&self) -> bool;
-
-  fn max_node_per_trace(&self) -> usize;
-
-  fn max_explored_trace_per_slice(&self) -> usize;
-
-  fn max_trace_per_slice(&self) -> usize;
-
-  fn no_trace_reduction(&self) -> bool;
-
-  fn no_prefilter_block_trace(&self) -> bool;
-
-  fn print_block_trace(&self) -> bool;
-
-  fn print_trace(&self) -> bool;
-}
 
 pub struct SymbolicExecutionContext<'a, 'ctx, O>
 where
@@ -166,7 +143,14 @@ where
     match operand {
       Operand::Instruction(instr) => {
         if state.stack.top().memory.contains_key(&instr) {
-          state.stack.top().memory[&instr].clone()
+          let val = state.stack.top().memory[&instr].clone();
+          match &*val {
+            Value::Alloc(_) => match state.memory.get(&val) {
+              Some(value) => Rc::new(Value::AllocOf(value.clone())),
+              None => val
+            }
+            _ => val
+          }
         } else {
           match instr {
             Instruction::Alloca(_) => {
@@ -189,6 +173,7 @@ where
   pub fn load_from_memory(&self, state: &mut State<'ctx>, location: Rc<Value>) -> Rc<Value> {
     match &*location {
       Value::Unknown => Rc::new(Value::Unknown),
+      Value::AllocOf(v) => v.clone(),
       _ => match state.memory.get(&location) {
         Some(value) => value.clone(),
         None => {
