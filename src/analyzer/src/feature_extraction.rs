@@ -3,7 +3,6 @@ use rayon::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::fs::File;
 use std::path::PathBuf;
 
 use crate::feature_extractors::*;
@@ -195,8 +194,7 @@ where
       .into_par_iter()
       .map(|slice_id| {
         let path = self.options.slice_target_file_path(target.as_str(), slice_id);
-        let file = File::open(path).expect("Could not open slice file");
-        serde_json::from_reader(file).expect("Cannot parse slice file")
+        load_json_t(&path).expect("Cannot load slice files")
       })
       .collect::<Vec<_>>()
   }
@@ -213,8 +211,7 @@ where
   }
 
   pub fn load_trace(&self, path: &PathBuf) -> Trace {
-    let trace_file = File::open(path).expect("Could not open trace file");
-    serde_json::from_reader(trace_file).expect("Cannot parse trace file")
+    load_json_t(path).expect("Cannot load trace file")
   }
 
   pub fn extract_features(&self) {

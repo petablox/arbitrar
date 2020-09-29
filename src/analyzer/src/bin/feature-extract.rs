@@ -3,7 +3,6 @@ use rayon::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -90,8 +89,7 @@ pub struct Input {
 
 impl Input {
   pub fn from_options(options: &Options) -> Self {
-    let input_file = File::open(PathBuf::from(&options.input)).expect("Cannot open input file");
-    serde_json::from_reader(input_file).expect("Cannot parse input file")
+    load_json_t(&options.input_path()).expect("Cannot load input")
   }
 }
 
@@ -100,8 +98,7 @@ pub type TargetPackageNumSlicesMap = HashMap<String, Vec<(String, usize)>>;
 pub type Packages<'ctx> = HashMap<String, (Module<'ctx>, HashMap<String, FunctionType<'ctx>>)>;
 
 fn load_slice(path: PathBuf) -> Slice {
-  let trace_file = File::open(path).expect("Could not open slice file");
-  serde_json::from_reader(trace_file).expect("Cannot parse slice file")
+  load_json_t(&path).expect("Cannot load slice file")
 }
 
 fn load_slices(options: &Options, target: &str, package: &str, num_slices: usize) -> Vec<Slice> {
@@ -127,8 +124,7 @@ fn load_trace_file_paths(options: &Options, target: &str, package: &str, slice_i
 }
 
 pub fn load_trace(path: PathBuf) -> Trace {
-  let trace_file = File::open(path).expect("Could not open trace file");
-  serde_json::from_reader(trace_file).expect("Cannot parse trace file")
+  load_json_t(&path).expect("Cannot load trace file")
 }
 
 pub fn func_types<'ctx>(packages: &Packages<'ctx>, target: &str) -> Option<FunctionType<'ctx>> {

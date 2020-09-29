@@ -129,7 +129,7 @@ impl GeneralOptions for Options {
   }
 
   fn seed(&self) -> u64 {
-    self.seed as u64
+    self.seed
   }
 }
 
