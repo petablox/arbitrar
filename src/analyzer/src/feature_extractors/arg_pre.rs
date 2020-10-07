@@ -135,6 +135,9 @@ fn arg_type(
     Value::GEP { loc, .. } => {
       arg_type(&*loc, is_global, is_arg, is_constant, is_alloca);
     }
+    Value::Alloc(_) => {
+      *is_alloca = true;
+    }
     Value::AllocOf(v) => {
       *is_alloca = true;
       arg_type(&*v, is_global, is_arg, is_constant, is_alloca);
