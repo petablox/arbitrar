@@ -135,8 +135,12 @@ def install_libs(db: Database, pkg: Pkg):
   new_libs = []
   for l in libs:
     name = l.split("/")[-1]
-    shutil.copy(l, f"{pkg_dir}/source")
-    new_libs.append(("lib", f"{pkg_dir}/source/{name}"))
+    if os.path.exists(f"{pkg_dir}/source/{name}"):
+      copied_name = name + "_dedup"
+    else:
+      copied_name = name
+    shutil.copy(l, f"{pkg_dir}/source/{copied_name}")
+    new_libs.append(("lib", f"{pkg_dir}/source/{copied_name}"))
 
   # Going to also look for some ndirs = ["bin", "sbin", "usr/bin", "usr/sbin"]
 
@@ -155,8 +159,12 @@ def install_libs(db: Database, pkg: Pkg):
 
   for b in binaries:
     name = b.split("/")[-1]
-    shutil.copy(b, f"{pkg_dir}/source")
-    new_libs.append(("bin", f"{name}"))
+    if os.path.exists(f"{pkg_dir}/source/{name}"):
+      copied_name = name + "_dedup"
+    else:
+      copied_name = name
+    shutil.copy(b, f"{pkg_dir}/source/{copied_name}")
+    new_libs.append(("bin", f"{pkg_dir}/source/{copied_name}"))
 
   return new_libs
 
