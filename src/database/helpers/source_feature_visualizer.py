@@ -68,7 +68,7 @@ class SourceFeatureVisualizer():
     if not os.path.exists(path):
       print(f"No file found at {path}")
     else:
-      with open(path, "r") as f:
+      with open(path, "r", encoding="ISO-8859-1") as f:
         lcount = 1
         lmin = max(0, line - padding)
         lmax = line + padding
