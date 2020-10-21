@@ -35,6 +35,7 @@ class ActiveLearner:
     elif self.args.function_spec:
       spec = FunctionSpec(self.args.function_spec)
     else:
+      is_interactive = True
       vis = SourceFeatureVisualizer()
 
     try:
@@ -91,10 +92,20 @@ class ActiveLearner:
               self.feedback((j, self.xs[j]), is_alarm)
               ps = [(i, x) for (i, x) in ps if i != j]
 
-              # Simulate the process
               if is_alarm:
-                outlier_count += 1
-              auc_graph.append(outlier_count)
+                pospoints.append((dp_j, attempt_count))
+
+              # Simulate the process
+              if not is_interactive:
+                if is_alarm:
+                  outlier_count += 1
+                auc_graph.append(outlier_count)
+
+          if is_interactive:
+            if is_alarm:
+              outlier_count += 1
+            auc_graph.append(outlier_count)
+
         else:
           self.feedback(item, is_alarm)
           ps = [(i, x) for (i, x) in ps if i != p_i]

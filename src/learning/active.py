@@ -47,6 +47,7 @@ def setup_parser(parser):
   parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')
   parser.add_argument('--no-retval', action='store_true', help='Does not include retval features')
   parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
+  parser.add_argument('--no-control-flow', action='store_true', help='Does not include control flow features')
 
   # Setup learner specific arguments
   for learner in learners.values():
@@ -67,7 +68,8 @@ def main(args):
   feature_groups = FeatureGroups(sample_feature_json,
                                  enable_causality=not args.no_causality,
                                  enable_retval=not args.no_retval,
-                                 enable_argval=not args.no_argval)
+                                 enable_argval=not args.no_argval,
+                                 enable_control_flow=not args.no_control_flow)
 
   for dp in datapoints:
     dp.apply_feature_groups(feature_groups)
