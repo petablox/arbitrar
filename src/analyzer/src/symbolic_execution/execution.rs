@@ -437,7 +437,7 @@ where
     env: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
     // If is intrinsic call, skip the instruction
-    if instr.is_intrinsic_call() {
+    if instr.is_dummy_intrinsic_call() {
       instr.next_instruction()
     } else {
       // Visit call for block trace guidance

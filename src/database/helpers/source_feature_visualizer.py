@@ -82,7 +82,7 @@ class SourceFeatureVisualizer():
               self.left_window.addstr(f"    {lcount}:{l}", curses.color_pair(colr))
           lcount += 1
 
-    feature = datapoint.feature()
+    feature = datapoint.grouped_feature()
     if feature:
       formatted = pp.pformat(feature).splitlines()
       for l, t in enumerate(formatted):

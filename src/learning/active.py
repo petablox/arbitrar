@@ -69,7 +69,8 @@ def main(args):
                                  enable_retval=not args.no_retval,
                                  enable_argval=not args.no_argval)
 
-  feature_groups = FeatureGroups(sample_feature_json)
+  for dp in datapoints:
+    dp.apply_feature_groups(feature_groups)
 
   print("Encoding Features...")
   xs = [np.array(feature_groups.encode(feature)) for feature in feature_jsons]

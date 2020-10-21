@@ -24,11 +24,21 @@ class FeatureGroup:
     return len(self.fields)
 
   def encode(self, feature_json) -> List[int]:
-    j = utils.get_dot_separated_field(feature_json, self.field())
+    j = self.get_from_json(feature_json)
     if j != None and isinstance(j, dict):
-      return [int(j[f]) if j[f] != None else -1 for f in self.fields]
+      try:
+        return [int(j[f]) if j[f] != None else -1 for f in self.fields]
+      except:
+        print(j, self.fields)
+        exit()
     else:
       raise Exception(f"Cannot get field {self.field()} from json {feature_json}")
+
+  def get_from_json(self, feature_json):
+    return feature_json[self.field()]
+
+  def contained_in_json(self, feature_json):
+    return self.field() in feature_json
 
 
 class ControlFlowFeatureGroup(FeatureGroup):
@@ -93,7 +103,13 @@ class RetvalFeatureGroup(FeatureGroup):
 
 
 class RetvalCheckFeatureGroup(FeatureGroup):
-  fields = ["checked", "br_eq_zero", "br_neq_zero", "compare_with"]
+  fields = [
+    "checked",
+    "br_eq_zero",
+    "br_neq_zero",
+    "compared_with_non_const",
+    "compared_with_zero"
+  ]
 
   def __init__(self, fixed=False):
     super().__init__(fixed)
@@ -128,23 +144,33 @@ class CausalityFeatureGroup(FeatureGroup):
   def default() -> dict:
     return {f: False for f in CausalityFeatureGroup.fields}
 
+  def get_from_json(self, feature_json):
+    return utils.get_dot_separated_field(self.field())
+
+  def contained_in_json(self, feature_json):
+    return utils.has_dot_separated_field(self.field())
+
 
 class FeatureGroups:
   def __init__(self,
                sample_feature_json,
                enable_loop=True,
-               enable_no_context=True,
+               enable_control_flow=True,
                enable_causality=True,
                enable_retval=True,
                enable_argval=True,
                fix_groups=[]):
     self.groups = []
 
-    if enable_loop and "loop" in sample_feature_json:
-      self.groups.append(LoopFeatureGroup())
+    if enable_loop:
+      group = LoopFeatureGroup()
+      if group.contained_in_json(sample_feature_json):
+        self.groups.append(group)
 
-    if "control_flow" in sample_feature_json:
-      self.groups.append(ControlFlowFeatureGroup())
+    if enable_control_flow:
+      group = ControlFlowFeatureGroup()
+      if group.contained_in_json(sample_feature_json):
+        self.groups.append(group)
 
     if enable_causality:
       for invoked_type in InvokedType:
@@ -153,18 +179,18 @@ class FeatureGroups:
 
     if enable_retval:
       retval_group = RetvalFeatureGroup()
-      if utils.has_dot_separated_field(sample_feature_json, retval_group.field()):
+      if retval_group.contained_in_json(sample_feature_json):
         self.groups.append(retval_group)
 
       retval_check_group = RetvalCheckFeatureGroup()
-      if utils.has_dot_separated_field(sample_feature_json, retval_check_group.field()):
+      if retval_group.contained_in_json(sample_feature_json):
         self.groups.append(retval_check_group)
 
     if enable_argval:
       for arg_i in [0, 1, 2, 3]:
         ith_arg_pre_group = ArgPreFeatureGroup(arg_i)
         ith_arg_post_group = ArgPostFeatureGroup(arg_i)
-        if utils.has_dot_separated_field(sample_feature_json, ith_arg_pre_group.field()):
+        if ith_arg_pre_group.contained_in_json(sample_feature_json):
           self.groups.append(ith_arg_pre_group)
           self.groups.append(ith_arg_post_group)
 
@@ -201,6 +227,9 @@ class FeatureGroups:
 
   def __len__(self) -> int:
     return len(self.groups)
+
+  def get_from_json(self, feature_json):
+    return {g.field(): g.get_from_json(feature_json) for g in self.groups}
 
   def encode(self, feature_json) -> np.ndarray:
     """

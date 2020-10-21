@@ -1,6 +1,30 @@
 use llir::{types::*, values::*, *};
 use std::collections::{HashMap, HashSet};
 
+pub trait CallInstrUtil<'ctx> {
+  fn is_dummy_intrinsic_call(&self) -> bool;
+}
+
+impl<'ctx> CallInstrUtil<'ctx> for CallInstruction<'ctx> {
+  fn is_dummy_intrinsic_call(&self) -> bool {
+    if self.is_intrinsic_call() {
+      let callee_function = self.callee_function();
+      match callee_function {
+        Some(function) => {
+          if function.name().contains("memset") {
+            false
+          } else {
+            true
+          }
+        }
+        None => true
+      }
+    } else {
+      false
+    }
+  }
+}
+
 pub trait FunctionTypeUtil<'ctx> {
   fn used_types(&self) -> Vec<Type<'ctx>>;
 }
@@ -23,7 +47,16 @@ impl<'ctx> FunctionUtil<'ctx> for Function<'ctx> {
   fn simp_name(&self) -> String {
     let name = self.name();
     match name.find('.') {
-      Some(i) => name[..i].to_string(),
+      Some(i) => {
+        if &name[..i] == "llvm" {
+          match name.chars().skip(i + 2).position(|c| c == '.') {
+            Some(j) => name[i + 1..i + 2 + j].to_string(),
+            None => name[i + 1..].to_string(),
+          }
+        } else {
+          name[..i].to_string()
+        }
+      },
       None => name,
     }
   }

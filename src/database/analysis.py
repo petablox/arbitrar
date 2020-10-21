@@ -14,6 +14,7 @@ class DataPoint:
     self._slice = slice
     self._trace = trace
     self._feature = feature
+    self._grouped_feature = feature
 
   def slice(self):
     if not self._slice:
@@ -29,6 +30,15 @@ class DataPoint:
     if not self._feature:
       self._feature = self.db.feature(self.func_name, self.bc, self.slice_id, self.trace_id)
     return self._feature
+
+  def apply_feature_groups(self, feature_groups):
+    self._grouped_feature = feature_groups.get_from_json(self.feature())
+
+  def grouped_feature(self):
+    if not self._grouped_feature:
+      return self.feature()
+    else:
+      return self._grouped_feature
 
   def labels(self):
     trace = self.trace()

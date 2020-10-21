@@ -42,25 +42,35 @@ pub trait GenerateBlockTraceTrait<'ctx> {
 
 impl<'ctx> GenerateBlockTraceTrait<'ctx> for CompositeBlockTrace<'ctx> {
   fn block_traces(&self) -> Vec<BlockTrace<'ctx>> {
-    let func_num_block_traces: Vec<usize> = self
-      .iter()
-      .map(|func_blk_trace| func_blk_trace.block_traces.len())
-      .collect();
-    let num_block_traces = func_num_block_traces.iter().product();
-    let mut block_traces = Vec::with_capacity(num_block_traces);
-    for indices in utils::cartesian(&func_num_block_traces) {
-      let block_trace = indices
+    if self.len() == 0 {
+      vec![]
+    } else {
+      let func_num_block_traces: Vec<usize> = self
         .iter()
-        .enumerate()
-        .map(|(i, j)| FunctionBlockTrace {
-          function: self[i].function,
-          block_trace: self[i].block_traces[*j].clone(),
-          call_instr: self[i].call_instr,
-        })
+        .map(|func_blk_trace| func_blk_trace.block_traces.len())
         .collect();
-      block_traces.push(block_trace);
+      let num_block_traces = func_num_block_traces.iter().product();
+      let mut block_traces = Vec::with_capacity(num_block_traces);
+      for indices in utils::cartesian(&func_num_block_traces) {
+        let block_trace = indices
+          .iter()
+          .enumerate()
+          .filter_map(|(i, j)| {
+            if i < self.len() && *j < self[i].block_traces.len() {
+              Some(FunctionBlockTrace {
+                function: self[i].function,
+                block_trace: self[i].block_traces[*j].clone(),
+                call_instr: self[i].call_instr,
+              })
+            } else {
+              None
+            }
+          })
+          .collect();
+        block_traces.push(block_trace);
+      }
+      block_traces
     }
-    block_traces
   }
 }
 
