@@ -145,10 +145,10 @@ class CausalityFeatureGroup(FeatureGroup):
     return {f: False for f in CausalityFeatureGroup.fields}
 
   def get_from_json(self, feature_json):
-    return utils.get_dot_separated_field(self.field())
+    return utils.get_dot_separated_field(feature_json, self.field())
 
   def contained_in_json(self, feature_json):
-    return utils.has_dot_separated_field(self.field())
+    return utils.has_dot_separated_field(feature_json, self.field())
 
 
 class FeatureGroups:
