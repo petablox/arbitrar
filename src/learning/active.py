@@ -38,6 +38,8 @@ def setup_parser(parser):
   parser.add_argument('--mark-similar', action='store_true')
   parser.add_argument('--padding', type=int, default=20)
 
+  parser.add_argument('--visualization', action='store_true')
+
   # You have to provide either source or ground-truth. When ground-truth is enabled, we will ignore source
   parser.add_argument('--source', type=str, help='The source program to refer to')
   parser.add_argument('--ground-truth', type=str)
@@ -85,7 +87,7 @@ def main(args):
   print("Active Learning...")
   active_learner = learners[args.active_learner]
   model = active_learner(datapoints, xs, amount_to_evaluate, args)
-  alarms, auc_graph, alarms_perc_graph, pospoints = model.run()
+  alarms, auc_graph, alarms_perc_graph, pospoints, tsne_anim = model.run()
 
   if args.ground_truth:
     print("Running Random Baseline...")
@@ -98,6 +100,9 @@ def main(args):
   # Dump lots of things
   print("Dumping result...")
   exp_dir = db.new_learning_dir(args.function)
+
+  # Dumping tsne animation
+  tsne_anim.anim.save(f"{exp_dir}/tsne_anim.mp4")
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
