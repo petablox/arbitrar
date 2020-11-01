@@ -63,23 +63,23 @@ impl Trace {
     self.target_instr().sem.call_args()[index]
   }
 
-  pub fn iter_instrs(&self, dir: TraceIterDirection) -> Vec<&Instr> {
+  pub fn iter_instrs(&self, dir: TraceIterDirection) -> Vec<(usize, &Instr)> {
     if dir.is_forward() {
-      self.instrs.iter().collect()
+      self.instrs.iter().enumerate().collect()
     } else {
-      self.instrs.iter().rev().collect()
+      self.instrs.iter().rev().enumerate().collect()
     }
   }
 
-  pub fn iter_instrs_from_target(&self, dir: TraceIterDirection) -> Vec<&Instr> {
+  pub fn iter_instrs_from_target(&self, dir: TraceIterDirection) -> Vec<(usize, &Instr)> {
     self.iter_instrs_from(dir, self.target)
   }
 
-  pub fn iter_instrs_from(&self, dir: TraceIterDirection, from: usize) -> Vec<&Instr> {
+  pub fn iter_instrs_from(&self, dir: TraceIterDirection, from: usize) -> Vec<(usize, &Instr)> {
     if dir.is_forward() {
-      self.instrs.iter().skip(from + 1).collect::<Vec<_>>()
+      self.instrs.iter().enumerate().skip(from + 1).collect::<Vec<_>>()
     } else {
-      self.instrs.iter().take(from).rev().collect::<Vec<_>>()
+      self.instrs.iter().enumerate().take(from).rev().collect::<Vec<_>>()
     }
   }
 }

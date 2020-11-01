@@ -40,10 +40,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     let retval = trace.target_result().clone().unwrap();
 
     // Start iterating from the target node
-    for (i, instr) in trace
-      .iter_instrs_from_target(TraceIterDirection::Forward)
-      .iter()
-      .enumerate()
+    for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Forward)
     {
       match &instr.sem {
         Semantics::Call { args, .. } => {

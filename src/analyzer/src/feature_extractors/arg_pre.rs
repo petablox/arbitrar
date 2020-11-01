@@ -47,11 +47,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
 
       // Checks
-      for (i, instr) in trace
-        .iter_instrs_from_target(TraceIterDirection::Backward)
-        .iter()
-        .enumerate()
-      {
+      for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Backward) {
         match &instr.sem {
           Semantics::ICmp { pred, op0, op1 } => {
             let arg_is_op0 = **op0 == arg;
@@ -66,7 +62,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 
                   // Search for a branch instruction after the icmp
                   // Only go 5 steps forward
-                  for maybe_br in trace.iter_instrs_from(TraceIterDirection::Forward, i).iter().take(5) {
+                  for (_, maybe_br) in trace.iter_instrs_from(TraceIterDirection::Forward, i).iter().take(5) {
                     match &maybe_br.sem {
                       Semantics::CondBr { cond, br, .. } => {
                         if &**cond == &instr.res.clone().unwrap() {

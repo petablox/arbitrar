@@ -49,11 +49,7 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
     for arg in args_to_check {
 
       // Iterate forward
-      for (i, instr) in trace
-        .iter_instrs_from_target(TraceIterDirection::Forward)
-        .iter()
-        .enumerate()
-      {
+      for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Forward) {
         match &instr.sem {
           Semantics::Call { args, .. } => {
             if args.iter().find(|a| ***a == arg).is_some() {

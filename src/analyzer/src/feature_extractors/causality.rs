@@ -101,7 +101,7 @@ fn find_mostly_used_functions(map: &HashMap<String, f32>, k: usize) -> Vec<Strin
 
 fn find_caused_functions(trace: &Trace, dir: TraceIterDirection) -> HashMap<String, usize> {
   let mut result = HashMap::new();
-  for instr in trace.iter_instrs(dir) {
+  for (_, instr) in trace.iter_instrs(dir) {
     match &instr.sem {
       Semantics::Call { func, .. } => match &**func {
         Value::Func(f) => {
@@ -173,7 +173,7 @@ fn find_function_causality(
 ) -> Vec<FunctionCausalityFeatures> {
   let mut result = vec![FunctionCausalityFeatures::default(); funcs.len()];
   let target_instr = &trace.instrs[trace.target];
-  for instr in trace.iter_instrs_from_target(dir) {
+  for (_, instr) in trace.iter_instrs_from_target(dir) {
     match &instr.sem {
       Semantics::Call { func, .. } => {
         match &**func {
