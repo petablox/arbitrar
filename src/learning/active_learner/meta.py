@@ -129,9 +129,9 @@ class ActiveLearner:
           if is_alarm:
             pospoints.append((dp_i, attempt_count))
             outlier_count += 1
-            self.xs_fitted_colors[j] = 'r'
+            self.xs_fitted_colors[p_i] = 'r'
           else:
-            self.xs_fitted_colors[j] = 'g'
+            self.xs_fitted_colors[p_i] = 'g'
           auc_graph.append(outlier_count)
 
         animation_frames.append(copy.deepcopy(self.xs_fitted_colors))
