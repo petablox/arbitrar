@@ -11,10 +11,11 @@ impl<'ctx> CallInstrUtil<'ctx> for CallInstruction<'ctx> {
       let callee_function = self.callee_function();
       match callee_function {
         Some(function) => {
-          if function.name().contains("memset") {
-            false
-          } else {
+          let name = function.name();
+          if name.contains("dbg") || name.contains("eh") || name.contains("lifetime") {
             true
+          } else {
+            false
           }
         }
         None => true
