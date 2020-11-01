@@ -24,6 +24,8 @@ pub trait SlicerOptions: GeneralOptions + Send + Sync {
   fn target_exclusion_filter(&self) -> &Option<String>;
 
   fn use_regex_filter(&self) -> bool;
+
+  fn max_avg_num_blocks(&self) -> usize;
 }
 
 #[derive(Clone)]
@@ -344,7 +346,14 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
     let entry_ids = self.find_entries(edge_id, options);
     entry_ids
       .into_iter()
-      .map(|entry_id| self.slice_of_entry(entry_id, edge_id, options))
+      .filter_map(|entry_id| {
+        let slice = self.slice_of_entry(entry_id, edge_id, options);
+        if needs_include_slice(&slice, options) {
+          Some(slice)
+        } else {
+          None
+        }
+      })
       .collect()
   }
 
@@ -356,6 +365,14 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
       edges.par_iter().map(f).flatten().collect()
     }
   }
+}
+
+fn needs_include_slice<'ctx>(slice: &Slice<'ctx>, options: &impl SlicerOptions) -> bool {
+  let sum_of_blocks = slice.functions.iter().fold(0, |agg, func| {
+    agg + func.num_blocks()
+  });
+  let avg_num_blocks = sum_of_blocks / slice.functions.len();
+  avg_num_blocks < options.max_avg_num_blocks()
 }
 
 fn directly_related<'ctx>(f1: &Function<'ctx>, f2: &Function<'ctx>) -> bool {

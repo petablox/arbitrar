@@ -31,6 +31,15 @@ pub struct Options {
   #[structopt(long)]
   pub no_remove_llvm_funcs: bool,
 
+  /// Maximum number of blocks per slice
+  #[structopt(
+    long,
+    takes_value = true,
+    default_value = "250",
+    value_name = "MAX_AVG_NUM_BLOCKS"
+  )]
+  pub max_avg_num_blocks: usize,
+
   /// Print call graph
   #[structopt(long)]
   pub print_call_graph: bool,
@@ -199,6 +208,10 @@ impl SlicerOptions for Options {
 
   fn use_regex_filter(&self) -> bool {
     self.use_regex_filter
+  }
+
+  fn max_avg_num_blocks(&self) -> usize {
+    self.max_avg_num_blocks
   }
 }
 
