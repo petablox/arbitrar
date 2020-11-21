@@ -137,14 +137,6 @@ class ActiveLearner:
         animation_frames.append(copy.deepcopy(self.xs_fitted_colors))
         # tsne_ax.scatter(self.xs_fitted[:, 0], self.xs_fitted[:, 1], c=self.xs_fitted_colors, s=2)
 
-        # Mark similar
-        # if self.args.mark_similar:
-        #   for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
-        #     dp_j = self.datapoints[j]
-        #     if dp_j.slice_id == dp_i.slice_id and x_to_string(self.xs[j]) == x_to_string(self.xs[p_i]):
-        #       self.feedback((j, self.xs[j]), is_alarm)
-        #       ps = [(i, x) for (i, x) in ps if i != j]
-
         # Alarms Percentage Graph
         if self.args.ground_truth:
           alarms = self.alarms(self.num_outliers)

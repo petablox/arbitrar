@@ -1,6 +1,11 @@
 # Use our MISAPI tool to do experiment
 
-There are 4 stages of using our `misapi` tool, and each of them can work fairly independently. They are "collect", "analyze", "database" and finally "learn". We are going to talk about these separately
+The `misapi` tool statically finds API Misuse bugs in programs that can be compiled to LLVM IR, such as C, C++, and so on.
+
+The tool works in 3 stages:
+- `collect`, to collect the source codes for analysis
+- `analyze`, to analyze and produce traces and features
+- `learn`, to find the bugs interactively
 
 ## 0. Access server & server folder setup
 
@@ -39,7 +44,7 @@ This is the source code folder containing our tool. The entry point is exactly t
 
 ### 0.2 `programs` folder
 
-I use this folder to store any precompiled libraries, including Linux Kernel. I currently have two versions, `4.5-rc4` and `5.7-rc5`. You can find the compiled bc file at `/home/aspire/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc` and `/home/aspire/programs/linux_kernel/linux-5.7-rc5/vmlinux.bc`
+I use this folder to store any large precompiled programs, including Linux Kernel. I currently have two versions, `4.5-rc4` and `5.7-rc5`. You can find the compiled bc file at `/home/aspire/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc` and `/home/aspire/programs/linux_kernel/linux-5.7-rc5/vmlinux.bc`
 
 ## 1. `collect` step
 
@@ -98,7 +103,7 @@ Let's get started with defining a new `packages.json`. Create this file and edit
 
 So this `packages.json` will contain a JSON array, each of which is a package in the form of JSON object. Each package object must contain a "name" field, used to identify the package and has to be unique. Then you provide "pkg_src" representing the source of the package. Now, for "src_type" you can either put `"github"` or `"debian"`. If you are pulling from a github source, then in the `"link"` field you should provide the full link to the repository; if you are pulling a Debian package, you just provide the name of that package in Debian package registry. In case you can't find a specific Debian package, feel free to use `sudo apt-get ...`  to direct the registries.
 
-After you finish setting up your `packages.json`, you just need to say
+After you finish setting up your `packages.json`, simply run
 
 ```
 $ misapi collect packages.json
@@ -358,7 +363,7 @@ A features file looks like this
 }
 ```
 
-Most of the features are true and false. So you can use this file to check if there's any hold inside the analyzer.
+Most of the features are true and false.
 
 Each **trace** will correspond to exactly one **features json**, so they share similar file path
 

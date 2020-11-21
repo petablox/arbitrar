@@ -140,6 +140,8 @@ fn main() -> Result<(), String> {
   let options = Options::from_args();
   let input = Input::from_options(&options);
 
+  println!("Loading modules...");
+
   let llctx = Context::create();
   let mut packages = Packages::new();
   for inp_pkg in input.packages {
@@ -152,6 +154,8 @@ fn main() -> Result<(), String> {
     return Err("No packages included".to_string());
   }
 
+  println!("Building target map...");
+
   let mut target_map = TargetPackageNumSlicesMap::new();
   for input_function in input.functions {
     target_map.insert(input_function.name, input_function.occurrences);
@@ -161,6 +165,8 @@ fn main() -> Result<(), String> {
     let func_type = func_types(&packages, &target).unwrap();
 
     let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type, &options);
+
+    println!("Initializing feature extractors for {}...", target);
 
     for (package, num_slices) in &package_num_slices {
       let slices = load_slices(&options, &target, &package, num_slices.clone());
@@ -178,6 +184,8 @@ fn main() -> Result<(), String> {
     }
 
     extractors.finalize();
+
+    println!("Extracting features for {}...", target);
 
     package_num_slices.into_par_iter().for_each(|(package, num_slices)| {
       let slices = load_slices(&options, &target, &package, num_slices);
