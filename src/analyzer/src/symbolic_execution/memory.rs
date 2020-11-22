@@ -6,7 +6,7 @@ use crate::semantics::rced::*;
 
 pub type LocalMemory<'ctx> = HashMap<Instruction<'ctx>, Rc<Value>>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StackFrame<'ctx> {
   pub function: Function<'ctx>,
   pub instr: Option<(usize, CallInstruction<'ctx>)>,
@@ -54,7 +54,7 @@ impl<'ctx> StackTrait<'ctx> for Stack<'ctx> {
 
 pub type Memory = HashMap<Rc<Value>, Rc<Value>>;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct BranchDirection<'ctx> {
   pub from: Block<'ctx>,
   pub to: Block<'ctx>,

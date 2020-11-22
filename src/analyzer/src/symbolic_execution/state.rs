@@ -9,7 +9,7 @@ use super::trace::*;
 use crate::semantics::rced::*;
 use crate::slicer::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum FinishState {
   ProperlyReturned,
   BranchExplored,
@@ -17,7 +17,7 @@ pub enum FinishState {
   Unreachable,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct State<'ctx> {
   pub stack: Stack<'ctx>,
   pub memory: Memory,

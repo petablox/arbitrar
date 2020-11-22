@@ -74,7 +74,7 @@ impl<'ctx> GenerateBlockTraceTrait<'ctx> for CompositeBlockTrace<'ctx> {
   }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BlockTraceIterator<'ctx> {
   pub block_trace: BlockTrace<'ctx>,
   pub function_id: usize,

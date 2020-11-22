@@ -53,6 +53,21 @@ pub struct Options {
   )]
   pub slice_depth: usize,
 
+  /// Execute only slice
+  #[structopt(
+    long,
+    takes_value = true,
+    value_name = "EXECUTE_ONLY_SLICE_ID"
+  )]
+  pub execute_only_slice_id: Option<usize>,
+
+  #[structopt(
+    long,
+    takes_value = true,
+    value_name = "EXECUTE_ONLY_SLICE_NAME"
+  )]
+  pub execute_only_slice_function_name: Option<String>,
+
   #[structopt(long, takes_value = true, value_name = "INCLUDE_TARGET")]
   pub target_inclusion_filter: Option<String>,
 
@@ -301,24 +316,57 @@ fn main() -> Result<(), String> {
     logging_ctx.log_generated_slices(target_slices_map.num_elements())?;
     target_slices_map.dump(&options);
 
-    // Divide target slices into batches
-    logging_ctx.log_dividing_batches(options.use_batch)?;
-    let mut global_metadata = MetaData::new();
-    for (i, target_slices_map) in target_slices_map.batches(options.use_batch, options.batch_size) {
-      // Generate slices from the edges
-      logging_ctx.log_executing_batch(i, options.use_batch, target_slices_map.num_elements())?;
-      let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options);
-      let metadata = sym_exec_ctx.execute_target_slices_map(target_slices_map);
-      global_metadata = global_metadata.combine(metadata.clone());
-      logging_ctx.log_finished_execution_batch(i, options.use_batch, metadata)?;
-    }
-    logging_ctx.log_finished_execution(options.use_batch, global_metadata)?;
+    if let Some(slice_id) = &options.execute_only_slice_id {
 
-    if let Some(filename) = options.target_num_slices_map_path() {
-      target_num_slices_map.dump(filename)?;
-    }
+      let func_name = if let Some(func_name) = &options.execute_only_slice_function_name {
+        func_name
+      } else {
+        return Err(format!("Must provide function name"));
+      };
 
-    target_num_slices_map
+      // Only execute slice
+      logging_ctx.log(&format!("Executing the only slice for function {} and slice id {}", func_name, slice_id))?;
+
+      return if let Some(slices) = target_slices_map.get(func_name) {
+
+        if let Some(slice) = slices.get(*slice_id) {
+
+          // Do symbolic execution on that single slice
+          let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options);
+          let metadata = sym_exec_ctx.execute_slice(slice.clone(), *slice_id);
+
+          // Print the result
+          logging_ctx.log(&format!("Result executing slice {} {} {:?}", func_name, slice_id, metadata))?;
+
+          Ok(())
+        } else {
+          Err(format!("Cannot find slice for function {} with slice id {}", func_name, slice_id))
+        }
+      } else {
+
+        Err(format!("Cannot find slice for function {}", func_name))
+      }
+    } else {
+
+      // Divide target slices into batches
+      logging_ctx.log_dividing_batches(options.use_batch)?;
+      let mut global_metadata = MetaData::new();
+      for (i, target_slices_map) in target_slices_map.batches(options.use_batch, options.batch_size) {
+        // Generate slices from the edges
+        logging_ctx.log_executing_batch(i, options.use_batch, target_slices_map.num_elements())?;
+        let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options);
+        let metadata = sym_exec_ctx.execute_target_slices_map(target_slices_map);
+        global_metadata = global_metadata.combine(metadata.clone());
+        logging_ctx.log_finished_execution_batch(i, options.use_batch, metadata)?;
+      }
+      logging_ctx.log_finished_execution(options.use_batch, global_metadata)?;
+
+      if let Some(filename) = options.target_num_slices_map_path() {
+        target_num_slices_map.dump(filename)?;
+      }
+
+      target_num_slices_map
+    }
   } else {
     // If not, we directly load slices information from file
     load_target_num_slices_map(target_edges_map, &options)

@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use crate::semantics::rced::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TraceNode<'ctx> {
   pub instr: Instruction<'ctx>,
   pub semantics: Semantics,

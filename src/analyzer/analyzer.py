@@ -31,6 +31,8 @@ def setup_parser(parser):
   parser.add_argument('--no-random-work', action='store_true')
   parser.add_argument('--print-call-graph', action='store_true')
   parser.add_argument('--print-options', action='store_true')
+  parser.add_argument('--exec-only-slice-fn-name', type=str)
+  parser.add_argument('--exec-only-slice-id', type=int)
 
 
 def generate_temp_folder_name():
@@ -127,6 +129,12 @@ def get_analyzer_args(db, bc_file, args, temp_folder=None, extract_features=Fals
 
   if args.print_options:
     base_args += ['--print-options']
+
+  if args.exec_only_slice_fn_name and args.exec_only_slice_id:
+    base_args += [
+      '--execute-only-slice-id', str(args.exec_only_slice_id),
+      '--execute-only-slice-function-name', args.exec_only_slice_fn_name
+    ]
 
   return base_args
 
