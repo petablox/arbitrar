@@ -8,7 +8,7 @@ import subprocess
 import datetime
 
 from .package import *
-from .analysis import *
+from .datapoint import *
 from .utils import *
 
 

@@ -5,7 +5,7 @@ from os import system
 from termcolor import cprint
 import curses
 
-from ..analysis import DataPoint
+from ..datapoint import DataPoint
 
 
 class SourceFeatureVisualizer():

@@ -282,6 +282,19 @@ macro_rules! decl_value_with_wrapper {
           _ => panic!("Target is not a call"),
         }
       }
+
+      pub fn call_arg(&self, index: usize) -> Option<&Value> {
+        match self {
+          Semantics::Call { args, .. } => {
+            if index < args.len() {
+              Some(&args[index])
+            } else {
+              None
+            }
+          }
+          _ => panic!("Target is not a call"),
+        }
+      }
     }
   };
 }

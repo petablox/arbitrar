@@ -31,6 +31,13 @@ class ActiveLearner:
     self.xs_fitted = tsne_fitter.fit_transform(self.xs)
     self.xs_fitted_colors = ['b' for _ in self.xs]
 
+  def mark(self, bc, slice_id, trace_id, is_bug):
+    for (j, dp) in enumerate(self.datapoints):
+      if dp.bc == bc and dp.slice_id == slice_id:
+        if trace_id == None or dp.trace_id == trace_id:
+          print("Marking ", bc, slice_id, trace_id, " as ", "bug" if is_bug else "non-bug")
+          self.feedback((j, self.xs[j]), is_bug)
+
   def run(self):
     log_end = "\n" if self.log_newline else "\r"
     ps = list(enumerate(self.xs))

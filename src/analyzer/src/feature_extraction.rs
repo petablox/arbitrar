@@ -59,8 +59,8 @@ impl Trace {
     self.target_instr().sem.call_args()
   }
 
-  pub fn target_arg(&self, index: usize) -> &Value {
-    self.target_instr().sem.call_args()[index]
+  pub fn target_arg(&self, index: usize) -> Option<&Value> {
+    self.target_instr().sem.call_arg(index)
   }
 
   pub fn iter_instrs(&self, dir: TraceIterDirection) -> Vec<(usize, &Instr)> {
