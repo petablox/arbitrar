@@ -18,7 +18,7 @@ impl<'ctx> CallInstrUtil<'ctx> for CallInstruction<'ctx> {
             false
           }
         }
-        None => true
+        None => true,
       }
     } else {
       false
@@ -57,7 +57,7 @@ impl<'ctx> FunctionUtil<'ctx> for Function<'ctx> {
         } else {
           name[..i].to_string()
         }
-      },
+      }
       None => name,
     }
   }

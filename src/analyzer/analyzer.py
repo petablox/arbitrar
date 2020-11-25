@@ -13,6 +13,7 @@ exclude_fn = r'^llvm\|^load\|^_tr_\|^_\.\|^OPENSSL_cleanse'
 
 analyzer = "target/release/analyzer"
 
+
 def setup_parser(parser):
   parser.add_argument('--bc', type=str, default="", help='The .bc file to analyze')
   parser.add_argument('--slice-depth', type=int, default=1, help='Slice depth')
@@ -78,12 +79,7 @@ def main(args):
 def get_analyzer_args(db, bc_file, args, temp_folder=None, extract_features=False):
   bc_name = ntpath.basename(bc_file)
 
-  base_args = [
-    bc_file,
-    db.analysis_dir(),
-    '--subfolder', bc_name,
-    '--slice-depth', str(args.slice_depth)
-  ]
+  base_args = [bc_file, db.analysis_dir(), '--subfolder', bc_name, '--slice-depth', str(args.slice_depth)]
 
   if extract_features == False:
     base_args += ['--no-feature']
@@ -132,8 +128,8 @@ def get_analyzer_args(db, bc_file, args, temp_folder=None, extract_features=Fals
 
   if args.exec_only_slice_fn_name and args.exec_only_slice_id:
     base_args += [
-      '--execute-only-slice-id', str(args.exec_only_slice_id),
-      '--execute-only-slice-function-name', args.exec_only_slice_fn_name
+        '--execute-only-slice-id',
+        str(args.exec_only_slice_id), '--execute-only-slice-function-name', args.exec_only_slice_fn_name
     ]
 
   return base_args
@@ -170,8 +166,8 @@ def generate_feature_extract_input(db, packages_functions, temp_folder):
         functions[func_name] = {"name": func_name, "occurrences": []}
       functions[func_name]["occurrences"].append([pkg_name, num_slices])
   result = {
-    "packages": packages,
-    "functions": list(functions.values()),
+      "packages": packages,
+      "functions": list(functions.values()),
   }
 
   filename = db.analysis_dir() + "/" + temp_folder + "/ALL.json"

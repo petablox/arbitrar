@@ -190,10 +190,7 @@ def train_and_test(args):
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
-    j = {
-        'before': list(sample_feature_json['before'].keys()),
-        'after': list(sample_feature_json['after'].keys())
-    }
+    j = {'before': list(sample_feature_json['before'].keys()), 'after': list(sample_feature_json['after'].keys())}
     json.dump(j, f)
 
   # Dump the Xs used to train the model

@@ -228,8 +228,12 @@ where
       let func_type = self.func_types[target];
       let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type, self.options);
 
+      println!("[{}]", extractors.extractors.iter().map(|e| e.name()).collect::<Vec<_>>().join(", "));
+
       // Load slices
       let slices = self.load_slices(&target, num_slices);
+
+      println!("Loaded all slices");
 
       // Initialize while loading traces
       (0..num_slices).for_each(|slice_id| {
@@ -237,16 +241,28 @@ where
         let traces = self
           .load_trace_file_paths(&target, slice_id)
           .into_par_iter()
-          .map(|(_, dir_entry)| self.load_trace(&dir_entry))
+          .map(|(trace_id, dir_entry)| {
+            print!("Loading slice {} trace {}\r", slice_id, trace_id);
+            use std::io::Write;
+            std::io::stdout().flush().unwrap();
+
+            let trace = self.load_trace(&dir_entry);
+            trace
+          })
           .collect::<Vec<_>>();
         let num_traces = traces.len();
+
         for trace in traces {
           extractors.initialize(slice, num_traces, &trace);
         }
       });
 
+      println!("Initialized extractors");
+
       // Finalize feature extractor initialization
       extractors.finalize();
+
+      println!("Finalized extractors");
 
       // Extract features
       slices.par_iter().enumerate().for_each(|(slice_id, slice)| {

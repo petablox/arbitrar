@@ -1,6 +1,7 @@
 from ..meta import Executor
 import shutil
 
+
 class RemoveAction(Executor):
   @staticmethod
   def setup_parser(parser):

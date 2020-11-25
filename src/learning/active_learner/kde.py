@@ -184,8 +184,8 @@ class KDELearner(ActiveLearner):
       'score_7': Score7
   }
 
-  def __init__(self, datapoints, xs, amount, args):
-    super().__init__(datapoints, xs, amount, args)
+  def __init__(self, datapoints, xs, amount, args, output_anim = False):
+    super().__init__(datapoints, xs, amount, args, output_anim = output_anim)
     if args.kde_bandwidth != None:
       self.bandwidth = args.kde_bandwidth
     else:
@@ -223,7 +223,8 @@ class KDELearner(ActiveLearner):
     mean_dist = np.mean(dists)
     low, high = mean_dist / 10.0, mean_dist * 10.0
     print(f"Selecting bandwidth from {low} to {high} with log scale...")
-    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=self.args.kde_cv)
+    cv = min(self.args.kde_cv if self.args.kde_cv else 5, len(xs))
+    grid = GridSearchCV(KernelDensity(), {'bandwidth': np.logspace(low, high, 10)}, cv=cv)
     grid.fit(X)
     bandwidth = grid.best_params_['bandwidth']
     print(f"Selected bandwidth: {bandwidth}")

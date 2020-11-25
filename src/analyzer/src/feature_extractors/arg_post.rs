@@ -48,7 +48,6 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
       let args_to_check = args_to_check(arg);
 
       for arg in args_to_check {
-
         // Iterate forward
         for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Forward) {
           match &instr.sem {
@@ -138,6 +137,6 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
 fn args_to_check(arg: &Value) -> Vec<Value> {
   match arg {
     Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
-    _ => vec![arg.clone()]
+    _ => vec![arg.clone()],
   }
 }

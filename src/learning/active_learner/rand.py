@@ -4,8 +4,8 @@ from .meta import ActiveLearner
 
 
 class RandomLearner(ActiveLearner):
-  def __init__(self, datapoints, xs, amount, args):
-    super().__init__(datapoints, xs, amount, args)
+  def __init__(self, datapoints, xs, amount, args, output_anim = False):
+    super().__init__(datapoints, xs, amount, args, output_anim = output_anim)
 
   @staticmethod
   def setup_parser(parser):

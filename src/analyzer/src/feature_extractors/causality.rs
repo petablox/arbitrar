@@ -235,15 +235,21 @@ fn tracked_res(instr: &Instr) -> Option<Vec<&Value>> {
   match &instr.res {
     Some(r) => Some(match r {
       Value::AllocOf(v) => vec![&r, &*v],
-      _ => vec![&r]
+      _ => vec![&r],
     }),
     None => None,
   }
 }
 
 fn tracked_args(instr: &Instr) -> Vec<&Value> {
-  instr.sem.call_args().into_iter().map(|a| match a {
-    Value::AllocOf(v) => vec![a, &**v],
-    _ => vec![a]
-  }).flatten().collect::<Vec<_>>()
+  instr
+    .sem
+    .call_args()
+    .into_iter()
+    .map(|a| match a {
+      Value::AllocOf(v) => vec![a, &**v],
+      _ => vec![a],
+    })
+    .flatten()
+    .collect::<Vec<_>>()
 }

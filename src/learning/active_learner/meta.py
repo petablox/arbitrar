@@ -8,28 +8,32 @@ import numpy as np
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
+
 def x_to_string(x):
   return "".join([str(x_i) for x_i in x.tolist()])
 
 
 class ActiveLearner:
-  def __init__(self, datapoints, xs, amount, args, log_newline=False):
+  def __init__(self, datapoints, xs, amount, args, log_newline=False, output_anim=False):
     self.datapoints = datapoints
     self.xs = xs
     self.amount = amount
     self.args = args
     self.log_newline = log_newline
-    if self.args.ground_truth:
-      if self.args.num_outliers != None:
-        self.num_outliers = self.args.num_outliers
-      else:
-        self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
+    self.output_anim = output_anim
+    # if self.args.ground_truth:
+    #   if self.args.num_outliers != None:
+    #     self.num_outliers = self.args.num_outliers
+    #   else:
+    #     print("Loading ground truth labels...")
+    #     self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
     self.explored_cache = {}
 
     # TSNE
-    tsne_fitter = TSNE(n_components=2, verbose=2, n_iter=500)
-    self.xs_fitted = tsne_fitter.fit_transform(self.xs)
-    self.xs_fitted_colors = ['b' for _ in self.xs]
+    if output_anim:
+      tsne_fitter = TSNE(n_components=2, verbose=2, n_iter=500)
+      self.xs_fitted = tsne_fitter.fit_transform(self.xs)
+      self.xs_fitted_colors = ['b' for _ in self.xs]
 
   def mark(self, bc, slice_id, trace_id, is_bug):
     for (j, dp) in enumerate(self.datapoints):
@@ -113,9 +117,11 @@ class ActiveLearner:
 
               if is_alarm:
                 pospoints.append((dp_j, attempt_count))
-                self.xs_fitted_colors[j] = 'r'
+                if self.output_anim:
+                  self.xs_fitted_colors[j] = 'r'
               else:
-                self.xs_fitted_colors[j] = 'g'
+                if self.output_anim:
+                  self.xs_fitted_colors[j] = 'g'
 
               # Simulate the process
               if not is_interactive:
@@ -136,26 +142,32 @@ class ActiveLearner:
           if is_alarm:
             pospoints.append((dp_i, attempt_count))
             outlier_count += 1
-            self.xs_fitted_colors[p_i] = 'r'
+            if self.output_anim:
+              self.xs_fitted_colors[p_i] = 'r'
           else:
-            self.xs_fitted_colors[p_i] = 'g'
+            if self.output_anim:
+              self.xs_fitted_colors[p_i] = 'g'
           auc_graph.append(outlier_count)
 
-        animation_frames.append(copy.deepcopy(self.xs_fitted_colors))
+        if self.output_anim:
+          animation_frames.append(copy.deepcopy(self.xs_fitted_colors))
+
         # tsne_ax.scatter(self.xs_fitted[:, 0], self.xs_fitted[:, 1], c=self.xs_fitted_colors, s=2)
 
         # Alarms Percentage Graph
-        if self.args.ground_truth:
-          alarms = self.alarms(self.num_outliers)
-          if len(alarms) > 0:
-            true_alarms = [(dp, score) for (dp, score) in alarms if dp.has_label(label=self.args.ground_truth)]
-            alarms_perc_graph.append(len(true_alarms) / len(alarms))
-          else:
-            alarms_perc_graph.append(0)
+        # if self.args.ground_truth:
+        #   alarms = self.alarms(self.num_outliers)
+        #   if len(alarms) > 0:
+        #     true_alarms = [(dp, score) for (dp, score) in alarms if dp.has_label(label=self.args.ground_truth)]
+        #     alarms_perc_graph.append(len(true_alarms) / len(alarms))
+        #   else:
+        #     alarms_perc_graph.append(0)
 
     except SystemExit:
       print("Aborting")
       sys.exit()
+    except KeyboardInterrupt:
+      print("Stopping...")
     except Exception as err:
       if self.args.source:
         vis.destroy()
@@ -167,7 +179,10 @@ class ActiveLearner:
     else:
       print("")
 
-    tsne_animation = AnimatedScatter(self.xs_fitted, animation_frames)
+    if self.output_anim:
+      tsne_animation = AnimatedScatter(self.xs_fitted, animation_frames)
+    else:
+      tsne_animation = None
 
     # return the result alarms and auc_graph
     return self.alarms(self.args.num_alarms), auc_graph, alarms_perc_graph, pospoints, tsne_animation

@@ -8,6 +8,7 @@ import string
 
 this_path = os.path.dirname(os.path.realpath(__file__))
 
+
 def setup_parser(parser):
   parser.add_argument('--bc', type=str, default="", help='The .bc file to analyze')
 

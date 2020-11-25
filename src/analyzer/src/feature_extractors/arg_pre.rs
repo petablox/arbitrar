@@ -43,7 +43,6 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
       let args_to_check = args_to_check(arg);
 
       for arg in args_to_check {
-
         // Setup kind of argument
         arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
 
@@ -108,17 +107,11 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 fn args_to_check(arg: &Value) -> Vec<Value> {
   match arg {
     Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
-    _ => vec![arg.clone()]
+    _ => vec![arg.clone()],
   }
 }
 
-fn arg_type(
-  arg: &Value,
-  is_global: &mut bool,
-  is_arg: &mut bool,
-  is_constant: &mut bool,
-  is_alloca: &mut bool
-) {
+fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &mut bool, is_alloca: &mut bool) {
   // Setup kind of argument
   match arg {
     Value::Glob(_) => {

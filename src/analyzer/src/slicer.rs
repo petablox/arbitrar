@@ -368,9 +368,7 @@ impl<'ctx> Slicer<'ctx> for CallGraph<'ctx> {
 }
 
 fn needs_include_slice<'ctx>(slice: &Slice<'ctx>, options: &impl SlicerOptions) -> bool {
-  let sum_of_blocks = slice.functions.iter().fold(0, |agg, func| {
-    agg + func.num_blocks()
-  });
+  let sum_of_blocks = slice.functions.iter().fold(0, |agg, func| agg + func.num_blocks());
   let avg_num_blocks = sum_of_blocks / slice.functions.len();
   avg_num_blocks < options.max_avg_num_blocks()
 }

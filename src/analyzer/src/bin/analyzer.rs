@@ -32,12 +32,7 @@ pub struct Options {
   pub no_remove_llvm_funcs: bool,
 
   /// Maximum number of blocks per slice
-  #[structopt(
-    long,
-    takes_value = true,
-    default_value = "250",
-    value_name = "MAX_AVG_NUM_BLOCKS"
-  )]
+  #[structopt(long, takes_value = true, default_value = "250", value_name = "MAX_AVG_NUM_BLOCKS")]
   pub max_avg_num_blocks: usize,
 
   /// Print call graph
@@ -54,18 +49,10 @@ pub struct Options {
   pub slice_depth: usize,
 
   /// Execute only slice
-  #[structopt(
-    long,
-    takes_value = true,
-    value_name = "EXECUTE_ONLY_SLICE_ID"
-  )]
+  #[structopt(long, takes_value = true, value_name = "EXECUTE_ONLY_SLICE_ID")]
   pub execute_only_slice_id: Option<usize>,
 
-  #[structopt(
-    long,
-    takes_value = true,
-    value_name = "EXECUTE_ONLY_SLICE_NAME"
-  )]
+  #[structopt(long, takes_value = true, value_name = "EXECUTE_ONLY_SLICE_NAME")]
   pub execute_only_slice_function_name: Option<String>,
 
   #[structopt(long, takes_value = true, value_name = "INCLUDE_TARGET")]
@@ -317,7 +304,6 @@ fn main() -> Result<(), String> {
     target_slices_map.dump(&options);
 
     if let Some(slice_id) = &options.execute_only_slice_id {
-
       let func_name = if let Some(func_name) = &options.execute_only_slice_function_name {
         func_name
       } else {
@@ -325,29 +311,34 @@ fn main() -> Result<(), String> {
       };
 
       // Only execute slice
-      logging_ctx.log(&format!("Executing the only slice for function {} and slice id {}", func_name, slice_id))?;
+      logging_ctx.log(&format!(
+        "Executing the only slice for function {} and slice id {}",
+        func_name, slice_id
+      ))?;
 
       return if let Some(slices) = target_slices_map.get(func_name) {
-
         if let Some(slice) = slices.get(*slice_id) {
-
           // Do symbolic execution on that single slice
           let sym_exec_ctx = SymbolicExecutionContext::new(&llmod, &call_graph, &options);
           let metadata = sym_exec_ctx.execute_slice(slice.clone(), *slice_id);
 
           // Print the result
-          logging_ctx.log(&format!("Result executing slice {} {} {:?}", func_name, slice_id, metadata))?;
+          logging_ctx.log(&format!(
+            "Result executing slice {} {} {:?}",
+            func_name, slice_id, metadata
+          ))?;
 
           Ok(())
         } else {
-          Err(format!("Cannot find slice for function {} with slice id {}", func_name, slice_id))
+          Err(format!(
+            "Cannot find slice for function {} with slice id {}",
+            func_name, slice_id
+          ))
         }
       } else {
-
         Err(format!("Cannot find slice for function {}", func_name))
-      }
+      };
     } else {
-
       // Divide target slices into batches
       logging_ctx.log_dividing_batches(options.use_batch)?;
       let mut global_metadata = MetaData::new();

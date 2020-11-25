@@ -339,7 +339,7 @@ class Database:
         slice_id = int(os.path.splitext(slice_name)[0])
         yield slice_id, self.slice(func_name, bc, slice_id)
 
-  def function_datapoints(self, func_name: str, bc_filter = ""):
+  def function_datapoints(self, func_name: str, bc_filter=""):
     # Check if the function is there
     func_slices_dir = self.func_slices_dir(func_name, create=False)
     if not os.path.exists(func_slices_dir):

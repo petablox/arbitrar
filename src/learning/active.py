@@ -88,14 +88,19 @@ def main(args):
 
   print("Active Learning...")
   active_learner = learners[args.active_learner]
-  model = active_learner(datapoints, xs, amount_to_evaluate, args)
+  model = active_learner(datapoints, xs, amount_to_evaluate, args, output_anim = args.visualization)
+
+  if args.mark_first_bug_bc and args.mark_first_bug_slice_id:
+    print("Marking the first bug")
+    model.mark(args.mark_first_bug_bc, args.mark_first_bug_slice_id, args.mark_first_bug_trace_id, True)
+
   alarms, auc_graph, alarms_perc_graph, pospoints, tsne_anim = model.run()
 
   if args.ground_truth:
     print("Running Random Baseline...")
     random_learner = learners["random"]
-    random_model = random_learner(datapoints, xs, amount_to_evaluate, args)
-    _, random_auc_graph, _ = random_model.run()
+    random_model = random_learner(datapoints, xs, amount_to_evaluate, args, output_anim = False)
+    _, random_auc_graph, _, _, _ = random_model.run()
   else:
     random_auc_graph = None
 
@@ -103,15 +108,13 @@ def main(args):
   print("Dumping result...")
   exp_dir = db.new_learning_dir(args.function)
 
-  # Dumping tsne animation
-  tsne_anim.anim.save(f"{exp_dir}/tsne_anim.mp4")
+  if args.visualization:
+    # Dumping tsne animation
+    tsne_anim.anim.save(f"{exp_dir}/tsne_anim.mp4")
 
   # Dump the unified features
   with open(f"{exp_dir}/unified.json", "w") as f:
-    j = {
-        'before': list(sample_feature_json['before'].keys()),
-        'after': list(sample_feature_json['after'].keys())
-    }
+    j = {'before': list(sample_feature_json['before'].keys()), 'after': list(sample_feature_json['after'].keys())}
     json.dump(j, f)
 
   # Dump the Xs used to train the model
@@ -135,14 +138,15 @@ def main(args):
   auc = compute_and_dump_auc_graph(auc_graph, random_auc_graph, f"{args.function} AUC", exp_dir)
 
   # Dump the AP graph
-  if args.ground_truth:
-    dump_alarms_percentage_graph(alarms_perc_graph, exp_dir)
+  # if args.ground_truth:
+  #   dump_alarms_percentage_graph(alarms_perc_graph, exp_dir)
 
   # Dump logs
   with open(f"{exp_dir}/log.txt", "w") as f:
     f.write("cmd\n")
     f.write("  " + str(sys.argv) + "\n")
     f.write(f"AUC: {auc}\n")
+    f.write(f"AUC_GRAPH: {auc_graph}\n")
 
 
 def fps_from_tps(tps):

@@ -7,11 +7,11 @@ from .meta import ActiveLearner
 
 
 class SSADLearner(ActiveLearner):
-  def __init__(self, datapoints, xs, amount, args):
+  def __init__(self, datapoints, xs, amount, args, output_anim = False):
     if args.ssad_show_progress:
-      super().__init__(datapoints, xs, amount, args, log_newline=True)
+      super().__init__(datapoints, xs, amount, args, log_newline=True, output_anim = output_anim)
     else:
-      super().__init__(datapoints, xs, amount, args)
+      super().__init__(datapoints, xs, amount, args, output_anim = output_anim)
       cvxopt.solvers.options['show_progress'] = False
     self.X = np.transpose(np.array(self.xs))
     self.Y = np.zeros(len(xs), dtype=np.int)

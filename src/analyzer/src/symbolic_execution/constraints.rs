@@ -25,7 +25,6 @@ impl ConstraintsTrait for Constraints {
       match cond.into_z3_ast(&mut symbol_map, &mut symbol_id, &z3_ctx) {
         Some(cond) => {
           let formula = if *branch { cond } else { cond.not() };
-          println!("{:?}", formula);
           solver.assert(&formula);
         }
         _ => (),

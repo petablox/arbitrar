@@ -86,10 +86,10 @@ class OccurrenceQuery(Executor):
         counts_arr = sorted(counts_arr, key=lambda t: -t[1])
         if args.lmin != None:
           if args.limit != None:
-            print_counts(counts_arr[args.lmin : args.lmin + args.limit])
+            print_counts(counts_arr[args.lmin:args.lmin + args.limit])
           else:
-            print_counts(counts_arr[args.lmin : args.lmin + 50])
+            print_counts(counts_arr[args.lmin:args.lmin + 50])
         elif args.limit != None:
-          print_counts(counts_arr[0 : args.limit])
+          print_counts(counts_arr[0:args.limit])
         else:
           print_counts(counts_arr)

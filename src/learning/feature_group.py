@@ -103,13 +103,7 @@ class RetvalFeatureGroup(FeatureGroup):
 
 
 class RetvalCheckFeatureGroup(FeatureGroup):
-  fields = [
-    "checked",
-    "br_eq_zero",
-    "br_neq_zero",
-    "compared_with_non_const",
-    "compared_with_zero"
-  ]
+  fields = ["checked", "br_eq_zero", "br_neq_zero", "compared_with_non_const", "compared_with_zero"]
 
   def __init__(self, fixed=False):
     super().__init__(fixed)

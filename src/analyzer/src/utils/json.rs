@@ -17,8 +17,6 @@ pub fn load_json(path: &PathBuf) -> Result<serde_json::Value, String> {
   serde_json::from_reader(file).map_err(|_| "Cannot parse file".to_string())
 }
 
-pub fn load_json_t<T : de::DeserializeOwned>(path: &PathBuf) -> Result<T, String> {
-  load_json(path).and_then(|json| {
-    serde_json::from_value(json).map_err(|_| "Cannot parse json into T".to_string())
-  })
+pub fn load_json_t<T: de::DeserializeOwned>(path: &PathBuf) -> Result<T, String> {
+  load_json(path).and_then(|json| serde_json::from_value(json).map_err(|_| "Cannot parse json into T".to_string()))
 }

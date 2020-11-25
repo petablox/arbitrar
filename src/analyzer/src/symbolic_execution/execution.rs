@@ -147,9 +147,9 @@ where
           match &*val {
             Value::Alloc(_) => match state.memory.get(&val) {
               Some(value) => Rc::new(Value::AllocOf(value.clone())),
-              None => val
-            }
-            _ => val
+              None => val,
+            },
+            _ => val,
           }
         } else {
           match instr {
@@ -541,14 +541,16 @@ where
 
     // Then update the AllocOf
     match (*loc).clone() {
-      Value::AllocOf(_) => {
-        match instr.location() {
-          Operand::Instruction(loc_instr) => {
-            state.stack.top_mut().memory.insert(loc_instr, Rc::new(Value::AllocOf(val.clone())));
-          }
-          _ => {}
+      Value::AllocOf(_) => match instr.location() {
+        Operand::Instruction(loc_instr) => {
+          state
+            .stack
+            .top_mut()
+            .memory
+            .insert(loc_instr, Rc::new(Value::AllocOf(val.clone())));
         }
-      }
+        _ => {}
+      },
       _ => {}
     };
 
@@ -741,8 +743,6 @@ where
             // Add block trace into environment
             env.add_block_trace(block_trace);
 
-            println!("======");
-
             // Check path satisfaction
             if state.constraints.sat() {
               // Need store
@@ -795,8 +795,11 @@ where
       let first_work = Work::entry(&slice);
       env.add_work(first_work);
     } else {
-      let block_traces = slice.block_traces(self.call_graph, self.options.slice_depth() * 2, self.options.max_work() * 2);
-      println!("block_traces.len(): {}", block_traces.len());
+      let block_traces = slice.block_traces(
+        self.call_graph,
+        self.options.slice_depth() * 2,
+        self.options.max_work() * 2,
+      );
       for block_trace in block_traces {
         if self.options.print_block_trace() {
           println!("{:?}", block_trace);
@@ -805,8 +808,6 @@ where
         env.add_work(work);
       }
     }
-
-    println!("env.works: {:?}", env.work_list.len());
 
     // Iterate till no more work to be done or should end execution
     while env.has_work() && self.continue_execution(&metadata) {
