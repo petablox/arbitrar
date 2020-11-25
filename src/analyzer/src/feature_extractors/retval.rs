@@ -22,11 +22,11 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     target_type.has_return_type()
   }
 
-  fn init(&mut self, _: &Slice, _: usize, _: &Trace) {}
+  fn init(&mut self, _: usize, _: &Slice, _: usize, _: &Trace) {}
 
   fn finalize(&mut self) {}
 
-  fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
+  fn extract(&self, _: usize, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut used = false;
     let mut used_in_call = false;
     let mut used_in_bin = false;

@@ -23,11 +23,11 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     self.index < target_type.num_argument_types()
   }
 
-  fn init(&mut self, _: &Slice, _: usize, _: &Trace) {}
+  fn init(&mut self, _: usize, _: &Slice, _: usize, _: &Trace) {}
 
   fn finalize(&mut self) {}
 
-  fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
+  fn extract(&self, _: usize, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut checked = false;
     let mut compared_with_zero = false;
     let mut arg_check_not_zero = false;

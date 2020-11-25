@@ -31,6 +31,7 @@ pub struct Instr {
 #[derive(Deserialize)]
 pub struct Trace {
   pub target: usize,
+  pub statically_checked: bool,
   pub instrs: Vec<Instr>,
 }
 
@@ -93,11 +94,11 @@ pub trait FeatureExtractor: Send + Sync {
 
   fn filter<'ctx>(&self, target: &String, target_type: FunctionType<'ctx>) -> bool;
 
-  fn init(&mut self, slice: &Slice, num_traces: usize, trace: &Trace);
+  fn init(&mut self, slice_id: usize, slice: &Slice, num_traces: usize, trace: &Trace);
 
   fn finalize(&mut self);
 
-  fn extract(&self, slice: &Slice, trace: &Trace) -> serde_json::Value;
+  fn extract(&self, slice_id: usize, slice: &Slice, trace: &Trace) -> serde_json::Value;
 }
 
 pub struct FeatureExtractors {
@@ -145,9 +146,9 @@ impl FeatureExtractors {
     }
   }
 
-  pub fn initialize(&mut self, slice: &Slice, num_traces: usize, trace: &Trace) {
+  pub fn initialize(&mut self, slice_id: usize, slice: &Slice, num_traces: usize, trace: &Trace) {
     for extractor in &mut self.extractors {
-      extractor.init(slice, num_traces, trace);
+      extractor.init(slice_id, slice, num_traces, trace);
     }
   }
 
@@ -157,10 +158,10 @@ impl FeatureExtractors {
     }
   }
 
-  pub fn extract_features(&self, slice: &Slice, trace: &Trace) -> serde_json::Value {
+  pub fn extract_features(&self, slice_id: usize, slice: &Slice, trace: &Trace) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     for extractor in &self.extractors {
-      map.insert(extractor.name(), extractor.extract(&slice, &trace));
+      map.insert(extractor.name(), extractor.extract(slice_id, &slice, &trace));
     }
     serde_json::Value::Object(map)
   }
@@ -253,7 +254,7 @@ where
         let num_traces = traces.len();
 
         for trace in traces {
-          extractors.initialize(slice, num_traces, &trace);
+          extractors.initialize(slice_id, slice, num_traces, &trace);
         }
       });
 
@@ -279,7 +280,7 @@ where
             let trace = self.load_trace(&dir_entry);
 
             // Extract and dump features
-            let features = extractors.extract_features(slice, &trace);
+            let features = extractors.extract_features(slice_id, slice, &trace);
             let path = self
               .options
               .feature_target_slice_file_path(target.as_str(), slice_id, trace_id);

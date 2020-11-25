@@ -45,7 +45,7 @@ impl FeatureExtractor for CausalityFeatureExtractor {
     true
   }
 
-  fn init(&mut self, _: &Slice, num_traces: usize, trace: &Trace) {
+  fn init(&mut self, _: usize, _: &Slice, num_traces: usize, trace: &Trace) {
     let funcs = find_caused_functions(trace, self.direction);
     for (func, count) in funcs {
       *self.dictionary.entry(func).or_insert(0.0) += count as f32 / num_traces as f32;
@@ -56,7 +56,7 @@ impl FeatureExtractor for CausalityFeatureExtractor {
     self.most_occurred = find_mostly_used_functions(&self.dictionary, self.dictionary_size);
   }
 
-  fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
+  fn extract(&self, _: usize, _: &Slice, trace: &Trace) -> serde_json::Value {
     let causalities = find_function_causality(trace, self.direction, &self.most_occurred);
     let mut map = serde_json::Map::new();
     for (func, causality_features) in self.most_occurred.iter().zip(causalities) {

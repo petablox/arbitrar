@@ -17,11 +17,12 @@ pub type Trace<'ctx> = Vec<TraceNode<'ctx>>;
 pub struct TraceWithTarget<'ctx> {
   pub trace: Trace<'ctx>,
   pub target_index: usize,
+  pub statically_checked: bool,
 }
 
 impl<'ctx> TraceWithTarget<'ctx> {
-  pub fn new(trace: Trace<'ctx>, target_index: usize) -> Self {
-    Self { trace, target_index }
+  pub fn new(trace: Trace<'ctx>, target_index: usize, statically_checked: bool) -> Self {
+    Self { trace, target_index, statically_checked }
   }
 
   pub fn target(&self) -> &TraceNode<'ctx> {
@@ -40,6 +41,7 @@ impl<'ctx> TraceWithTarget<'ctx> {
         "res": node.result
       })).collect::<Vec<_>>(),
       "target": self.target_index,
+      "statically_checked": self.statically_checked,
     })
   }
 

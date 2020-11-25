@@ -21,11 +21,11 @@ impl FeatureExtractor for ControlFlowFeaturesExtractor {
     true
   }
 
-  fn init(&mut self, _: &Slice, _: usize, _: &Trace) {}
+  fn init(&mut self, _: usize, _: &Slice, _: usize, _: &Trace) {}
 
   fn finalize(&mut self) {}
 
-  fn extract(&self, _: &Slice, trace: &Trace) -> serde_json::Value {
+  fn extract(&self, _: usize, _: &Slice, trace: &Trace) -> serde_json::Value {
     let mut loop_stack = 0;
     let mut has_loop = false;
     let mut target_in_a_loop = false;

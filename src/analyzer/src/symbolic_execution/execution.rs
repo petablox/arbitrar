@@ -659,7 +659,7 @@ where
     state: &mut State<'ctx>,
     _: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
-    let op = instr.opcode();
+    let op = instr.binary_opcode();
     let v0 = self.eval_operand_value(state, instr.op0());
     let v1 = self.eval_operand_value(state, instr.op1());
     let res = Rc::new(Value::Bin {
@@ -683,7 +683,7 @@ where
     state: &mut State<'ctx>,
     _: &mut Environment<'ctx>,
   ) -> Option<Instruction<'ctx>> {
-    let op = instr.opcode();
+    let op = instr.unary_opcode();
     let op0 = self.eval_operand_value(state, instr.op0());
     let node = TraceNode {
       instr: instr.as_instruction(),
@@ -730,7 +730,7 @@ where
       Some(target_id) => match state.finish_state {
         FinishState::ProperlyReturned => {
           // Generate the trace for output
-          let raw_trace = TraceWithTarget::new(state.trace, target_id);
+          let raw_trace = TraceWithTarget::new(state.trace, target_id, state.statically_checked);
           let trace = if !self.options.no_trace_reduction() {
             raw_trace.reduce()
           } else {

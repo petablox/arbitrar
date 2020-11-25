@@ -178,7 +178,7 @@ fn main() -> Result<(), String> {
           .collect::<Vec<_>>();
         let num_traces = traces.len();
         for trace in traces {
-          extractors.initialize(slice, num_traces, &trace);
+          extractors.initialize(slice_id, slice, num_traces, &trace);
         }
       });
     }
@@ -199,7 +199,7 @@ fn main() -> Result<(), String> {
           .into_par_iter()
           .for_each(|(trace_id, dir_entry)| {
             let trace = load_trace(dir_entry);
-            let features = extractors.extract_features(&slice, &trace);
+            let features = extractors.extract_features(slice_id, &slice, &trace);
             let path = options.feature_target_package_slice_file_path(&target, &package, slice_id, trace_id);
             dump_json(&features, path).expect("Cannot dump features json");
           });
