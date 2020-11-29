@@ -51,7 +51,8 @@ impl<'ctx> GenerateBlockTraceTrait<'ctx> for CompositeBlockTrace<'ctx> {
         .collect();
       let num_block_traces = func_num_block_traces.iter().product();
       let mut block_traces = Vec::with_capacity(num_block_traces);
-      for indices in utils::cartesian(&func_num_block_traces) {
+      let cartesian = utils::cartesian(&func_num_block_traces);
+      for indices in cartesian {
         let block_trace = indices
           .iter()
           .enumerate()
@@ -155,6 +156,17 @@ pub struct BlockGraph<'ctx> {
   block_id_map: HashMap<Block<'ctx>, NodeIndex>,
 }
 
+impl<'ctx> BlockGraph<'ctx> {
+  pub fn find_paths(&self, entry: Block<'ctx>, target: Block<'ctx>, limit: usize) -> Vec<Vec<Block<'ctx>>> {
+    petgraph::algo::all_simple_paths(&self.graph, self.block_id_map[&entry], self.block_id_map[&target], 0, None)
+      .take(limit)
+      .map(|path: Vec<_>| {
+        path.into_iter().map(|ni| self.graph[ni]).collect()
+      })
+      .collect()
+  }
+}
+
 pub trait FunctionBlockGraphTrait<'ctx> {
   fn block_graph(&self) -> BlockGraph<'ctx>;
 
@@ -189,16 +201,7 @@ impl<'ctx> FunctionBlockGraphTrait<'ctx> for Function<'ctx> {
       vec![vec![entry_block]]
     } else {
       let block_graph = self.block_graph();
-      petgraph::algo::all_simple_paths(
-        &block_graph.graph,
-        block_graph.block_id_map[&entry_block],
-        block_graph.block_id_map[&instr.parent_block()],
-        0,
-        None,
-      )
-      .take(max_traces)
-      .map(|path: Vec<_>| path.into_iter().map(|ni| block_graph.graph[ni]).collect())
-      .collect()
+      block_graph.find_paths(entry_block, instr.parent_block(), max_traces)
     }
   }
 }

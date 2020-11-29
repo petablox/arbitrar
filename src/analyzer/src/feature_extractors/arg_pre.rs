@@ -107,6 +107,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 fn args_to_check(arg: &Value) -> Vec<Value> {
   match arg {
     Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
+    Value::Int(_) | Value::Null => vec![],
     _ => vec![arg.clone()],
   }
 }

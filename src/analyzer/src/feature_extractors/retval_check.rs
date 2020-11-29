@@ -54,7 +54,8 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
     check(trace, &mut checked, &mut br_eq_zero, &mut br_neq_zero, &mut compared_with_zero, &mut compared_with_non_const);
 
     json!({
-      "checked": checked || self.slice_id_is_checked_map[&slice_id],
+      "checked": checked,
+      "slice_checked": self.slice_id_is_checked_map[&slice_id],
       "br_eq_zero": br_eq_zero,
       "br_neq_zero": br_neq_zero,
       "compared_with_zero": compared_with_zero,

@@ -97,7 +97,7 @@ def get_analyzer_args(db, bc_file, args, temp_folder=None, extract_features=Fals
     base_args += ['--use-regex-filter']
 
   if args.serial:
-    base_args += ['--serial']
+    base_args += ['--use-serial']
 
   if args.causality_dict_size != None:
     base_args += ['--causality-dictionary-size', str(args.causality_dict_size)]

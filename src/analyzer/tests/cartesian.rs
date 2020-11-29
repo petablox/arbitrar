@@ -13,3 +13,10 @@ fn test_cartesian_2() {
   println!("{:?}", result);
   // assert_eq!(result, vec![vec![0]]);
 }
+
+#[test]
+fn test_cartesian_3() {
+  let result = cartesian(&vec![3]);
+  println!("{:?}", result);
+  // assert_eq!(result, vec![vec![0]]);
+}

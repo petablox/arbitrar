@@ -31,7 +31,6 @@ pub struct Instr {
 #[derive(Deserialize)]
 pub struct Trace {
   pub target: usize,
-  pub statically_checked: bool,
   pub instrs: Vec<Instr>,
 }
 

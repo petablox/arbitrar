@@ -30,6 +30,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
     let mut used = false;
     let mut used_in_call = false;
     let mut used_in_bin = false;
+    let mut stored = false;
     let mut derefed = false;
     let mut returned = false;
     let mut indir_returned = false;
@@ -57,6 +58,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
           if **loc == retval {
             derefed = true;
           } else if **val == retval {
+            stored = true;
             let loc = *loc.clone();
             match &loc {
               Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloc(_) => {
@@ -104,6 +106,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
       "used": used,
       "used_in_call": used_in_call,
       "used_in_bin": used_in_bin,
+      "stored": stored,
       "derefed": derefed,
       "returned": returned,
       "indir_returned": indir_returned,

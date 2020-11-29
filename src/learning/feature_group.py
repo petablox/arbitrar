@@ -90,7 +90,7 @@ class ArgPostFeatureGroup(FeatureGroup):
 
 
 class RetvalFeatureGroup(FeatureGroup):
-  fields = ["derefed", "returned", "indir_returned"]
+  fields = ["derefed", "stored", "returned", "indir_returned"]
 
   def __init__(self, fixed=False):
     super().__init__(fixed)
@@ -103,7 +103,7 @@ class RetvalFeatureGroup(FeatureGroup):
 
 
 class RetvalCheckFeatureGroup(FeatureGroup):
-  fields = ["checked", "br_eq_zero", "br_neq_zero", "compared_with_non_const", "compared_with_zero"]
+  fields = ["checked", "slice_checked", "br_eq_zero", "br_neq_zero", "compared_with_non_const", "compared_with_zero"]
 
   def __init__(self, fixed=False):
     super().__init__(fixed)

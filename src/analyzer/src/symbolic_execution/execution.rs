@@ -771,9 +771,15 @@ where
             metadata.incr_duplicated()
           }
         }
-        FinishState::BranchExplored => metadata.incr_branch_explored(),
-        FinishState::ExceedingMaxTraceLength => metadata.incr_exceeding_length(),
-        FinishState::Unreachable => metadata.incr_unreachable(),
+        FinishState::BranchExplored => {
+          metadata.incr_branch_explored()
+        },
+        FinishState::ExceedingMaxTraceLength => {
+          metadata.incr_exceeding_length()
+        },
+        FinishState::Unreachable => {
+          metadata.incr_unreachable()
+        },
       },
       None => metadata.incr_no_target(),
     }
