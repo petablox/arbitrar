@@ -21,13 +21,15 @@ class ActiveLearner:
     self.args = args
     self.log_newline = log_newline
     self.output_anim = output_anim
+    self.explored_cache = {}
+    self.plotted_index = 0
+
     # if self.args.ground_truth:
     #   if self.args.num_outliers != None:
     #     self.num_outliers = self.args.num_outliers
     #   else:
     #     print("Loading ground truth labels...")
     #     self.num_outliers = len([0 for dp in self.datapoints if dp.has_label(label=self.args.ground_truth)])
-    self.explored_cache = {}
 
     # TSNE
     if output_anim:
@@ -42,6 +44,43 @@ class ActiveLearner:
           print("Marking ", bc, slice_id, trace_id, " as ", "bug" if is_bug else "non-bug")
           self.feedback((j, self.xs[j]), is_bug)
 
+  def plot(self, curr_dp_i):
+
+    try:
+      unlabeled = []
+      labeled_pos = []
+      labeled_neg = []
+      current = []
+      for (i, _) in enumerate(self.datapoints):
+        v = self.xs_fitted[i]
+        if i == curr_dp_i:
+          current.append(v)
+        elif self.xs_fitted_colors[i] == 'g':
+          labeled_neg.append(v)
+        elif self.xs_fitted_colors[i] == 'r':
+          labeled_pos.append(v)
+        else:
+          unlabeled.append(v)
+
+      tsne_fig, tsne_ax = plt.subplots()
+      if len(unlabeled) > 0:
+        unlabeled = np.array(unlabeled)
+        tsne_ax.scatter(unlabeled[:, 0], unlabeled[:, 1], s=20, marker='.', c='b')
+      if len(labeled_pos) > 0:
+        labeled_pos = np.array(labeled_pos)
+        tsne_ax.scatter(labeled_pos[:, 0], labeled_pos[:, 1], s=200, marker='+', c='r')
+      if len(labeled_neg) > 0:
+        labeled_neg = np.array(labeled_neg)
+        tsne_ax.scatter(labeled_neg[:, 0], labeled_neg[:, 1], s=200, marker='_', c='g')
+      if len(current) > 0:
+        current = np.array(current)
+        tsne_ax.scatter(current[:, 0], current[:, 1], s=200, marker='x', c='purple')
+      tsne_fig.savefig(f"{self.args.exp_dir}/{self.plotted_index}.png")
+
+      self.plotted_index += 1
+    except Exception as err:
+      print(err)
+
   def run(self):
     log_end = "\n" if self.log_newline else "\r"
     ps = list(enumerate(self.xs))
@@ -51,7 +90,6 @@ class ActiveLearner:
     pospoints = []
 
     animation_frames = []
-    tsne_fig, tsne_ax = plt.subplots()
 
     if self.args.ground_truth:
       pass
@@ -87,6 +125,7 @@ class ActiveLearner:
                            prompt=f"Attempt {attempt_count}: Do you think this is a bug? [y|Y|n|N] > ",
                            scroll_down_key="]",
                            scroll_up_key="[",
+                           actions={'v': (lambda: self.plot(p_i))},
                            padding=self.args.padding)
 
           # Get the user label
@@ -111,7 +150,7 @@ class ActiveLearner:
         if mark_whole_slice:
           for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
             dp_j = self.datapoints[j]
-            if dp_j.slice_id == dp_i.slice_id:
+            if dp_j.bc == dp_i.bc and dp_j.slice_id == dp_i.slice_id:
               self.feedback((j, self.xs[j]), is_alarm)
               ps = [(i, x) for (i, x) in ps if i != j]
 
@@ -163,8 +202,9 @@ class ActiveLearner:
         #   else:
         #     alarms_perc_graph.append(0)
 
-    except SystemExit:
+    except SystemExit as e:
       print("Aborting")
+      print(e)
       sys.exit()
     except KeyboardInterrupt:
       print("Stopping...")

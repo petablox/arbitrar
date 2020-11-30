@@ -64,17 +64,30 @@ impl FeatureExtractor for ReturnValueCheckFeatureExtractor {
   }
 }
 
-fn check(trace: &Trace, checked: &mut bool, br_eq_zero: &mut bool, br_neq_zero: &mut bool, compared_with_zero: &mut bool, compared_with_non_const: &mut bool) {
+pub fn check(trace: &Trace, checked: &mut bool, br_eq_zero: &mut bool, br_neq_zero: &mut bool, compared_with_zero: &mut bool, compared_with_non_const: &mut bool) {
+  let retval = trace.target_result().clone().unwrap();
+  instr_res_check(trace, &retval, trace.target_index(), checked, br_eq_zero, br_neq_zero, compared_with_zero, compared_with_non_const);
+}
+
+pub fn instr_res_check(
+  trace: &Trace,
+  val: &Value,
+  from: usize,
+  checked: &mut bool,
+  br_eq_zero: &mut bool,
+  br_neq_zero: &mut bool,
+  compared_with_zero: &mut bool,
+  compared_with_non_const: &mut bool
+) {
 
   let mut icmp = None;
-  let retval = trace.target_result().clone().unwrap();
 
   // Start iterating from the target onward
-  for (_, instr) in trace.iter_instrs_from_target(TraceIterDirection::Forward) {
+  for (_, instr) in trace.iter_instrs_from(TraceIterDirection::Forward, from) {
     match &instr.sem {
       Semantics::ICmp { op0, op1, .. } => {
-        let retval_is_op0 = **op0 == retval;
-        let retval_is_op1 = **op1 == retval;
+        let retval_is_op0 = &**op0 == val;
+        let retval_is_op1 = &**op1 == val;
         if retval_is_op0 || retval_is_op1 {
           *checked = true;
           icmp = Some(instr.res.clone().unwrap());

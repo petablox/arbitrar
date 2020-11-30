@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::collections::{BinaryHeap, HashMap};
 
 use crate::feature_extraction::*;
+use crate::feature_extractors::instr_res_check;
 use crate::semantics::boxed::*;
 
 pub struct CausalityFeatureExtractor {
@@ -153,6 +154,11 @@ struct FunctionCausalityFeatures {
 
   /// Share argument value
   pub share_argument: bool,
+
+  /// Checked
+  pub checked: bool,
+  pub is_zero: bool,
+  pub not_zero: bool,
 }
 
 impl Default for FunctionCausalityFeatures {
@@ -162,6 +168,9 @@ impl Default for FunctionCausalityFeatures {
       invoked_more_than_once: false,
       share_return: false,
       share_argument: false,
+      checked: false,
+      is_zero: false,
+      not_zero: false,
     }
   }
 }
@@ -173,7 +182,7 @@ fn find_function_causality(
 ) -> Vec<FunctionCausalityFeatures> {
   let mut result = vec![FunctionCausalityFeatures::default(); funcs.len()];
   let target_instr = &trace.instrs[trace.target];
-  for (_, instr) in trace.iter_instrs_from_target(dir) {
+  for (i, instr) in trace.iter_instrs_from_target(dir) {
     match &instr.sem {
       Semantics::Call { func, .. } => {
         match &**func {
@@ -218,6 +227,24 @@ fn find_function_causality(
 
                 // Invoked
                 features.invoked = true;
+
+                match &instr.res {
+                  Some(res) => {
+                    // Checked
+                    let mut checked = false;
+                    let mut br_eq_zero = false;
+                    let mut br_neq_zero = false;
+                    let mut compared_with_zero = false;
+                    let mut compared_with_non_const = false;
+
+                    instr_res_check(trace, res, i, &mut checked, &mut br_eq_zero, &mut br_neq_zero, &mut compared_with_zero, &mut compared_with_non_const);
+
+                    features.checked = checked;
+                    features.is_zero = br_eq_zero;
+                    features.not_zero = br_neq_zero;
+                  }
+                  _ => {}
+                }
               }
               _ => {}
             }

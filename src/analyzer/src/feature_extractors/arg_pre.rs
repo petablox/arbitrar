@@ -46,6 +46,11 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
         // Setup kind of argument
         arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
 
+        // We don't do check if the argument is constant
+        if is_constant {
+          continue;
+        }
+
         // Checks
         for (i, instr) in trace.iter_instrs_from_target(TraceIterDirection::Backward) {
           match &instr.sem {
@@ -107,7 +112,7 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
 fn args_to_check(arg: &Value) -> Vec<Value> {
   match arg {
     Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
-    Value::Int(_) | Value::Null => vec![],
+    // Value::Int(_) | Value::Null => vec![],
     _ => vec![arg.clone()],
   }
 }

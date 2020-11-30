@@ -63,6 +63,10 @@ impl Trace {
     self.target_instr().sem.call_arg(index)
   }
 
+  pub fn target_index(&self) -> usize {
+    self.target
+  }
+
   pub fn iter_instrs(&self, dir: TraceIterDirection) -> Vec<(usize, &Instr)> {
     if dir.is_forward() {
       self.instrs.iter().enumerate().collect()

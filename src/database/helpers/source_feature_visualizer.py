@@ -119,6 +119,7 @@ class SourceFeatureVisualizer():
   def ask(self,
           datapoint,
           keys,
+          actions,
           prompt="> ",
           label="",
           padding=30,
@@ -152,6 +153,8 @@ class SourceFeatureVisualizer():
         # Any key, move foward
         if key in keys:
           return key
+        elif actions and key in actions:
+          actions[key]()
 
         # Refresh the window
         self.right_window.refresh()

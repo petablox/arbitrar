@@ -49,8 +49,12 @@ def setup_parser(parser):
 
   # Feature Settings
   parser.add_argument('--no-causality', action='store_true', help='Does not include causality features')
+  parser.add_argument('--no-causality-before', action='store_true', help='Does not include before causality features')
+  parser.add_argument('--no-causality-after', action='store_true', help='Does not include after causality features')
   parser.add_argument('--no-retval', action='store_true', help='Does not include retval features')
   parser.add_argument('--no-argval', action='store_true', help='Does not include argval features')
+  parser.add_argument('--no-arg-pre', action='store_true', help='Does not include argval features')
+  parser.add_argument('--no-arg-post', action='store_true', help='Does not include argval features')
   parser.add_argument('--no-control-flow', action='store_true', help='Does not include control flow features')
 
   # Setup learner specific arguments
@@ -71,8 +75,12 @@ def main(args):
   print("Generating Feature Groups and Encoder")
   feature_groups = FeatureGroups(sample_feature_json,
                                  enable_causality=not args.no_causality,
+                                 enable_causality_before=not args.no_causality_before,
+                                 enable_causality_after=not args.no_causality_after,
                                  enable_retval=not args.no_retval,
                                  enable_argval=not args.no_argval,
+                                 enable_arg_pre=not args.no_arg_pre,
+                                 enable_arg_post=not args.no_arg_post,
                                  enable_control_flow=not args.no_control_flow)
 
   for dp in datapoints:
@@ -85,6 +93,9 @@ def main(args):
     amount_to_evaluate = min(len(xs), args.evaluate_count)
   elif args.evaluate_percentage:
     amount_to_evaluate = int(len(xs) * args.evaluate_percentage)
+
+  exp_dir = db.new_learning_dir(args.function)
+  args.exp_dir = exp_dir
 
   print("Active Learning...")
   active_learner = learners[args.active_learner]
@@ -106,7 +117,6 @@ def main(args):
 
   # Dump lots of things
   print("Dumping result...")
-  exp_dir = db.new_learning_dir(args.function)
 
   if args.visualization:
     # Dumping tsne animation

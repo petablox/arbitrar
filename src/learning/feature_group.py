@@ -123,16 +123,16 @@ class InvokedType(Enum):
 class CausalityFeatureGroup(FeatureGroup):
   fields = ["invoked", "invoked_more_than_once", "share_argument", "share_return"]
 
-  def __init__(self, invoked_type: InvokedType, function_name: str, fixed=False):
+  def __init__(self, invoked_type: str, function_name: str, fixed=False):
     super().__init__(fixed)
     self.invoked_type = invoked_type
     self.function_name = function_name
 
   def field(self) -> str:
-    return f"{self.invoked_type.value}.{self.function_name}"
+    return f"{self.invoked_type}.{self.function_name}"
 
   def meaning_of(self, i) -> str:
-    return f"{self.invoked_type.value}.{self.function_name}.{self.fields[i]}"
+    return f"{self.invoked_type}.{self.function_name}.{self.fields[i]}"
 
   @staticmethod
   def default() -> dict:
@@ -151,8 +151,12 @@ class FeatureGroups:
                enable_loop=True,
                enable_control_flow=True,
                enable_causality=True,
+               enable_causality_before=True,
+               enable_causality_after=True,
                enable_retval=True,
                enable_argval=True,
+               enable_arg_pre=True,
+               enable_arg_post=True,
                fix_groups=[]):
     self.groups = []
 
@@ -167,9 +171,12 @@ class FeatureGroups:
         self.groups.append(group)
 
     if enable_causality:
-      for invoked_type in InvokedType:
-        for function_name in sample_feature_json[invoked_type.value]:
-          self.groups.append(CausalityFeatureGroup(invoked_type, function_name))
+      if enable_causality_before:
+        for function_name in sample_feature_json["before"]:
+          self.groups.append(CausalityFeatureGroup("before", function_name))
+      if enable_causality_after:
+        for function_name in sample_feature_json["after"]:
+          self.groups.append(CausalityFeatureGroup("after", function_name))
 
     if enable_retval:
       retval_group = RetvalFeatureGroup()
@@ -181,12 +188,14 @@ class FeatureGroups:
         self.groups.append(retval_check_group)
 
     if enable_argval:
-      for arg_i in [0, 1, 2, 3]:
+      for arg_i in [0, 1, 2, 3, 4, 5, 6]:
         ith_arg_pre_group = ArgPreFeatureGroup(arg_i)
         ith_arg_post_group = ArgPostFeatureGroup(arg_i)
         if ith_arg_pre_group.contained_in_json(sample_feature_json):
-          self.groups.append(ith_arg_pre_group)
-          self.groups.append(ith_arg_post_group)
+          if enable_arg_pre:
+            self.groups.append(ith_arg_pre_group)
+          if enable_arg_post:
+            self.groups.append(ith_arg_post_group)
 
   @staticmethod
   def try_fix(group: FeatureGroup, fix_groups: List[str]):
