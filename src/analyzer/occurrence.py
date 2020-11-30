@@ -11,6 +11,7 @@ this_path = os.path.dirname(os.path.realpath(__file__))
 
 def setup_parser(parser):
   parser.add_argument('--bc', type=str, default="", help='The .bc file to analyze')
+  parser.add_argument('--location', type=str, help='Location')
 
 
 def main(args):
@@ -27,6 +28,10 @@ def get_occurrence_args(db, bc_file, args):
   print(bc_file, db.analysis_dir())
   bc_name = ntpath.basename(bc_file)
   base_args = [bc_file, db.analysis_dir()]
+
+  if args.location:
+    base_args += ['--location', args.location]
+
   return base_args
 
 

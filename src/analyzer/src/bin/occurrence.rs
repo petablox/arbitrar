@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use analyzer::{call_graph::*, options::*, utils::*};
+use llir::values::*;
 
 #[derive(StructOpt, Debug, Clone)]
 #[structopt(name = "occurrence")]
@@ -14,6 +15,9 @@ pub struct Options {
 
   #[structopt(index = 2, required = true, value_name = "OUTPUT")]
   pub output: String,
+
+  #[structopt(long, value_name = "LOCATION")]
+  pub location: Option<String>,
 }
 
 impl IOOptions for Options {
@@ -46,7 +50,20 @@ impl Options {
   }
 
   fn occurrence_file_path(&self) -> PathBuf {
-    self.occurrence_path().join(format!("{}.json", self.input_bc_name()))
+    let name = match &self.location {
+      Some(l) => format!("{}_{}.json", self.input_bc_name(), l),
+      None => format!("{}.json", self.input_bc_name())
+    };
+    self.occurrence_path().join(name)
+  }
+}
+
+fn include_function<'ctx>(f: &Function<'ctx>, options: &Options) -> bool {
+  match &options.location {
+    Some(l) => {
+      f.debug_loc_string().contains(l)
+    }
+    _ => true
   }
 }
 
@@ -69,8 +86,10 @@ fn main() -> Result<(), String> {
   let mut map = HashMap::new();
   for node_id in call_graph.graph.node_indices() {
     let func = call_graph.graph[node_id];
-    let num_call_sites = call_graph.graph.edges_directed(node_id, Direction::Incoming).count();
-    *map.entry(func).or_insert(0) += num_call_sites;
+    if include_function(&func, &options) {
+      let num_call_sites = call_graph.graph.edges_directed(node_id, Direction::Incoming).count();
+      *map.entry(func).or_insert(0) += num_call_sites;
+    }
   }
 
   // Transform occurrence map into json

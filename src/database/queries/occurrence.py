@@ -11,7 +11,8 @@ class OccurrenceQuery(Executor):
     parser.add_argument('-v', '--verbose', action='store_true', help="Verbose")
     parser.add_argument('-t', '--threshold', type=int, help="Occurred at least [threshold] times")
     parser.add_argument('-l', '--limit', type=int, help="Only output top [limit] results")
-    parser.add_argument('--lmin', type=int, help="Limit start")
+    parser.add_argument('--occurrence-file', type=str, help="occurrence file")
+    parser.add_argument('-s', '--skip', type=int, help="Skip")
     parser.add_argument('--bc', type=str, help="LLVM Byte Code File")
     parser.add_argument('--in-bc', nargs='+', help="BC Files")
 
@@ -33,6 +34,7 @@ class OccurrenceQuery(Executor):
             individual_counts.append((bc_file, n))
 
       if args.verbose:
+        individual_counts = sorted(individual_counts, key=lambda p: p[1])
         individual_counts.append(("Total", count))
         print_counts(individual_counts)
       else:
@@ -73,22 +75,27 @@ class OccurrenceQuery(Executor):
 
       else:
         counts = {}
-        for bc_file, occurrence in args.db.occurrences(package=args.package, bc_file=args.bc):
-          for func, count in occurrence.items():
-            if func in counts:
-              counts[func] += count
-            else:
-              counts[func] = count
+
+        if args.occurrence_file:
+          counts = args.db.occurrence(args.occurrence_file)
+        else:
+          for bc_file, occurrence in args.db.occurrences(package=args.package, bc_file=args.bc):
+            for func, count in occurrence.items():
+              if func in counts:
+                counts[func] += count
+              else:
+                counts[func] = count
+
         counts_arr = []
         for func, count in counts.items():
           if not args.threshold or count >= args.threshold:
             counts_arr.append((func, count))
         counts_arr = sorted(counts_arr, key=lambda t: -t[1])
-        if args.lmin != None:
+        if args.skip != None:
           if args.limit != None:
-            print_counts(counts_arr[args.lmin:args.lmin + args.limit])
+            print_counts(counts_arr[args.skip:args.skip + args.limit])
           else:
-            print_counts(counts_arr[args.lmin:args.lmin + 50])
+            print_counts(counts_arr[args.skip:args.skip + 50])
         elif args.limit != None:
           print_counts(counts_arr[0:args.limit])
         else:

@@ -224,7 +224,7 @@ where
     load_json_t(path).expect("Cannot load trace file")
   }
 
-  pub fn extract_features(&self) {
+  pub fn extract_features(&self, _: &mut LoggingContext) {
     fs::create_dir_all(self.options.feature_dir()).expect("Cannot create features directory");
 
     self.target_num_slices_map.par_iter().for_each(|(target, &num_slices)| {
@@ -232,12 +232,12 @@ where
       let func_type = self.func_types[target];
       let mut extractors = FeatureExtractors::extractors_for_target(&target, func_type, self.options);
 
-      println!("[{}]", extractors.extractors.iter().map(|e| e.name()).collect::<Vec<_>>().join(", "));
+      // logging_ctx.log(&format!("[{}]", extractors.extractors.iter().map(|e| e.name()).collect::<Vec<_>>().join(", "))).unwrap();
 
       // Load slices
       let slices = self.load_slices(&target, num_slices);
 
-      println!("Loaded all slices");
+      // logging_ctx.log("Loaded all slices").unwrap();
 
       // Initialize while loading traces
       (0..num_slices).for_each(|slice_id| {
@@ -245,8 +245,7 @@ where
         let traces = self
           .load_trace_file_paths(&target, slice_id)
           .into_par_iter()
-          .map(|(trace_id, dir_entry)| {
-            print!("Loading slice {} trace {}\r", slice_id, trace_id);
+          .map(|(_, dir_entry)| {
             use std::io::Write;
             std::io::stdout().flush().unwrap();
 
@@ -261,12 +260,12 @@ where
         }
       });
 
-      println!("Initialized extractors");
+      // logging_ctx.log("Initialized extractors").unwrap();
 
       // Finalize feature extractor initialization
       extractors.finalize();
 
-      println!("Finalized extractors");
+      // logging_ctx.log("Finalized extractors").unwrap();
 
       // Extract features
       slices.par_iter().enumerate().for_each(|(slice_id, slice)| {

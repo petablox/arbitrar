@@ -355,4 +355,5 @@ class Database:
           trace_dir = self.func_bc_slice_traces_dir(func_name, bc, slice_id)
           for trace_name in os.listdir(trace_dir):
             trace_id = int(os.path.splitext(trace_name)[0])
-            yield DataPoint(self, func_name, bc, slice_id, trace_id, slice=slice)
+            if os.path.exists(self.feature_dir(func_name, bc, slice_id, trace_id)):
+              yield DataPoint(self, func_name, bc, slice_id, trace_id, slice=slice)

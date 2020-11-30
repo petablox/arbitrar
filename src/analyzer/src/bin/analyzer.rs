@@ -367,7 +367,7 @@ fn main() -> Result<(), String> {
     // Extract features
     logging_ctx.log_extracting_features()?;
     let feat_ext_ctx = FeatureExtractionContext::new(&llmod, target_num_slices_map, &options)?;
-    feat_ext_ctx.extract_features();
+    feat_ext_ctx.extract_features(&mut logging_ctx);
     logging_ctx.log_finished_extracting_features()?;
   }
 
