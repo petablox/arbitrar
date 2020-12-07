@@ -1,5 +1,7 @@
 import sys
 import copy
+import random
+import time
 
 from src.database.helpers import SourceFeatureVisualizer, AnimatedScatter
 from src.database import FunctionSpec
@@ -24,6 +26,8 @@ class ActiveLearner:
     self.explored_cache = {}
     self.plotted_index = 0
 
+    self.ps = {i: x for (i, x) in enumerate(self.xs)}
+
     # if self.args.ground_truth:
     #   if self.args.num_outliers != None:
     #     self.num_outliers = self.args.num_outliers
@@ -39,9 +43,10 @@ class ActiveLearner:
 
   def mark(self, bc, slice_id, trace_id, is_bug):
     for (j, dp) in enumerate(self.datapoints):
-      if dp.bc == bc and dp.slice_id == slice_id:
+      if bc in dp.bc and dp.slice_id == slice_id:
         if trace_id == None or dp.trace_id == trace_id:
-          print("Marking ", bc, slice_id, trace_id, " as ", "bug" if is_bug else "non-bug")
+          print("Marking", bc, slice_id, trace_id, "as", "bug" if is_bug else "non-bug")
+          self.ps.pop(j, None)
           self.feedback((j, self.xs[j]), is_bug)
 
   def plot(self, curr_dp_i):
@@ -65,16 +70,17 @@ class ActiveLearner:
       tsne_fig, tsne_ax = plt.subplots()
       if len(unlabeled) > 0:
         unlabeled = np.array(unlabeled)
-        tsne_ax.scatter(unlabeled[:, 0], unlabeled[:, 1], s=20, marker='.', c='b')
+        tsne_ax.scatter(unlabeled[:, 0], unlabeled[:, 1], s=50, marker='x', c='lightgrey')
       if len(labeled_pos) > 0:
         labeled_pos = np.array(labeled_pos)
-        tsne_ax.scatter(labeled_pos[:, 0], labeled_pos[:, 1], s=200, marker='+', c='r')
+        tsne_ax.scatter(labeled_pos[:, 0], labeled_pos[:, 1], s=400, marker='P', c='r')
       if len(labeled_neg) > 0:
         labeled_neg = np.array(labeled_neg)
-        tsne_ax.scatter(labeled_neg[:, 0], labeled_neg[:, 1], s=200, marker='_', c='g')
+        tsne_ax.scatter(labeled_neg[:, 0], labeled_neg[:, 1], s=400, marker='X', c='g')
       if len(current) > 0:
         current = np.array(current)
-        tsne_ax.scatter(current[:, 0], current[:, 1], s=200, marker='x', c='purple')
+        tsne_ax.scatter(current[:, 0], current[:, 1], s=400, marker='v', c='b')
+      tsne_ax.axis('off')
       tsne_fig.savefig(f"{self.args.exp_dir}/{self.plotted_index}.png")
 
       self.plotted_index += 1
@@ -83,7 +89,6 @@ class ActiveLearner:
 
   def run(self):
     log_end = "\n" if self.log_newline else "\r"
-    ps = list(enumerate(self.xs))
     outlier_count = 0
     auc_graph = [0]
     alarms_perc_graph = []
@@ -91,7 +96,11 @@ class ActiveLearner:
 
     animation_frames = []
 
-    if self.args.ground_truth:
+    after_select = None
+
+    times = []
+
+    if self.args.ground_truth or self.args.time:
       pass
     elif self.args.function_spec:
       spec = FunctionSpec(self.args.function_spec)
@@ -101,7 +110,8 @@ class ActiveLearner:
 
     try:
       for attempt_count in range(self.amount):
-        p_i = self.select(ps)
+        p_i = self.select(self.ps)
+
         if p_i == None:
           break
 
@@ -112,6 +122,16 @@ class ActiveLearner:
           is_alarm = dp_i.has_label(label=self.args.ground_truth)
           mark_whole_slice = False
           print(f"Attempt {attempt_count} is alarm: {str(is_alarm)}" + (" " * 30), end=log_end)
+
+        elif self.args.time:
+          if after_select:
+            toc = time.perf_counter()
+            times.append(toc - after_select)
+
+          is_alarm = random.random() > 0.9
+          mark_whole_slice = False
+
+          after_select = time.perf_counter()
 
         elif self.args.function_spec:
           is_alarm = not spec.match(dp_i)
@@ -146,13 +166,15 @@ class ActiveLearner:
           else:
             break
 
+        dp_i.clean_up()
+
         # Mark whole slice
         if mark_whole_slice:
           for j in range(max(p_i - 50, 0), min(p_i + 50, len(self.datapoints))):
             dp_j = self.datapoints[j]
             if dp_j.bc == dp_i.bc and dp_j.slice_id == dp_i.slice_id:
               self.feedback((j, self.xs[j]), is_alarm)
-              ps = [(i, x) for (i, x) in ps if i != j]
+              self.ps.pop(j, None)
 
               if is_alarm:
                 pospoints.append((dp_j, attempt_count))
@@ -175,7 +197,7 @@ class ActiveLearner:
 
         else:
           self.feedback(item, is_alarm)
-          ps = [(i, x) for (i, x) in ps if i != p_i]
+          self.ps.pop(p_i, None)
 
           # Simulate the process
           if is_alarm:
@@ -212,6 +234,10 @@ class ActiveLearner:
       if self.args.source:
         vis.destroy()
       raise err
+
+    if self.args.time:
+      print("avg: ", sum(times) / len(self.xs))
+      print("num traces: ", len(self.xs))
 
     # Remove the visualizer
     if self.args.source:

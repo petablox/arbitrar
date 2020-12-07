@@ -210,18 +210,19 @@ where
   }
 
   pub fn load_trace_file_paths(&self, target: &String, slice_id: usize) -> Vec<(usize, PathBuf)> {
-    fs::read_dir(self.options.trace_target_slice_dir(target.as_str(), slice_id))
-      .expect("Cannot read traces folder")
-      .map(|path| {
+    match fs::read_dir(self.options.trace_target_slice_dir(target.as_str(), slice_id)) {
+      Ok(paths) => paths.map(|path| {
         let path = path.expect("Cannot read traces folder path").path();
         let trace_id = path.file_stem().unwrap().to_str().unwrap().parse::<usize>().unwrap();
         (trace_id, path)
       })
-      .collect::<Vec<_>>()
+      .collect::<Vec<_>>(),
+      _ => vec![]
+    }
   }
 
-  pub fn load_trace(&self, path: &PathBuf) -> Trace {
-    load_json_t(path).expect("Cannot load trace file")
+  pub fn load_trace(&self, path: &PathBuf) -> Result<Trace, String> {
+    load_json_t(path)
   }
 
   pub fn extract_features(&self, _: &mut LoggingContext) {
@@ -244,9 +245,10 @@ where
         let slice = &slices[slice_id];
         let traces = self
           .load_trace_file_paths(&target, slice_id)
-          .into_par_iter()
-          .map(|(_, dir_entry)| {
+          .into_iter()
+          .map(|(trace_id, dir_entry)| {
             use std::io::Write;
+            print!("Loading slice {} trace {}\r", slice_id, trace_id);
             std::io::stdout().flush().unwrap();
 
             let trace = self.load_trace(&dir_entry);
@@ -256,7 +258,10 @@ where
         let num_traces = traces.len();
 
         for trace in traces {
-          extractors.initialize(slice_id, slice, num_traces, &trace);
+          match trace {
+            Ok(trace) => extractors.initialize(slice_id, slice, num_traces, &trace),
+            _ => {}
+          }
         }
       });
 
@@ -281,12 +286,17 @@ where
             // Load trace json
             let trace = self.load_trace(&dir_entry);
 
-            // Extract and dump features
-            let features = extractors.extract_features(slice_id, slice, &trace);
-            let path = self
-              .options
-              .feature_target_slice_file_path(target.as_str(), slice_id, trace_id);
-            dump_json(&features, path).expect("Cannot dump features json");
+            match trace {
+              Ok(trace) => {
+                // Extract and dump features
+                let features = extractors.extract_features(slice_id, slice, &trace);
+                let path = self
+                  .options
+                  .feature_target_slice_file_path(target.as_str(), slice_id, trace_id);
+                dump_json(&features, path).expect("Cannot dump features json");
+              }
+              _ => {}
+            }
           })
       });
     });

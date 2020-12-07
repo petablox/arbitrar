@@ -12,6 +12,7 @@ this_path = os.path.dirname(os.path.realpath(__file__))
 def setup_parser(parser):
   parser.add_argument('--bc', type=str, default="", help='The .bc file to analyze')
   parser.add_argument('--location', type=str, help='Location')
+  parser.add_argument('--pointer-only', action="store_true")
 
 
 def main(args):

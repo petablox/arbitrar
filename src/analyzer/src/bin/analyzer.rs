@@ -32,7 +32,7 @@ pub struct Options {
   pub no_remove_llvm_funcs: bool,
 
   /// Maximum number of blocks per slice
-  #[structopt(long, takes_value = true, default_value = "300", value_name = "MAX_AVG_NUM_BLOCKS")]
+  #[structopt(long, takes_value = true, default_value = "1000", value_name = "MAX_AVG_NUM_BLOCKS")]
   pub max_avg_num_blocks: usize,
 
   /// Print call graph

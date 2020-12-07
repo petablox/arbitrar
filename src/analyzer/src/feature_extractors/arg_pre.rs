@@ -40,11 +40,11 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
     let arg = trace.target_arg(self.index);
 
     if let Some(arg) = arg {
-      let args_to_check = args_to_check(arg);
+      let args_to_check = args_to_check(arg, 3);
 
       for arg in args_to_check {
         // Setup kind of argument
-        arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca);
+        arg_type(&arg, &mut is_global, &mut is_arg, &mut is_constant, &mut is_alloca, 3);
 
         // We don't do check if the argument is constant
         if is_constant {
@@ -109,36 +109,41 @@ impl FeatureExtractor for ArgumentPreconditionFeatureExtractor {
   }
 }
 
-fn args_to_check(arg: &Value) -> Vec<Value> {
-  match arg {
-    Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
-    // Value::Int(_) | Value::Null => vec![],
-    _ => vec![arg.clone()],
+fn args_to_check(arg: &Value, depth: usize) -> Vec<Value> {
+  if depth == 0 {
+    vec![]
+  } else {
+    match arg {
+      Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v, depth - 1)].concat(),
+      _ => vec![arg.clone()],
+    }
   }
 }
 
-fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &mut bool, is_alloca: &mut bool) {
-  // Setup kind of argument
-  match arg {
-    Value::Glob(_) => {
-      *is_global = true;
+fn arg_type(arg: &Value, is_global: &mut bool, is_arg: &mut bool, is_constant: &mut bool, is_alloca: &mut bool, depth: usize) {
+  if depth > 0 {
+    // Setup kind of argument
+    match arg {
+      Value::Glob(_) => {
+        *is_global = true;
+      }
+      Value::Arg(_) => {
+        *is_arg = true;
+      }
+      Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
+        *is_constant = true;
+      }
+      Value::GEP { loc, .. } => {
+        arg_type(&*loc, is_global, is_arg, is_constant, is_alloca, depth - 1);
+      }
+      Value::Alloc(_) => {
+        *is_alloca = true;
+      }
+      Value::AllocOf(v) => {
+        *is_alloca = true;
+        arg_type(&*v, is_global, is_arg, is_constant, is_alloca, depth - 1);
+      }
+      _ => {}
     }
-    Value::Arg(_) => {
-      *is_arg = true;
-    }
-    Value::ConstSym(_) | Value::Null | Value::Int(_) | Value::Func(_) | Value::Asm => {
-      *is_constant = true;
-    }
-    Value::GEP { loc, .. } => {
-      arg_type(&*loc, is_global, is_arg, is_constant, is_alloca);
-    }
-    Value::Alloc(_) => {
-      *is_alloca = true;
-    }
-    Value::AllocOf(v) => {
-      *is_alloca = true;
-      arg_type(&*v, is_global, is_arg, is_constant, is_alloca);
-    }
-    _ => {}
   }
 }

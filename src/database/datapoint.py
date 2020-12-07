@@ -31,6 +31,11 @@ class DataPoint:
       self._feature = self.db.feature(self.func_name, self.bc, self.slice_id, self.trace_id)
     return self._feature
 
+  def clean_up(self):
+    self._trace = None
+    self._slice = None
+    self._feature = None
+
   def apply_feature_groups(self, feature_groups):
     self._grouped_feature = feature_groups.get_from_json(self.feature())
 

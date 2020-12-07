@@ -48,6 +48,9 @@ impl<'ctx> CallGraphTrait<'ctx> for CallGraphRaw<'ctx> {
     self.retain_nodes(move |this, node_id| {
       let node_name = this[node_id].simp_name();
       let is_llvm_intrinsics = node_name.contains("llvm.");
+      if this[node_id].name().contains("va") {
+        println!("{}, {}", node_name, is_llvm_intrinsics);
+      }
       !is_llvm_intrinsics
     });
   }

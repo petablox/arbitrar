@@ -45,7 +45,7 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
     let arg = trace.target_arg(self.index);
 
     if let Some(arg) = arg {
-      let args_to_check = args_to_check(arg);
+      let args_to_check = args_to_check(arg, 5);
 
       for arg in args_to_check {
         // Iterate forward
@@ -134,9 +134,13 @@ impl FeatureExtractor for ArgumentPostconditionFeatureExtractor {
   }
 }
 
-fn args_to_check(arg: &Value) -> Vec<Value> {
-  match arg {
-    Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v)].concat(),
-    _ => vec![arg.clone()],
+fn args_to_check(arg: &Value, depth: usize) -> Vec<Value> {
+  if depth == 0 {
+    vec![]
+  } else {
+    match arg {
+      Value::AllocOf(v) => vec![vec![arg.clone()], args_to_check(v, depth - 1)].concat(),
+      _ => vec![arg.clone()],
+    }
   }
 }

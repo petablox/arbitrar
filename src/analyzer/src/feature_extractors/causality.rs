@@ -97,7 +97,11 @@ fn find_mostly_used_functions(map: &HashMap<String, f32>, k: usize) -> Vec<Strin
   for (name, used) in map {
     heap.push(SortItem(name, used.clone()));
   }
-  heap.iter().take(k).map(|si| si.0.clone()).collect()
+  heap
+    .iter()
+    .take(k)
+    .map(|si| si.0.clone())
+    .collect()
 }
 
 fn find_caused_functions(trace: &Trace, dir: TraceIterDirection) -> HashMap<String, usize> {
@@ -106,6 +110,11 @@ fn find_caused_functions(trace: &Trace, dir: TraceIterDirection) -> HashMap<Stri
     match &instr.sem {
       Semantics::Call { func, .. } => match &**func {
         Value::Func(f) => {
+
+          if f.contains("__asan") || f.contains("__sanitizer") || f.contains("__kasan") || f.contains("printk") {
+            continue;
+          }
+
           // Count function as many times as it appears in the trace
           // *result.entry(f.clone()).or_insert(0) += 1;
 

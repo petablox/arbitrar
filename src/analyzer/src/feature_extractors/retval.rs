@@ -61,7 +61,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
             stored = true;
             let loc = *loc.clone();
             match &loc {
-              Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloc(_) => {
+              Value::Arg(_) | Value::Sym(_) | Value::Glob(_) | Value::Alloc(_) | Value::AllocOf(_) => {
                 tracked_values.insert(loc);
               }
               Value::GEP { loc, .. } => {
@@ -75,6 +75,7 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
         }
         Semantics::GEP { loc, .. } => {
           if **loc == retval {
+            derefed = true;
             child_ptrs.insert(instr.res.clone().unwrap());
           }
         }
@@ -88,6 +89,13 @@ impl FeatureExtractor for ReturnValueFeatureExtractor {
                 indir_returned = true;
               }
             }
+          }
+        }
+        Semantics::ICmp { op0, op1, .. } => {
+          let retval_is_op0 = &**op0 == &retval;
+          let retval_is_op1 = &**op1 == &retval;
+          if retval_is_op0 || retval_is_op1 {
+            used = true;
           }
         }
         Semantics::Bin { op0, op1, .. } => {

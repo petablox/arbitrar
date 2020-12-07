@@ -36,9 +36,11 @@ def setup_parser(parser):
   parser.add_argument('--num-outliers', type=int)
   parser.add_argument('--num-alarms', type=int, default=100)
   parser.add_argument('--padding', type=int, default=20)
+  parser.add_argument('--time', action='store_true')
   parser.add_argument('--mark-first-bug-bc', type=str)
   parser.add_argument('--mark-first-bug-slice-id', type=int)
   parser.add_argument('--mark-first-bug-trace-id', type=int)
+  parser.add_argument('--num-dp', type=int)
 
   parser.add_argument('--visualization', action='store_true')
 
@@ -66,7 +68,7 @@ def main(args):
   db = args.db
 
   print("Fetching Datapoints From Database...")
-  datapoints = list(db.function_datapoints(args.function))
+  datapoints = list(db.function_datapoints(args.function))[0:args.num_dp]
 
   print("Unifying Features...")
   feature_jsons = unify_features(datapoints)
@@ -101,8 +103,9 @@ def main(args):
   active_learner = learners[args.active_learner]
   model = active_learner(datapoints, xs, amount_to_evaluate, args, output_anim = args.visualization)
 
+  print("MARK FIRST BUG BC", args.mark_first_bug_bc)
   if args.mark_first_bug_bc and args.mark_first_bug_slice_id:
-    print("Marking the first bug")
+    print("Marking the first bug...")
     model.mark(args.mark_first_bug_bc, args.mark_first_bug_slice_id, args.mark_first_bug_trace_id, True)
 
   alarms, auc_graph, alarms_perc_graph, pospoints, tsne_anim = model.run()

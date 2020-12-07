@@ -27,6 +27,9 @@ class ScoreFunction:
   def __init__(self, xs, bandwidth):
     self.bandwidth = bandwidth
 
+  def feedback(self, i, x, is_pos):
+    pass
+
 
 class Score1(ScoreFunction):
   def score(self, i, u, pos, neg, p_t) -> float:
@@ -173,6 +176,48 @@ class Score7(ScoreFunction):
     return pos_score - neg_score
 
 
+class Score8(ScoreFunction):
+  """ Linear Update Time Algorithm """
+  def __init__(self, xs, bandwidth):
+    super().__init__(xs, bandwidth)
+    self.n = len(xs)
+    self.xs = xs
+    self.cache = np.empty([self.n, self.n])
+    self.cache.fill(-1)
+
+    self.scores = np.zeros([self.n, 2])
+
+  def index(self, i, j):
+    return (i, j) if i < j else (j, i)
+
+  def gaussian(self, x, y):
+    b = self.bandwidth
+    return np.exp(-(np.linalg.norm(x - y))**2 / (2 * b**2)) / (b * np.sqrt(2 * np.pi))
+
+  def gaussian_cached(self, i, x, j, y):
+    index = self.index(i, j)
+    if self.cache[index] == -1:
+      self.cache[index] = self.gaussian(x, y)
+    return self.cache[index]
+
+  def feedback(self, i, x, is_pos):
+    if is_pos:
+      for (j, y) in enumerate(self.xs):
+        self.scores[j, 0] += self.gaussian_cached(i, x, j, y)
+    else:
+      for (j, y) in enumerate(self.xs):
+        self.scores[j, 1] += self.gaussian_cached(i, x, j, y)
+
+  def score(self, i, x, pos, neg, p_pos):
+    n, m = len(pos), len(neg)
+    pos_score, neg_score = 0, 0
+    if n > 0:
+      pos_score = self.scores[i, 0] / n
+    if m > 0:
+      neg_score = self.scores[i, 1] / m
+    return pos_score - neg_score
+
+
 class KDELearner(ActiveLearner):
   score_functions: Dict[str, ScoreFunction] = {
       'score_1': Score1,
@@ -181,7 +226,8 @@ class KDELearner(ActiveLearner):
       'score_4': Score4,
       'score_5': Score5,
       'score_6': Score6,
-      'score_7': Score7
+      'score_7': Score7,
+      'score_8': Score8
   }
 
   def __init__(self, datapoints, xs, amount, args, output_anim = False):
@@ -196,7 +242,7 @@ class KDELearner(ActiveLearner):
 
   @staticmethod
   def setup_parser(parser):
-    parser.add_argument('--kde-score', type=str, default="score_7", help='Score Function')
+    parser.add_argument('--kde-score', type=str, default="score_8", help='Score Function')
     parser.add_argument('--kde-bandwidth', type=float)
     parser.add_argument('--kde-cv', type=int, default=5)
     parser.add_argument('--p-pos', type=float, default=0.1)
@@ -206,6 +252,7 @@ class KDELearner(ActiveLearner):
     return p_i
 
   def feedback(self, item, is_alarm):
+    self.score_function.feedback(item[0], item[1], is_alarm)
     if is_alarm:
       self.pos.append(item)
     else:
@@ -230,23 +277,23 @@ class KDELearner(ActiveLearner):
     print(f"Selected bandwidth: {bandwidth}")
     return bandwidth
 
-  def _argmin(self, ps: IdVecs, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
+  def _argmin(self, ps, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
     """
     Return the (index, score) of the datapoint in xs that scores the highest
     """
     min_i = None
     min_score = None
-    for (i, x) in ps:
+    for (i, x) in ps.items():
       s = self.score_function.score(i, x, pos, neg, p_t)
       if min_i == None or s < min_score:
         min_i = i
         min_score = s
     return (min_i, min_score)
 
-  def _argmax(self, ps: IdVecs, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
+  def _argmax(self, ps, pos: IdVecs, neg: IdVecs, p_t: float) -> Tuple[int, float]:
     max_i = None
     max_score = None
-    for (i, x) in ps:
+    for (i, x) in ps.items():
       s = self.score_function.score(i, x, pos, neg, p_t)
       if max_i == None or s > max_score:
         max_i = i
