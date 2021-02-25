@@ -2,8 +2,6 @@
 
 ## How to Build
 
-(Ziyang, you don't need to do this part)
-
 Usage:
 ```
 docker build -t petablox/ll-analyzer-builder:<TAG> -f <DOCKERFILE>

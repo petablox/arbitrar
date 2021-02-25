@@ -1,6 +1,6 @@
-# Use our MISAPI tool to do experiment
+# Use our Arbitrar tool to do experiment
 
-The `misapi` tool statically finds API Misuse bugs in programs that can be compiled to LLVM IR, such as C, C++, and so on.
+The `arbitrar` tool statically finds API Misuse bugs in programs that can be compiled to LLVM IR, such as C, C++, and so on.
 
 The tool works in 3 stages:
 - `collect`, to collect the source codes for analysis
@@ -27,7 +27,7 @@ After you are inside of the server, you shall do a `ls` to know what's going on.
 $ ls -l
 total 0
 drwxrwxr-x 12 aspire aspire 248 Aug 31 00:45 databases
-drwxrwxr-x 10 aspire aspire 268 Jul 10 13:56 ll_analyzer
+drwxrwxr-x 10 aspire aspire 268 Jul 10 13:56 arbitrar
 drwxrwxr-x  4 aspire aspire  54 Jul 15 13:47 programs
 ...
 ```
@@ -38,9 +38,9 @@ This folder contains all the databases. To define database more properly, it's a
 
 Now inside the `databases` folder I've been working on some linux kernel experiments and debian packages experiments, so you are seeing that I named them in a related manner. You can either jump in one of the databases or create one of your own, and we will talk about how to do this later.
 
-### 0.1 `ll_analyzer` folder
+### 0.1 `arbitrar` folder
 
-This is the source code folder containing our tool. The entry point is exactly the file `misapi`. If you don't want to mess with the source code, you don't need to bother looking at this. Otherwise, the new analyzer core (implemented in Rust) is living inside the directory `/home/aspire/ll_analyzer/src/new_analyzer/core/`; The machine learning code is mainly inside `/home/aspire/ll_analyzer/src/learning/`.
+This is the source code folder containing our tool. The entry point is exactly the file `arbitrar`. If you don't want to mess with the source code, you don't need to bother looking at this. Otherwise, the new analyzer core (implemented in Rust) is living inside the directory `/home/aspire/arbitrar/src/analyzer/`; The machine learning code is mainly inside `/home/aspire/arbitrar/src/learning/`.
 
 ### 0.2 `programs` folder
 
@@ -57,7 +57,7 @@ If you are working on one of the databases I already built, then very likely don
 If you want to create a fresh database, you just create a new folder using `mkdir`, and then you
 
 ```
-$ misapi init
+$ arbitrar init
 ```
 
 To initialize the database.
@@ -67,13 +67,13 @@ To initialize the database.
 If you already have a `.bc` file ready, then this is going to be the quickest way of constructing the database. You just do
 
 ```
-$ misapi collect PATH/TO/YOUR/BC/FILE.bc
+$ arbitrar collect PATH/TO/YOUR/BC/FILE.bc
 ```
 
 As an example, to add the precompiled linux kernel into your database, you should do
 
 ```
-$ misapi collect ~/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc
+$ arbitrar collect ~/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc
 ```
 
 ### 1.2. Pulling and Auto-compiling Packages
@@ -106,7 +106,7 @@ So this `packages.json` will contain a JSON array, each of which is a package in
 After you finish setting up your `packages.json`, simply run
 
 ```
-$ misapi collect packages.json
+$ arbitrar collect packages.json
 ```
 
 and the tool will pull the packages & build it for you.
@@ -122,19 +122,19 @@ Now there comes a more interesting step which is actually using our analyzer (a 
 Say that you want to analyze a function called `malloc`, it's very simple
 
 ```
-$ misapi analyze --include-fn malloc
+$ arbitrar analyze --include-fn malloc
 ```
 
 If you want to analyze all the functions that end with a name `lock`, you use a regex expression:
 
 ```
-$ misapi analyze --include-fn ".*lock" --regex
+$ arbitrar analyze --include-fn ".*lock" --regex
 ```
 
 If you simply want to analyze all the functions inside the database, you just do
 
 ```
-$ misapi analyze
+$ arbitrar analyze
 ```
 
 but again, this will probably take a ton of time.
@@ -144,7 +144,7 @@ but again, this will probably take a ton of time.
 It's sometimes useful to analyze the occurrence of library function across the whole database. You can type the following command to compute function occurrence (for all the bc-files inside the database).
 
 ```
-$ misapi occurrence
+$ arbitrar occurrence
 ```
 
 After this, you should be able to query the occurrences
@@ -160,7 +160,7 @@ Slice depth represents the depth of the slice going upwards or downwards from th
 You use it like this:
 
 ```
-$ misapi analyze --include-fn malloc --slice-depth X
+$ arbitrar analyze --include-fn malloc --slice-depth X
 ```
 
 This argument has a default value of `1`, so from the call site, it will by default go one level up. As an example, consider the following program
@@ -182,7 +182,7 @@ You sometimes want to do a filtering step on slices to restrict the part of code
 As an example, if you only want to analyze the slices that are inside of the `drivers` folder inside Linux Kernel, you can use this flag
 
 ```
-$ misapi analyze --include-fn clk_prepare_lock --entry-location "drivers"
+$ arbitrar analyze --include-fn clk_prepare_lock --entry-location "drivers"
 ```
 
 This flag will do a string match on the location of the entry function. So very likely a function will have a location `/drivers/clk/clkdev.c`, then there's a match. Any function that does not contain `drivers` in their location will not be included.
@@ -194,7 +194,7 @@ We know that our causality features are provided by a dictionary. Basically what
 The default value is `5`, you can change it to other value by doing
 
 ```
-$ misapi analyze --include-fn malloc --causality-dict-size 10
+$ arbitrar analyze --include-fn malloc --causality-dict-size 10
 ```
 
 It's worth noting that this won't increase the runtime. It might increase the disk space occupied, but we generally don't care about this.
@@ -204,7 +204,7 @@ It's worth noting that this won't increase the runtime. It might increase the di
 There are sometimes a function that is used thousands of times (e.g. `kzalloc` is used 1800+ times in Linux Kernel). Directly running all of them might cause memory overflow. So we introduce the `--use-batch` flag. When specified, the 1800+ slices will be divided into smaller batches (50 each by default), and the analyzer will run them in sequence.
 
 ```
-$ misapi analyze --include-fn kzalloc --use-batch
+$ arbitrar analyze --include-fn kzalloc --use-batch
 ```
 
 ### 2.2. Runtime
@@ -455,7 +455,7 @@ Since this is a database, we provide many queries for people to use, especially 
 To use active learning to learn correct usage from dataset, you shall do the following
 
 ```
-$ misapi learn active clk_prepare_lock
+$ arbitrar learn active clk_prepare_lock
 ```
 
 This is invoking the learning module and using the "active learning" algorithm to learn the dataset for `clk_prepare_lock`. The dataset for this function will contain traces drawn from all packages that uses this function. Say we are analyzing the function `malloc`, it will then include the traces for `malloc` from every package that's inside of this database.
@@ -484,7 +484,7 @@ In the above example, the trace is marked in green. You can clearly see that the
 In case the code panel is not showing enough context, you can either call with an option `--padding` like this:
 
 ```
-$ misapi learn active clk_prepare_lock --padding 40
+$ arbitrar learn active clk_prepare_lock --padding 40
 ```
 
 This will show 40 lines above and below the target function call, so roughly 80 lines of code will be shown. But keep in mind that the screen size is limited, so you don't want to boost this option too much. In case you need more comprehand view of the code, you can refer to the file directory on the top of the screen, and go to the source code directly.
@@ -526,10 +526,10 @@ There are two traces going through target function call: `ABC` and `ABE...`. In 
 
 ### 4.5. Experiment Results
 
-Each learning call to misapi
+Each learning call to arbitrar
 
 ```
-$ misapi learn active clk_prepare_lock
+$ arbitrar learn active clk_prepare_lock
 ```
 
 will create an "experiment". This experiment will be stored in a folder that's named after function name and time stamp

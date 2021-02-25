@@ -136,7 +136,7 @@ RUN echo "PATH=\"/home/aspire/tools/anaconda3/bin/:\$PATH\"" >> /home/aspire/.ba
 
 # Use conda to install other dependencies
 ENV CONDA=/home/aspire/tools/anaconda3/bin/conda
-ENV CONDA_ENV_NAME=misapi
+ENV CONDA_ENV_NAME=arbitrar
 
 # Initialize conda
 RUN ${CONDA} init bash
