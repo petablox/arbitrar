@@ -22,7 +22,7 @@ class Database:
       self.setup_file_system()
       self.setup_indices()
     else:
-      raise Exception("Not a misapi database. Please run 'misapi init' first.")
+      raise Exception("Not an Arbitrar database. Please run 'arbitrar init' first.")
 
   @staticmethod
   def init_file_dir(directory: str) -> str:

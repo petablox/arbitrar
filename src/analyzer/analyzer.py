@@ -16,8 +16,8 @@ analyzer = "target/release/analyzer"
 
 def setup_parser(parser):
   parser.add_argument('--bc', type=str, default="", help='The .bc file to analyze')
-  parser.add_argument('--slice-depth', type=int, default=1, help='Slice depth')
-  parser.add_argument('--include-fn', type=str, help='Only include functions')
+  parser.add_argument('--slice-depth', type=int, default=0, help='Slice depth')
+  parser.add_argument('--include-fn', '-i', type=str, help='Only include functions')
   parser.add_argument('--entry-location', type=str)
   parser.add_argument('--seed', type=int)
   parser.add_argument('--no-reduction', action='store_true', help='Don\'t reduce trace def-use graph')

@@ -35,7 +35,7 @@ def setup_parser(parser):
   parser.add_argument('--evaluate-with-alarms', action='store_true')
   parser.add_argument('--num-outliers', type=int)
   parser.add_argument('--num-alarms', type=int, default=100)
-  parser.add_argument('--padding', type=int, default=20)
+  parser.add_argument('--padding', type=int, default=8)
   parser.add_argument('--time', action='store_true')
   parser.add_argument('--mark-first-bug-bc', type=str)
   parser.add_argument('--mark-first-bug-slice-id', type=int)

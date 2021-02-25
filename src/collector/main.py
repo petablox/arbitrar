@@ -141,3 +141,10 @@ def main(args):
     load_bc_input(args)
   elif input_is_dir(args):
     load_folder_input(args)
+  else:
+    pkg = Pkg(args.packages,
+              PkgSrc(PkgSrcType("debian"), args.packages),
+              False,
+              f"{db.packages_dir()}/{db.packages}",
+              Build(BuildType.unknown))
+    process_pkg(db, pkg)

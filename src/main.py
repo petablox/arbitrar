@@ -48,7 +48,7 @@ def main():
   # When init, create the init file
   if args.cmd == "init":
     database.Database.init(db_path)
-    print(f"Misapi database initialized at {db_path}")
+    print(f"Arbitrar database initialized at {db_path}")
     return
 
   # Otherwise, create the database
