@@ -3,7 +3,7 @@
 all: build
 
 install:
-	ln -s ./misapi $(HOME)/.local/bin/misapi
+	ln -s ./arbitrar $(HOME)/.local/bin/arbitrar
 	ln -s ./scripts/a2bc $(HOME)/.local/bin/a2bc
 
 setup:
@@ -28,7 +28,7 @@ clean:
 format: format-py format-rs
 
 format-py:
-	yapf -i --recursive misapi src/
+	yapf -i --recursive arbitrar src/
 
 # format-ml:
 # 	make -C src/old_analyzer format
