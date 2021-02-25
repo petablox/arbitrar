@@ -26,7 +26,7 @@ class Database:
 
   @staticmethod
   def init_file_dir(directory: str) -> str:
-    return f"{directory}/.misapi"
+    return f"{directory}/.arbitrar"
 
   @staticmethod
   def init(directory: str):

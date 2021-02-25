@@ -40,8 +40,8 @@ def main():
   # Get the database folder
   if args.db:
     db_path = os.path.abspath(args.db)
-  elif "MISAPI_DB" in os.environ:
-    db_path = os.environ["MISAPI_DB"]
+  elif "ARBITRAR_DB" in os.environ:
+    db_path = os.environ["ARBITRAR_DB"]
   else:
     db_path = cwd
 
