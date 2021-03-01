@@ -1,27 +1,30 @@
-# How to use Arbitrar
+# How to use Arbitrar - Tutorial
 
-The `arbitrar` tool statically finds API Misuse bugs in programs that can be compiled to LLVM IR, such as C, C++, and so on.
+The `arbitrar` tool helps regular programmers to find API Misuse bugs in programs that can be compiled to LLVM IR.
 
 The tool works in 3 stages:
 - `collect`, to collect the source codes for analysis
 - `analyze`, to analyze and produce traces and features
-- `learn`, to find the bugs interactively
+- `learn`, to enter interactive loop with the user to find bugs
+
+This tutorial assumes that you have successfully installed all the prerequisites and setting up the environments.
 
 ## 1. `collect` step
 
-This step is mainly for us to collect the packages, compile them and make it analyzable. We can start from a few standpoints, and we'll talk about them in sequence. Note that one single database can contain multiple programs from different sources. So you can freely combine the steps below to construct your own database.
-
-If you are working on one of the databases I already built, then very likely don't need to run any of the commands inside this step, because I've already collected the related programs.
+This step is mainly for us to collect the packages and compile them.
+You can collect packages in multiple ways, and we are going to talk about them in sequence.
+Note that one single database can contain multiple programs from different sources.
+So you can freely combine the steps below to construct your own database.
 
 ### 1.0. Initializing
 
-If you want to create a fresh database, you just create a new folder using `mkdir`, and then you
+To create a fresh database, create a new folder using `mkdir`. Inside the folder, type
 
 ```
+$ mkdir my-arbitrar-database
+$ cd my-arbitrar-database
 $ arbitrar init
 ```
-
-To initialize the database.
 
 ### 1.1. Collecting pre-compiled packages
 
@@ -53,16 +56,21 @@ Let's get started with defining a new `packages.json`. Create this file and edit
     }
   },
   {
-    "name": "atftpd",
+    "name": "libpng",
     "pkg_src": {
       "src_type": "debian",
-      "link": "atftpd"
+      "link": "libpng-dev"
     }
   }
 ]
 ```
 
-So this `packages.json` will contain a JSON array, each of which is a package in the form of JSON object. Each package object must contain a "name" field, used to identify the package and has to be unique. Then you provide "pkg_src" representing the source of the package. Now, for "src_type" you can either put `"github"` or `"debian"`. If you are pulling from a github source, then in the `"link"` field you should provide the full link to the repository; if you are pulling a Debian package, you just provide the name of that package in Debian package registry. In case you can't find a specific Debian package, feel free to use `sudo apt-get ...`  to direct the registries.
+The file `packages.json` contains a JSON array, each of which is a package in the form of a JSON object.
+Each package object must contain a `name` field, used to identify the package and has to be unique.
+Then you provide `pkg_src` representing the source of the package. Now, for `src_type` you can either put `"github"` or `"debian"`. If you are pulling from a github source, then in the `"link"` field you should provide the full link to the git repository;
+if you are pulling a Debian package, you just provide the name of that package in Debian package registry.
+
+> Please note that if you are using systems other than Ubuntu, you cannot use this Debian option
 
 After you finish setting up your `packages.json`, simply run
 
