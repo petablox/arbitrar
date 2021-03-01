@@ -1,18 +1,20 @@
+CURRENT_DIR = $(shell pwd)
+
 .PHONY: all install build format
 
 all: build
 
-install:
-	ln -s ./arbitrar $(HOME)/.local/bin/arbitrar
-	ln -s ./scripts/a2bc $(HOME)/.local/bin/a2bc
+setup: install-env
 
-setup:
-	pip3 install mypy yapf pytest python-magic termcolor
-	pip3 install graphviz scikit-learn matplotlib pandas
-	pip3 install wllvm
-	opam install ocamlbuild ocamlformat merlin parmap
-	opam install ocamlgraph yojson ppx_compare ppx_deriving ppx_deriving_yojson
-	opam install llvm ctypes ctypes-foreign z3
+install:
+	ln -s $(CURRENT_DIR)/arbitrar $(HOME)/.local/bin/arbitrar
+	ln -s $(CURRENT_DIR)/scripts/a2bc $(HOME)/.local/bin/a2bc
+
+install-env:
+	conda env create -f environment.yml
+
+dump-env:
+	conda env export > environment.yml
 
 build: build-rs
 
@@ -29,9 +31,6 @@ format: format-py format-rs
 
 format-py:
 	yapf -i --recursive arbitrar src/
-
-# format-ml:
-# 	make -C src/old_analyzer format
 
 format-rs:
 	cd src/analyzer ; cargo fmt

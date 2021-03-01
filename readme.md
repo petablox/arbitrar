@@ -17,7 +17,28 @@ Please refer to the document [doc/how_to_use.md](doc/how_to_use.md).
 
 ## Build
 
+### From Source
+
+Infrastructure Prerequisites:
+- Clang, LLVM 10
+- Rust (install from https://rustup.rs)
+- Anaconda
+
+Application Prerequisites
+- Graphviz
+- libmagic
+
+After installing the prerequisites, please run the following commands
+
+``` sh
+$ make setup    # install the conda environments
+$ make          # build the static analyzer in rust
+$ make install  # install to ~/.local/bin for fast access of `arbitrar` command
+```
+
 ### Docker
+
+(Work In Progress)
 
 The Data Collection framework of this project requires Linux/Ubuntu environment and the user needs
 to have root access. Therefore it's the best if we can use Docker Image. We prepared the docker
