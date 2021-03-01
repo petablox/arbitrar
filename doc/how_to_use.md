@@ -1,4 +1,4 @@
-# Use our Arbitrar tool to do experiment
+# How to use Arbitrar
 
 The `arbitrar` tool statically finds API Misuse bugs in programs that can be compiled to LLVM IR, such as C, C++, and so on.
 
