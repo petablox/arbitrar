@@ -36,6 +36,8 @@ $ make          # build the static analyzer in rust
 $ make install  # install to ~/.local/bin for fast access of `arbitrar` command
 ```
 
+Also, please refer to https://github.com/travitch/whole-program-llvm for tutorial to setup `wllvm`.
+
 ### Docker
 
 (Work In Progress)
