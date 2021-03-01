@@ -7,45 +7,6 @@ The tool works in 3 stages:
 - `analyze`, to analyze and produce traces and features
 - `learn`, to find the bugs interactively
 
-## 0. Access server & server folder setup
-
-Our server is setup inside of a docker and could be accessed using just username and password. You shall do
-
-```
-$ ssh -p 2021 aspire@ash04.seas.upenn.edu
-```
-
-With password
-
-```
-ai4code
-```
-
-After you are inside of the server, you shall do a `ls` to know what's going on. There are a few folders that are worth mentioning:
-
-```
-$ ls -l
-total 0
-drwxrwxr-x 12 aspire aspire 248 Aug 31 00:45 databases
-drwxrwxr-x 10 aspire aspire 268 Jul 10 13:56 arbitrar
-drwxrwxr-x  4 aspire aspire  54 Jul 15 13:47 programs
-...
-```
-
-### 0.0 `databases` folder
-
-This folder contains all the databases. To define database more properly, it's a unit of dataset in the context of using our tool. A database will contain all the programs and compiled byte codes, the analyzed results (slices, traces, and so on), and the final learning experiment results.
-
-Now inside the `databases` folder I've been working on some linux kernel experiments and debian packages experiments, so you are seeing that I named them in a related manner. You can either jump in one of the databases or create one of your own, and we will talk about how to do this later.
-
-### 0.1 `arbitrar` folder
-
-This is the source code folder containing our tool. The entry point is exactly the file `arbitrar`. If you don't want to mess with the source code, you don't need to bother looking at this. Otherwise, the new analyzer core (implemented in Rust) is living inside the directory `/home/aspire/arbitrar/src/analyzer/`; The machine learning code is mainly inside `/home/aspire/arbitrar/src/learning/`.
-
-### 0.2 `programs` folder
-
-I use this folder to store any large precompiled programs, including Linux Kernel. I currently have two versions, `4.5-rc4` and `5.7-rc5`. You can find the compiled bc file at `/home/aspire/programs/linux_kernel/linux-4.5-rc4/vmlinux.bc` and `/home/aspire/programs/linux_kernel/linux-5.7-rc5/vmlinux.bc`
-
 ## 1. `collect` step
 
 This step is mainly for us to collect the packages, compile them and make it analyzable. We can start from a few standpoints, and we'll talk about them in sequence. Note that one single database can contain multiple programs from different sources. So you can freely combine the steps below to construct your own database.
@@ -64,7 +25,7 @@ To initialize the database.
 
 ### 1.1. Collecting pre-compiled packages
 
-If you already have a `.bc` file ready, then this is going to be the quickest way of constructing the database. You just do
+If you already have a `.bc` file ready, then this is going to be the quickest way of constructing the database. Use the following command to collect this `.bc` file into the database:
 
 ```
 $ arbitrar collect PATH/TO/YOUR/BC/FILE.bc

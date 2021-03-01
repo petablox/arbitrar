@@ -13,7 +13,7 @@ Roughly, this tool provides the following:
 
 ## How to use
 
-Please refer to the document [doc/how_to_use.md](doc/how_to_use.md).
+Please first build the project, and then refer to [doc/how_to_use.md](doc/how_to_use.md) to learn to use the tool.
 
 ## Build
 
